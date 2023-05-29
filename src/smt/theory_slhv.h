@@ -16,11 +16,6 @@ namespace smt
 
     class theory_slhv : public theory {
         private:
-        struct var_data {
-            bool is_locvar;
-            bool is_hvar;
-            bool is_heapterm;
-        };
 
         std::set<app *> curr_disj_unions;
         std::set<app *> curr_locvars;
@@ -55,6 +50,8 @@ namespace smt
         collect_vars_in_term(app* term);
 
         std::set<app*> collect_disj_unions(app* term);
+
+
 
         void reset_configs();
 
