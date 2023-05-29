@@ -9,9 +9,55 @@
 #include <map>
 namespace smt
 {
-    class theory_slhv : public theory {
+    class slhv_context {
 
+    };
+
+    class slhv_locvar_equivalence_class {
         private:
+            context& ctx;
+            std::vector<app *>& locvar_set;
+            std::vector<
+                std::vector<std::set<app *>>
+            > established_partitions;
+            bool established;
+
+            smt::theory_id get_id() {
+                return ctx.get_manager().mk_family_id("slhv");
+            }
+
+            bool check_locvars_type() {
+                for(app * l : this->locvar_set) {
+                    if(!l->is_app_of(get_id(), OP_LOCVAR_CONST)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+        public:
+            slhv_locvar_equivalence_class(context& c, std::vector<app *> locvars) : ctx(c), locvar_set(locvars) {
+                SASSERT(check_locvars_type());
+                established = false;
+            }
+
+            void set_locvars(std::vector<app *>& locvars) ;
+
+            void computed_possible_partitions();
+    };
+
+    class theory_slhv : public theory {
+        private:
+        struct var_data {
+            bool is_locvar;
+            bool is_hvar;
+            bool is_heapterm;
+        };
+
+        std::set<app *> curr_disj_unions;
+        std::set<app *> curr_locvars;
+        std::set<app *> curr_hvars;
+
+
         bool final_check();
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
@@ -25,6 +71,17 @@ namespace smt
         bool is_locvar(app const* n) const {
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
+
+        bool internalize_term_core(app * term);
+
+        void set_conflict_slhv();
+
+        // obtain assigned literals from smt_context and analyze 
+        // ast to obtain all location variables, heap variables for later use
+        // analyze all terms to do preprocessing later
+        void collect_and_analyze_assignments();
+        std::pair<std::set<app* >, std::set<app *>> collect_vars_in_term(app* term);
+        void reset_configs();
         public:
         theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
             #ifdef SLHV_DEBUG
@@ -39,14 +96,12 @@ namespace smt
         // interface of class theory
         theory *mk_fresh(context * new_ctx) override;
 
-        
-        protected:
+        theory_var mk_var(enode* n);
+
 
         bool  internalize_atom(app * atom, bool gate_ctx) override;
 
         bool internalize_term(app * term) override;
-
-        bool internalize_term_core(app * term);
 
         void new_eq_eh(theory_var v1, theory_var v2) override;
 
@@ -57,10 +112,13 @@ namespace smt
         
        
 
-        public:
         final_check_status final_check_eh() override {
             return final_check()? FC_DONE : FC_CONTINUE;
         }
+
+        void init_model(model_generator & mg) override;
+
+        model_value_proc * mk_value(enode * n, model_generator & mg) override;
 
 
         // // virtual methods of class theory
@@ -312,5 +370,20 @@ namespace smt
         //  * \brief theory plugin for fixed values.
         //  */
         // virtual bool is_fixed_propagated(theory_var v, expr_ref& val, literal_vector & explain) { return false; }
+    };
+
+
+    class slhv_util {
+        template<typename T>
+        static std::set<T> setUnion(std::set<T> s1, std::set<T> s2) {
+            std::set<T> result;
+            for(T e : s1) {
+                result.insert(e);
+            }
+            for(T e : s2) {
+                result.insert(e);
+            }
+            return result;
+        }
     };
 } // namespace smt

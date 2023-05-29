@@ -3830,7 +3830,7 @@ namespace smt {
         std::cout << "search_bug: " << "status: " << status << ", inconsistent: " << inconsistent() << "\n";
         std::cout << "assigned_literals_per_lvl: " << std::endl;
         display_num_assigned_literals_per_lvl(std::cout);
-        std::cout << ", num_assigned: " << m_assigned_literals.size() << "\n";
+        std::cout << "\n, num_assigned: " << m_assigned_literals.size() << "\n";
         #endif 
             if (!restart(status, curr_lvl)) {
                 break;
@@ -3948,6 +3948,11 @@ namespace smt {
                     if (first_propagate) {
                         first_propagate = false;
                         TRACE("after_first_propagate", display(tout););
+                        #ifdef SLHV_DEBUG
+                        std::cout << "----------------------------------" << std::endl;
+                        display(std::cout);
+                        std::cout << "----------------------------------" << std::endl;
+                        #endif
                     }
                 });
 
@@ -3999,7 +4004,6 @@ namespace smt {
             if (!decide()) {
                 if (inconsistent()) 
                     return l_false;
-                    //TODO: figure out how this work to make it unsat
                 final_check_status fcs = final_check();
                 TRACE("final_check_result", tout << "fcs: " << fcs << " last_search_failure: " << m_last_search_failure << "\n";);
                 switch (fcs) {
@@ -4086,6 +4090,9 @@ namespace smt {
                 IF_VERBOSE(100, verbose_stream() << "(smt.final-check \"" << th->get_name() << "\")\n";);
                 ok = th->final_check_eh();
                 TRACE("final_check_step", tout << "final check '" << th->get_name() << " ok: " << ok << " inconsistent " << inconsistent() << "\n";);
+                #ifdef SLHV_DEBUG
+                std::cout << "final check '" << th->get_name() << " ok: " << ok << " inconsistent " << inconsistent() << "\n";
+                #endif
                 if (ok == FC_GIVEUP) {
                     f  = THEORY;
                     m_incomplete_theories.push_back(th);

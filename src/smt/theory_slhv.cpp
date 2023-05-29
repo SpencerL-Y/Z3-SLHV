@@ -3,6 +3,19 @@
 #include "smt/smt_context.h"
 #include "smt/theory_slhv.h"
 namespace smt {
+
+    void slhv_locvar_equivalence_class::set_locvars(std::vector<app *>& locvars) {
+        this->locvar_set = locvars;
+        SASSERT(check_locvars_type());
+        established = false;
+    }
+
+
+    void slhv_locvar_equivalence_class::computed_possible_partitions() {
+
+    }
+
+    // theory-slhv --------------------------------
     theory *theory_slhv::mk_fresh(context * new_ctx)  {
         #ifdef SLHV_DEBUG
             std::cout << "slhv mk_fresh" << std::endl;
@@ -29,17 +42,26 @@ namespace smt {
             return true;
         }
 
-        if(is_uplus(term) || is_points_to(term)) {
+        if(is_points_to(term)) {
             SASSERT(term->get_num_args() == 2);
             enode* arg0_node = ctx.get_enode(term->get_arg(0));
             enode* arg1_node = ctx.get_enode(term->get_arg(1));
 
             theory_var arg0_var = arg0_node->get_th_var(get_id());
-            theory_var arg1_var = arg0_node->get_th_var(get_id());
+            theory_var arg1_var = arg1_node->get_th_var(get_id());
+            SASSERT(arg0_var != -1 && arg1_var != -1);
+            SASSERT(get_th_var(term) != -1);
             #ifdef SLHV_DEBUG
-            std::cout << "term name: " << term->get_name() << " is_uplus: " << is_uplus(term) << " is_points_to: " << is_points_to(term) << " num args: " << term->get_num_args() << std::endl;
+            std::cout << "term name: " << term->get_name() << " is_points_to: " << is_points_to(term) << " num args: " << term->get_num_args() << std::endl;
             #endif
-        } else {
+        } else if(is_uplus(term)) {
+            SASSERT(term->get_num_args() >= 2);
+            SASSERT(get_th_var(term) != -1);
+            #ifdef SLHV_DEBUG
+            std::cout << "term name: " << term->get_name() << " is_uplus: " << is_uplus(term) << " num args: " << term->get_num_args() << std::endl;
+            #endif
+        }
+        else {
             SASSERT(term->get_num_args() == 0);
         }
         
@@ -60,7 +82,11 @@ namespace smt {
         }
         enode* e = ctx.mk_enode(term, false, false, true);
         if(!is_attached_to_var(e)) {
+            #ifdef SLHV_DEBUG
+            std::cout << "mk_theory_var for " << mk_ismt2_pp(term, m) << std::endl;
+            #endif
             mk_var(e);
+            std::cout << "theory var made: " << get_th_var(e) << std::endl;
         }
         if(m.is_bool(term)) {
             bool_var bv = ctx.mk_bool_var(term);
@@ -85,5 +111,142 @@ namespace smt {
 
     void theory_slhv::display(std::ostream & out) const {
 
+    }
+
+    bool theory_slhv::final_check() {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv final_check()" << std::endl;
+        std::cout << "current assignment: " << std::endl;
+        #endif
+        expr_ref_vector assignments(m);
+        ctx.get_assignments(assignments);
+        // TODO: implement theory check here
+        for(auto e : assignments) {
+
+            
+            #ifdef SLHV_DEBUG
+            std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
+            #endif
+            SASSERT(is_app_of(e, basic_family_id, OP_EQ));
+            app* equality = to_app(e);
+            expr* lhsExpr = std::get<0>(equality->args2());
+            expr* rhsExpr = std::get<1>(equality->args2());
+            theory_var lhsVar = get_th_var(lhsExpr);
+            theory_var rhsVar = get_th_var(rhsExpr);
+            std::cout << "lhsVar: " << lhsVar << std::endl;
+            std::cout << "rhsVar: " << rhsVar << std::endl;
+            enode* lhsNode = get_enode(lhsVar);
+            enode* rhsNode = get_enode(rhsVar);
+            #ifdef SLHV_DEBUG
+            std::cout << "lhsVar: " << lhsVar << std::endl;
+            std::cout << "lhsEnode: " << std::endl;
+            std::cout << mk_ismt2_pp(lhsNode->get_expr(), m) << " " << mk_ismt2_pp(lhsNode->get_root()->get_expr(), m) << std::endl;
+            enode* curr = lhsNode->get_root();
+            enode* head = curr;
+            std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+            curr = curr->get_next();
+            while(curr != head) {
+                std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                curr = curr->get_next();
+            }
+            std::cout << "rhsVar: " << rhsVar << std::endl;
+            std::cout << "rhsEnode: " << std::endl;
+            std::cout << mk_ismt2_pp(rhsNode->get_expr(), m) << " " << mk_ismt2_pp(rhsNode->get_root()->get_expr(), m) << std::endl;
+            curr = rhsNode->get_root();
+            head = curr;
+            std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+            curr = curr->get_next();
+            while(curr != head) {
+                std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                curr = curr->get_next();
+            }
+            #endif
+
+            SASSERT(is_app_of(lhsExpr, ctx.get_manager().mk_family_id("slhv"), OP_HVAR_CONST));
+            if(!is_app_of(rhsExpr, ctx.get_manager().mk_family_id("slhv"), OP_HEAP_DISJUNION)) {
+                ctx.set_conflict(
+                    ctx.mk_justification(
+                    ext_theory_conflict_justification(
+                        get_id(), ctx, 0, nullptr, 0, nullptr, 0, nullptr
+                    ))
+                );
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void theory_slhv::set_conflict_slhv() {
+        ctx.set_conflict(
+            ctx.mk_justification(
+            ext_theory_conflict_justification(
+                get_id(), ctx, 0, nullptr, 0, nullptr, 0, nullptr
+            ))
+        );
+    }
+
+
+    void theory_slhv::collect_and_analyze_assignments() {
+        expr_ref_vector assigned_literals(m);
+        ctx.get_assignments(assigned_literals);
+        for(auto e : assigned_literals) {
+            #ifdef SLHV_DEBUG
+            std::cout << "collect expr: " << mk_ismt2_pp(e, m) << std::endl;
+            #endif
+            app* literal = to_app(e);
+            // three possible literals:
+            // 1. equality 2. inequality 3. list segment
+            if(is_app_of(literal, basic_family_id, OP_EQ) && is_app_of(literal, basic_family_id, OP_DISTINCT)) {
+                expr* lhsExpr = literal->get_arg(0);
+                expr* rhsExpr = literal->get_arg(1);
+                if(lhsExpr->get_kind() == INTLOC_SORT) {
+
+                } else if(lhsExpr->get_kind() == INTHEAP_SORT) {
+
+                } else {
+                    std::cout << "cannot handle current sort" << std::endl;
+                    SASSERT(false);
+                }
+
+            } else if(is_app_of(literal, basic_family_id, OP_NOT)) {
+                expr* negated = literal->get_arg(0);
+                SASSERT(is_app_of(negated, basic_family_id, OP_EQ));
+
+            }
+        }
+    }
+
+    std::pair<std::set<app* >, std::set<app *>> 
+    theory_slhv::collect_vars_in_term(app* term) {
+        std::set<app*> collected_locvars;
+        std::set<app*> collected_hvars;
+        
+        for()
+    }
+
+    void theory_slhv::reset_configs() {
+        this->curr_disj_unions.clear();
+        this->curr_hvars.clear();
+        this->curr_locvars.clear();
+    }
+
+
+    void theory_slhv::init_model(model_generator & mg)  {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv init model" << std::endl;
+        #endif
+    }
+
+    model_value_proc* theory_slhv::mk_value(enode* n, model_generator & mg) {
+
+    }
+
+    theory_var theory_slhv::mk_var(enode* n) {
+        SASSERT(!is_attached_to_var(n));
+        theory_var v = m_var2enode.size();
+        m_var2enode.push_back(n);
+        ctx.attach_th_var(n, this, v);
+        ctx.mark_as_relevant(n);
+        return v;
     }
 }
