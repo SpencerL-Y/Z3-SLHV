@@ -13,37 +13,6 @@ namespace smt
 
     };
 
-    class slhv_locvar_equivalence_class {
-        private:
-            context& ctx;
-            std::vector<app *>& locvar_set;
-            std::vector<
-                std::vector<std::set<app *>>
-            > established_partitions;
-            bool established;
-
-            smt::theory_id get_id() {
-                return ctx.get_manager().mk_family_id("slhv");
-            }
-
-            bool check_locvars_type() {
-                for(app * l : this->locvar_set) {
-                    if(!l->is_app_of(get_id(), OP_LOCVAR_CONST)) {
-                        return false;
-                    }
-                }
-                return true;
-            }
-        public:
-            slhv_locvar_equivalence_class(context& c, std::vector<app *> locvars) : ctx(c), locvar_set(locvars) {
-                SASSERT(check_locvars_type());
-                established = false;
-            }
-
-            void set_locvars(std::vector<app *>& locvars) ;
-
-            void computed_possible_partitions();
-    };
 
     class theory_slhv : public theory {
         private:
@@ -79,9 +48,16 @@ namespace smt
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use
         // analyze all terms to do preprocessing later
+
         void collect_and_analyze_assignments();
-        std::pair<std::set<app* >, std::set<app *>> collect_vars_in_term(app* term);
+
+        std::pair<std::set<app* >, std::set<app *>> 
+        collect_vars_in_term(app* term);
+
+        std::set<app*> collect_disj_unions(app* term);
+
         void reset_configs();
+
         public:
         theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
             #ifdef SLHV_DEBUG
@@ -374,6 +350,7 @@ namespace smt
 
 
     class slhv_util {
+        public:
         template<typename T>
         static std::set<T> setUnion(std::set<T> s1, std::set<T> s2) {
             std::set<T> result;

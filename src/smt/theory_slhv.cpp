@@ -4,17 +4,6 @@
 #include "smt/theory_slhv.h"
 namespace smt {
 
-    void slhv_locvar_equivalence_class::set_locvars(std::vector<app *>& locvars) {
-        this->locvar_set = locvars;
-        SASSERT(check_locvars_type());
-        established = false;
-    }
-
-
-    void slhv_locvar_equivalence_class::computed_possible_partitions() {
-
-    }
-
     // theory-slhv --------------------------------
     theory *theory_slhv::mk_fresh(context * new_ctx)  {
         #ifdef SLHV_DEBUG
@@ -120,10 +109,12 @@ namespace smt {
         #endif
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+        // reset collected hvars, locvars and 
+        this->reset_configs();
         // TODO: implement theory check here
         for(auto e : assignments) {
 
-            
+            /*-------------- learning enode -----------*/
             #ifdef SLHV_DEBUG
             std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
             #endif
@@ -218,10 +209,38 @@ namespace smt {
 
     std::pair<std::set<app* >, std::set<app *>> 
     theory_slhv::collect_vars_in_term(app* term) {
+        // collect all locvars and hvars appeared recursively.
         std::set<app*> collected_locvars;
         std::set<app*> collected_hvars;
         
-        for()
+        if(term->is_app_of(get_id(), OP_HVAR_CONST)) {
+            collected_hvars.insert(term);
+            return {collected_locvars, collected_hvars};
+        } else if(term->is_app_of(get_id(), OP_LOCVAR_CONST)) {
+            collected_locvars.insert(term);
+            return {collected_locvars, collected_hvars};
+        } else {
+            for(int i = 0; i < term->get_num_args(); i ++) {
+                auto temp_result_pair = this->collect_vars_in_term(to_app(term->get_arg(i)));
+                collected_locvars = slhv_util::setUnion(collected_locvars, temp_result_pair.first);
+                collected_hvars = slhv_util::setUnion(collected_hvars, temp_result_pair.second);
+            }
+            return {collected_locvars, collected_hvars};
+        }
+    }
+
+    
+    std::set<app*> theory_slhv::collect_disj_unions(app* term) {
+        // collect all app that is disjoint union of heap terms recursively.
+        std::set<app*> collected_disj_unions;
+        if(term->is_app_of(get_id(), OP_HEAP_DISJUNION)) {
+            collected_disj_unions.insert(term);
+        } else {
+            for(int i = 0; i < term->get_num_args(); i ++) {
+                collected_disj_unions = slhv_util::setUnion(collected_disj_unions, this->collect_disj_unions(to_app(term->get_arg(i))));
+            }
+        }
+        return collected_disj_unions;
     }
 
     void theory_slhv::reset_configs() {
