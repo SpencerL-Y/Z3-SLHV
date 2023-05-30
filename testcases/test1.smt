@@ -1,0 +1,13 @@
+(set-logic SLHV)
+(declare-hvar h1 IntHeap)
+(declare-hvar h2 IntHeap)
+(declare-hvar h3 IntHeap)
+(declare-locvar l1 IntLoc)
+(declare-locvar l2 IntLoc)
+(assert (= h1 (uplus h2 h1) ))
+(assert (= h2 (pt l1 l2)))
+(assert (not (= h1 h3)))
+(assert (distinct l1 l2))
+(check-sat)
+(get-model)
+

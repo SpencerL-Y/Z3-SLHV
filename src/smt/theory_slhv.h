@@ -118,7 +118,6 @@ namespace smt
 
         void init_model(model_generator & mg) override;
 
-        model_value_proc * mk_value(enode * n, model_generator & mg) override;
 
 
         // // virtual methods of class theory
