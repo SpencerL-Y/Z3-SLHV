@@ -405,7 +405,7 @@ namespace smt {
 
 
     std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs){
-        auto unique_node_map = this->get_coarse_locvar_eq();
+        auto unique_node_map = std::move(this->get_coarse_locvar_eq());
 
 
         std::map<enode*, std::set<app*>> result = unique_node_map;
