@@ -2,6 +2,9 @@
 #pragma once
 #include "ast/ast.h"
 
+#define INTHEAP_SORT_STR "IntHeap"
+#define INTLOC_SORT_STR "IntLoc"
+#define INTDATA_SORT_STR "IntData"
 // SLHV
 enum slhv_sort_kind {
     INTHEAP_SORT,

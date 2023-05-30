@@ -20,9 +20,6 @@ slhv_decl_plugin::slhv_decl_plugin() :
 }
 
 
-#define INTHEAP_SORT_STR "IntHeap"
-#define INTLOC_SORT_STR "IntLoc"
-#define INTDATA_SORT_STR "IntData"
 
 sort* slhv_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter const* parameters) {
     if(k == INTHEAP_SORT) {

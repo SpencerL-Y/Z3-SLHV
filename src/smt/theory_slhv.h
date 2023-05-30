@@ -17,9 +17,15 @@ namespace smt
     class theory_slhv : public theory {
         private:
 
-        std::set<app *> curr_disj_unions;
         std::set<app *> curr_locvars;
         std::set<app *> curr_hvars;
+
+
+        std::set<app *> curr_disj_unions;
+        std::set<app *> curr_loc_cnstr;
+        std::set<app *> curr_heap_cnstr;
+
+        std::set<enode_pair> curr_distinct_locterm_pairs;
 
 
         bool final_check();
@@ -36,6 +42,14 @@ namespace smt
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
 
+        bool is_heapterm(app const* n) const {
+            return (n->get_sort()->get_name() == INTHEAP_SORT_STR);
+        }
+
+        bool is_locterm(app const* n) const {
+            return (n->get_sort()->get_name() == INTLOC_SORT_STR);
+        }
+
         bool internalize_term_core(app * term);
 
         void set_conflict_slhv();
@@ -44,16 +58,29 @@ namespace smt
         // ast to obtain all location variables, heap variables for later use
         // analyze all terms to do preprocessing later
 
-        void collect_and_analyze_assignments();
+        void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
+        void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
+        void collect_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
+
+        void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
 
         std::pair<std::set<app* >, std::set<app *>> 
-        collect_vars_in_term(app* term);
+        collect_vars(app* expression);
 
-        std::set<app*> collect_disj_unions(app* term);
+        std::set<app*> collect_disj_unions(app* expression);
 
-
+        void record_distinct_locterms(app* atom);
 
         void reset_configs();
+        // checking logic
+
+        std::map<enode*, std::set<app*>> get_coarse_locvar_eq();
+
+        std::vector<enode_pair> unassigned_locvar_pairs();
+
+        std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
+
+        std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs);
 
         public:
         theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
@@ -358,6 +385,21 @@ namespace smt
                 result.insert(e);
             }
             return result;
+        }
+
+        template<typename T>
+        static bool setEqual(std::set<T> s1, std::set<T> s2) {
+            for(T t1 : s1) {
+                if(s2.find(t1) == s2.end()) {
+                    return false;
+                }
+            }
+            for(T t2 : s2) {
+                if(s1.find(t2) == s1.end()) {
+                    return false;
+                }
+            }
+            return true;
         }
     };
 } // namespace smt
