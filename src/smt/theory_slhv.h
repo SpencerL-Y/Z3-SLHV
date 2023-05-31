@@ -10,7 +10,7 @@
 namespace smt
 {
     class slhv_context {
-
+        //TODO: extract the attributes in theory_slhv to make it neat
     };
 
     class theory_slhv : public theory {
@@ -94,7 +94,7 @@ namespace smt
         std::vector<enode_pair> get_unassigned_locvar_pairs();
 
         std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs);
-        
+
         std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
 
 
@@ -393,6 +393,21 @@ namespace smt
         // virtual bool is_fixed_propagated(theory_var v, expr_ref& val, literal_vector & explain) { return false; }
     };
 
+    class locvar_eq {
+        private:
+            theory_slhv& th;
+            std::map<enode*, std::set<app*>> raw_eq_data;
+        public: 
+            locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& raw_eq) : th(t), raw_eq_data(raw_eq) {}
+
+    };
+
+    class hvar_eq {
+        private:
+            theory_slhv& th;
+        public:
+        hvar_eq();
+    };
 
     class slhv_util {
         public:

@@ -131,14 +131,16 @@ namespace smt {
         this->reset_configs();
         // preprocessing
         this->preprocessing(assignments);
-        // TODO: implement theory check here
-        
+        //
+        std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
+
+        /* FOR TESTING PURPOSE
         for(auto e : assignments) {
             /*-------------- learning enode -----------*/
-            #ifdef SLHV_DEBUG
-            std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
-            #endif
-            SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e, basic_family_id, OP_NOT));
+            // #ifdef SLHV_DEBUG
+            // std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
+            // #endif
+            // SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e, basic_family_id, OP_NOT));
             // app* equality = to_app(e);
             // expr* lhsExpr = std::get<0>(equality->args2());
             // expr* rhsExpr = std::get<1>(equality->args2());
@@ -184,8 +186,8 @@ namespace smt {
             //         ))
             //     );
             //     return false;
-            // }
-        }
+            // }*/
+        // }
         return true;
     }
 
