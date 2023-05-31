@@ -5,6 +5,24 @@
 namespace smt {
 
     // theory-slhv --------------------------------
+
+
+    bool theory_slhv::enode_contains_points_to(enode* node) {
+        enode* curr_node = node;
+        app* node_app = curr_node->get_expr();
+        if(is_points_to(node_app)) {
+            return true;
+        }
+        curr_node = node->get_next();
+        while(curr_node != node) {
+            node_app = curr_node->get_expr();
+            if(is_points_to(node_app)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     theory *theory_slhv::mk_fresh(context * new_ctx)  {
         #ifdef SLHV_DEBUG
             std::cout << "slhv mk_fresh" << std::endl;
@@ -111,9 +129,8 @@ namespace smt {
         ctx.get_assignments(assignments);
         // reset collected hvars, locvars and 
         this->reset_configs();
-        // pre-analysis and determine the equivalence relation on loctation variables
-        this->collect_and_analyze_assignments(assignments);
-        this->record_distinct_locterms_in_assignments(assignments);
+        // preprocessing
+        this->preprocessing(assignments);
         // TODO: implement theory check here
         
         for(auto e : assignments) {
@@ -181,6 +198,12 @@ namespace smt {
         );
     }
 
+    void theory_slhv::preprocessing(expr_ref_vector assigned_literals) {
+        this->collect_and_analyze_assignments(assigned_literals);
+        this->record_distinct_locterms_in_assignments(assigned_literals);
+        this->infer_distinct_locterms_in_assignments(assigned_literals);
+        this->infer_emp_hterms();
+    }
 
     void theory_slhv::collect_and_analyze_assignments(expr_ref_vector assigned_literals) {
         for(auto e : assigned_literals) {
@@ -190,9 +213,9 @@ namespace smt {
             app* app_e = to_app(e);
             auto collected_vars = this->collect_vars(app_e);
             this->curr_locvars = slhv_util::setUnion(this->curr_locvars, collected_vars.first);
-            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, collected_vars.second);
-            
+            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, collected_vars.second);            
             this->curr_disj_unions = slhv_util::setUnion(this->curr_disj_unions, this->collect_disj_unions(app_e));
+            this->curr_pts = slhv_util::setUnion(this->curr_pts, this->collect_points_tos(app_e));
         }
     }
 
@@ -229,6 +252,17 @@ namespace smt {
             collected_disj_unions = slhv_util::setUnion(collected_disj_unions, this->collect_disj_unions(to_app(expression->get_arg(i))));
         }
         return collected_disj_unions;
+    }
+
+    std::set<app*> theory_slhv::collect_points_tos(app* expression) {
+        std::set<app*> collected_points_tos;
+        if(is_points_to(expression)) {
+            collected_points_tos.insert(expression);
+        }
+        for(int i = 0; i < expression->get_num_args(); i ++) {
+            collected_points_tos = slhv_util::setUnion(collected_points_tos, this->collect_points_tos(to_app(expression->get_arg(i))));
+        }
+        return collected_points_tos;
     }
 
     void theory_slhv::record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
@@ -302,16 +336,19 @@ namespace smt {
         }
     }
 
-    void theory_slhv::collect_heap_cnstr_in_assignments(expr_ref_vector assigned_literals){
-
-    }
 
     void theory_slhv::reset_configs() {
+        this->curr_pts.clear();
         this->curr_disj_unions.clear();
         this->curr_hvars.clear();
         this->curr_locvars.clear();
 
         this->curr_distinct_locterm_pairs.clear();
+        this->curr_loc_cnstr.clear();
+        this->curr_heap_cnstr.clear();
+
+        this->curr_distinct_locterm_pairs.clear();
+        this->curr_inferred_emp_heap_enodes.clear();
     }
 
     // check_logic
@@ -332,7 +369,7 @@ namespace smt {
         return unique_node_map;
     }
 
-    std::vector<enode_pair> theory_slhv::unassigned_locvar_pairs(){
+    std::vector<enode_pair> theory_slhv::get_unassigned_locvar_pairs(){
         std::map<enode*, std::set<app*>> unique_node_map = this->get_coarse_locvar_eq();
         std::vector<enode*> nodes;
         for(auto record : unique_node_map) {
@@ -348,10 +385,29 @@ namespace smt {
         return result;
     }
 
+
+    std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs){
+        auto unique_node_map = std::move(this->get_coarse_locvar_eq());
+
+
+        std::map<enode*, std::set<app*>> result = unique_node_map;
+        for(enode_pair p : assigned_pairs) {
+            if(!slhv_util::setEqual(result[p.first], result[p.second])) {
+                std::set<app*> firstSet = result[p.first];
+                std::set<app*> secondSet = result[p.second];
+                std::set<app*> mergedSet = slhv_util::setUnion(firstSet, secondSet);
+                result[p.first] = mergedSet;
+                result[p.second] = mergedSet;
+            }
+        }
+
+        return result;
+    }
+
     std::vector<std::map<enode*, std::set<app*>>> theory_slhv::get_feasbible_locvars_eq() {
         // enumerate all feasible assignment to assignable locvar enode pairs
         // the result is a vector of map, where each map represents a way to do the partition of locvar eq
-        std::vector<enode_pair> unassigned_pairs = this->unassigned_locvar_pairs();
+        std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
         std::vector<enode_pair> assignable_pairs;
         for(auto p : unassigned_pairs) {
             for(auto conflict : this->curr_distinct_locterm_pairs) {
@@ -402,25 +458,70 @@ namespace smt {
     }
 
 
-
-
-    std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs){
-        auto unique_node_map = std::move(this->get_coarse_locvar_eq());
-
-
-        std::map<enode*, std::set<app*>> result = unique_node_map;
-        for(enode_pair p : assigned_pairs) {
-            if(!slhv_util::setEqual(result[p.first], result[p.second])) {
-                std::set<app*> firstSet = result[p.first];
-                std::set<app*> secondSet = result[p.second];
-                std::set<app*> mergedSet = slhv_util::setUnion(firstSet, secondSet);
-                result[p.first] = mergedSet;
-                result[p.second] = mergedSet;
+    void theory_slhv::infer_emp_hterms() {
+        for(app* disju : this->curr_disj_unions) {
+            SASSERT(this->is_uplus(disju));
+            for(int i = 0; i < disju->get_num_args(); i ++) {
+                for(int j = i + 1; i < disju->get_num_args(); j ++) {
+                    enode* node_i = ctx.get_enode(disju->get_arg(i));
+                    enode* node_j = ctx.get_enode(disju->get_arg(j));
+                    if(node_i->get_root() == node_j->get_root()) {
+                        this->curr_inferred_emp_heap_enodes.insert(node_j->get_root());
+                        if(this->enode_contains_points_to(node_j->get_root())){
+                            // UNSAT
+                            // reason: infered emp hterm is a points-to
+                            this->check_status = slhv_unsat;
+                            this->set_conflict_slhv();
+                        }
+                    }
+                }
             }
         }
-
-        return result;
     }
+
+    void theory_slhv::infer_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
+        for(auto e : assigned_literals) {
+            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
+                // PASS because the heap term can be \bot
+            } else {
+                this->infer_distinct_locterms(to_app(e));
+            }
+        }
+    }
+
+    void theory_slhv::infer_distinct_locterms(app* e) {
+        SASSERT(!e->is_app_of(basic_family_id, OP_NOT));
+        if(is_uplus(e)) {
+            std::vector<app*> disj_pts;
+            for(int i = 0; i < e->get_num_args(); i ++) {
+                if(is_points_to(to_app(e->get_arg(i)))) {
+                    disj_pts.push_back(to_app(e->get_arg(i)));
+                }
+            }
+            for(int i = 0; i < disj_pts.size(); i ++) {
+                for(int j = i + 1; j < disj_pts.size(); j ++) {
+                    expr* addr_i = disj_pts[i]->get_arg(0);
+                    expr* addr_j = disj_pts[j]->get_arg(0);
+                    enode* node_addr_i = ctx.get_enode(addr_i);
+                    enode* node_addr_j = ctx.get_enode(addr_j);
+                    if(node_addr_i->get_root() == node_addr_j->get_root()) {
+                        // UNSAT
+                        // reason: two identical addr in one disj_union term
+                        this->check_status = slhv_unsat;
+                        this->set_conflict_slhv();
+                    } else {
+                        this->curr_distinct_locterm_pairs.insert({node_addr_i, node_addr_j});
+                    }
+                }
+            }
+        } else {
+            for(int i = 0; i < e->get_num_args(); i ++ ) {
+                this->infer_distinct_locterms(to_app(e->get_arg(i)));
+            }
+        }
+    }
+
+
 
     void theory_slhv::init_model(model_generator & mg)  {
         #ifdef SLHV_DEBUG

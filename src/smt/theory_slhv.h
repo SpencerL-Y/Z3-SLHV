@@ -13,19 +13,28 @@ namespace smt
 
     };
 
-
     class theory_slhv : public theory {
         private:
 
+        enum slhv_check_status {
+            slhv_unsat,
+            slhv_sat,
+            slhv_unknown
+        };
+
+        slhv_check_status check_status;
+
         std::set<app *> curr_locvars;
         std::set<app *> curr_hvars;
-
-
         std::set<app *> curr_disj_unions;
+        std::set<app *> curr_pts;
+
         std::set<app *> curr_loc_cnstr;
         std::set<app *> curr_heap_cnstr;
 
         std::set<enode_pair> curr_distinct_locterm_pairs;
+        std::set<enode*> curr_inferred_emp_heap_enodes;
+
 
 
         bool final_check();
@@ -50,6 +59,8 @@ namespace smt
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
 
+        bool enode_contains_points_to(enode* node);
+
         bool internalize_term_core(app * term);
 
         void set_conflict_slhv();
@@ -57,18 +68,22 @@ namespace smt
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use
         // analyze all terms to do preprocessing later
-
+        void preprocessing(expr_ref_vector assigned_literals);
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
         void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
-        void collect_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
 
-        void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
+        
 
         std::pair<std::set<app* >, std::set<app *>> 
         collect_vars(app* expression);
 
         std::set<app*> collect_disj_unions(app* expression);
 
+        std::set<app*> collect_points_tos(app* expression);
+        
+
+        void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
+        
         void record_distinct_locterms(app* atom);
 
         void reset_configs();
@@ -76,11 +91,18 @@ namespace smt
 
         std::map<enode*, std::set<app*>> get_coarse_locvar_eq();
 
-        std::vector<enode_pair> unassigned_locvar_pairs();
-
-        std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
+        std::vector<enode_pair> get_unassigned_locvar_pairs();
 
         std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs);
+        
+        std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
+
+
+        void infer_emp_hterms();
+
+        void infer_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
+
+        void infer_distinct_locterms(app* expr);
 
         public:
         theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
