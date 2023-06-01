@@ -129,17 +129,20 @@ namespace smt {
         ctx.get_assignments(assignments);
         // reset collected hvars, locvars and 
         this->reset_configs();
+
+        // TODO: enumerate all possible situations for negation imposed on hterm equalities.
+        
         // preprocessing
         this->preprocessing(assignments);
         //
         std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
 
-        /* FOR TESTING PURPOSE
+        
         for(auto e : assignments) {
             /*-------------- learning enode -----------*/
-            // #ifdef SLHV_DEBUG
-            // std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
-            // #endif
+            #ifdef SLHV_DEBUG
+            std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
+            #endif
             // SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e, basic_family_id, OP_NOT));
             // app* equality = to_app(e);
             // expr* lhsExpr = std::get<0>(equality->args2());
@@ -186,8 +189,8 @@ namespace smt {
             //         ))
             //     );
             //     return false;
-            // }*/
-        // }
+            // }
+         }
         return true;
     }
 
@@ -201,13 +204,22 @@ namespace smt {
     }
 
     void theory_slhv::preprocessing(expr_ref_vector assigned_literals) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv preprocessing" << std::endl;
+        #endif
         this->collect_and_analyze_assignments(assigned_literals);
         this->record_distinct_locterms_in_assignments(assigned_literals);
         this->infer_distinct_locterms_in_assignments(assigned_literals);
         this->infer_emp_hterms();
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv preprocessing end" << std::endl;
+        #endif
     }
 
     void theory_slhv::collect_and_analyze_assignments(expr_ref_vector assigned_literals) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv collect and analze assignments" << std::endl;
+        #endif
         for(auto e : assigned_literals) {
             #ifdef SLHV_DEBUG
             std::cout << "collect expr: " << mk_ismt2_pp(e, m) << std::endl;
@@ -268,6 +280,10 @@ namespace smt {
     }
 
     void theory_slhv::record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "record distinct locterms in assignments" << std::endl;
+        #endif
         for(auto e : assigned_literals) {
             this->record_distinct_locterms(to_app(e));
         }
@@ -350,12 +366,16 @@ namespace smt {
         this->curr_heap_cnstr.clear();
 
         this->curr_distinct_locterm_pairs.clear();
-        this->curr_inferred_emp_heap_enodes.clear();
+        this->curr_emp_hterm_enodes.clear();
+        this->curr_notnil_locterms_enodes.clear();
     }
 
     // check_logic
 
     std::map<enode*, std::set<app*>> theory_slhv::get_coarse_locvar_eq() {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv get_coarse_locvar_eq" << std::endl;
+        #endif
         std::map<enode*, std::set<app*>> unique_node_map;
         for(app* locvar : this->curr_locvars) {
             theory_var lv = get_th_var(locvar);
@@ -372,6 +392,9 @@ namespace smt {
     }
 
     std::vector<enode_pair> theory_slhv::get_unassigned_locvar_pairs(){
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv get_unassigned_locvar_pairs" << std::endl;
+        #endif
         std::map<enode*, std::set<app*>> unique_node_map = this->get_coarse_locvar_eq();
         std::vector<enode*> nodes;
         for(auto record : unique_node_map) {
@@ -380,7 +403,7 @@ namespace smt {
 
         std::vector<enode_pair> result;
         for(int i = 0; i < nodes.size(); i ++ ) {
-            for(int j = i + 1; i < nodes.size(); j ++) {
+            for(int j = i + 1; j < nodes.size(); j ++) {
                 result.push_back({nodes[i], nodes[j]});
             }
         }
@@ -389,12 +412,15 @@ namespace smt {
 
 
     std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs){
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv get_fine_locvar_eq" << std::endl;
+        #endif
         auto unique_node_map = std::move(this->get_coarse_locvar_eq());
 
 
         std::map<enode*, std::set<app*>> result = unique_node_map;
         for(enode_pair p : assigned_pairs) {
-            if(!slhv_util::setEqual(result[p.first], result[p.second])) {
+            if(!slhv_util::setEqual(result[p.first->get_root()], result[p.second->get_root()])) {
                 std::set<app*> firstSet = result[p.first];
                 std::set<app*> secondSet = result[p.second];
                 std::set<app*> mergedSet = slhv_util::setUnion(firstSet, secondSet);
@@ -407,6 +433,9 @@ namespace smt {
     }
 
     std::vector<std::map<enode*, std::set<app*>>> theory_slhv::get_feasbible_locvars_eq() {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv get_feasible_locvars_eq" << std::endl;
+        #endif
         // enumerate all feasible assignment to assignable locvar enode pairs
         // the result is a vector of map, where each map represents a way to do the partition of locvar eq
         std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
@@ -461,14 +490,17 @@ namespace smt {
 
 
     void theory_slhv::infer_emp_hterms() {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv inter emp hterms" << std::endl;
+        #endif
         for(app* disju : this->curr_disj_unions) {
             SASSERT(this->is_uplus(disju));
             for(int i = 0; i < disju->get_num_args(); i ++) {
-                for(int j = i + 1; i < disju->get_num_args(); j ++) {
+                for(int j = i + 1; j < disju->get_num_args(); j ++) {
                     enode* node_i = ctx.get_enode(disju->get_arg(i));
                     enode* node_j = ctx.get_enode(disju->get_arg(j));
                     if(node_i->get_root() == node_j->get_root()) {
-                        this->curr_inferred_emp_heap_enodes.insert(node_j->get_root());
+                        this->curr_emp_hterm_enodes.insert(node_j->get_root());
                         if(this->enode_contains_points_to(node_j->get_root())){
                             // UNSAT
                             // reason: infered emp hterm is a points-to
@@ -482,6 +514,10 @@ namespace smt {
     }
 
     void theory_slhv::infer_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer distinct locterms in assignments" << std::endl;
+        #endif
         for(auto e : assigned_literals) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
                 // PASS because the heap term can be \bot
@@ -492,6 +528,9 @@ namespace smt {
     }
 
     void theory_slhv::infer_distinct_locterms(app* e) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer_distinct_locterms: " << mk_ismt2_pp(e, m) << std::endl;
+        #endif
         SASSERT(!e->is_app_of(basic_family_id, OP_NOT));
         if(is_uplus(e)) {
             std::vector<app*> disj_pts;
@@ -523,6 +562,33 @@ namespace smt {
         }
     }
 
+    void theory_slhv::infer_notnil_locterms_in_assignments(expr_ref_vector assigned_literals) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer notnil locterms in assignments" << std::endl;
+        #endif
+        for(auto e : assigned_literals) {
+            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
+                // PASS because the heap term can be \bot
+            } else {
+                this->infer_notnil_locterms(to_app(e));
+            }
+        }
+    }
+
+
+    void theory_slhv::infer_notnil_locterms(app* expr) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer_distinct_locterms: " << mk_ismt2_pp(expr, m) << std::endl;
+        #endif
+        SASSERT(!expr->is_app_of(basic_family_id, OP_NOT));
+        if(is_points_to(expr)) {
+            this->curr_notnil_locterms_enodes.insert(ctx.get_enode(expr)->get_root());
+        } else {
+            for(int i = 0; i < expr->get_num_args(); i ++) {
+                this->infer_notnil_locterms(expr->get_arg(i));
+            }
+        }
+    }
 
 
     void theory_slhv::init_model(model_generator & mg)  {
