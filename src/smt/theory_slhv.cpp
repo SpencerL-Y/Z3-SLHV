@@ -211,6 +211,7 @@ namespace smt {
         this->record_distinct_locterms_in_assignments(assigned_literals);
         this->infer_distinct_locterms_in_assignments(assigned_literals);
         this->infer_emp_hterms();
+        // TODO: add the equivalence checking of nil
         #ifdef SLHV_DEBUG
         std::cout << "slhv preprocessing end" << std::endl;
         #endif
@@ -585,7 +586,7 @@ namespace smt {
             this->curr_notnil_locterms_enodes.insert(ctx.get_enode(expr)->get_root());
         } else {
             for(int i = 0; i < expr->get_num_args(); i ++) {
-                this->infer_notnil_locterms(expr->get_arg(i));
+                this->infer_notnil_locterms(to_app(expr->get_arg(i)));
             }
         }
     }
@@ -605,4 +606,42 @@ namespace smt {
         ctx.mark_as_relevant(n);
         return v;
     }
+
+    locvar_eq::locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& fine_d) {
+        this->th = t;
+        for(auto map_pair : fine_d) {
+            if(this->fine_data[map_pair.first].empty()) {
+                for(app* locvar : map_pair.second) {
+                    this->fine_data[map_pair.first].push_back(locvar);
+                }
+            }
+        }
+    }
+
+    bool locvar_eq::is_in_same_class(app* loc1, app* loc2) {
+        if(this->fine_data[th.get_context().get_enode(loc1)->get_root()] == 
+           this->fine_data[th.get_context().get_enode(loc2)->get_root()]) {
+                return true;
+           } else {
+                return false;
+           }
+    }
+
+    app* locvar_eq::get_leader_locvar(app* loc) {
+        return this->fine_data[th.get_context().get_enode(loc)->get_root()][0];
+    }
+
+    coarse_hvar_eq::coarse_hvar_eq(theory_slhv& t) {
+        this->th = t;
+    }
+
+    int coarse_hvar_eq::is_in_same_class(app* hvar1, app* hvar2) {
+        if(this->th.get_context().get_enode(hvar1)->get_root() == 
+           this->th.get_context().get_enode(hvar2)->get_root()) {
+            return 1;
+        } else  {
+            return -1;
+        }
+    }
+
 }

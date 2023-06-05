@@ -20,7 +20,7 @@ namespace smt
             slhv_unknown
         };
 
-        private:
+        
         // configurations for a call of final_check
         slhv_check_status check_status;
 
@@ -38,7 +38,7 @@ namespace smt
 
         // check_context for a construction based on locvar_eq and negation choice
 
-
+        private:
         bool final_check();
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
@@ -403,29 +403,27 @@ namespace smt
     class locvar_eq {
         private:
             theory_slhv& th;
+            std::map<enode*, std::vector<app*>> fine_data;
         public: 
-            locvar_eq(theory_slhv& t);
+            locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& fine_data);
             bool is_in_same_class(app* loc1, app* loc2);
             app* get_leader_locvar(app* loc);
+            // TODO: add is nil judgement here
 
     };
 
-    class hvar_eq {
+    class coarse_hvar_eq {
         private:
             theory_slhv& th;
+            std::map<enode*, std::vector<app*>>
         public:
-        hvar_eq(theory_slhv& th);
+        coarse_hvar_eq(theory_slhv& th);
+        // return 1 for yes, 0 for no and -1 for not sure
+        int is_in_same_class(app* hvar1, app* hvar2);
+        app* get_leader_hvar(app* hvar);
     };
 
-    class hvar_leader {
-        private: 
-            locvar_eq& locvar_eq;
-            hvar_eq& hvar_eq;
 
-            bool is_emp;
-        public:
-            hvar_leader(locvar_eq& lveq, hvar_eq& hveq, bool is_emp);
-    };
 
 // util class
     class slhv_util {
