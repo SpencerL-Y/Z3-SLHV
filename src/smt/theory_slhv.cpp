@@ -681,17 +681,35 @@ namespace smt {
     }
 
     app* locvar_eq::get_leader_locvar(app* loc) {
-        return this->fine_data[th.get_context().get_enode(loc)->get_root()][0];
+        if(this->is_nil(loc)) {
+            return this->th.global_nil;
+        } else {
+            return this->fine_data[th.get_context().get_enode(loc)->get_root()][0];
+        }
     }
 
     bool locvar_eq::is_nil(app* loc) {
         enode* loc_root = this->th.get_context().get_enode(loc)->get_root();
         for(app* l : this->fine_data[loc_root]) {
-            if(this->th.get_context().get_enode(l)->get_root() == this->th.get_context().get_enode(this->th.global_emp)->get_root()) {
+            if(l == this->th.global_nil) {
                 return true;
             }
         }
         return false;
+    }
+
+
+    std::vector<app*> locvar_eq::get_leader_locvars() {
+        std::vector<app*> result;
+        result.push_back(this->th.global_nil);
+        for(auto pair : fine_data) {
+            if(this->is_nil(pair.second[0])) {
+                
+            } else {
+                result.push_back(pair.second[0]);
+            }
+        }
+        return result;
     }
 
     coarse_hvar_eq::coarse_hvar_eq(theory_slhv& t) {
@@ -721,7 +739,11 @@ namespace smt {
 
     app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
         enode* hvar_root_node = this->th.get_context().get_enode(hvar)->get_root();
-        return this->coarse_data[hvar_root_node][0];
+        if(this->is_emp_hvar(hvar)) {
+            return this->th.global_emp;
+        } else {
+            return this->coarse_data[hvar_root_node][0];
+        }
     }
 
     int coarse_hvar_eq::is_emp_hvar(app* hvar) {
@@ -737,8 +759,19 @@ namespace smt {
 
     std::vector<app*> coarse_hvar_eq::get_leader_hvars() {
         std::vector<app*> result;
+        result.push_back(this->th.global_emp);
         for(auto pair : this->coarse_data) {
-            result.push_back(pair.second[0]);
+            bool pair_is_emp = false;
+            for(app* temp_hvar : pair.second) {
+                if(this->is_emp_hvar(temp_hvar)) {
+                    pair_is_emp = true;
+                    break;
+                }
+            }
+            if(!pair_is_emp) {
+                result.push_back(pair.second[0]);
+            }
         }
+        return result;
     }
 }

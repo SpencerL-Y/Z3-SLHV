@@ -430,6 +430,8 @@ namespace smt
             app* get_leader_locvar(app* loc);
             bool is_nil(app* loc);
 
+            std::vector<app*> get_leader_locvars();
+
     };
 
     class coarse_hvar_eq {
