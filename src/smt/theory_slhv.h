@@ -41,8 +41,6 @@ namespace smt
 
         // check_context for a construction based on locvar_eq and negation choice
 
-        private:
-        bool final_check();
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
@@ -71,6 +69,9 @@ namespace smt
         bool is_locterm(app const* n) const {
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
+        private:
+        bool final_check();
+        
 
         bool enode_contains_points_to(enode* node);
 
@@ -103,6 +104,11 @@ namespace smt
         
         void record_distinct_locterms(app* atom);
 
+        // TODO: imple
+        void record_distinct_heapterms_in_assignments(app* atom);
+        // TODO: imple
+        void record_distinct_heapterms(app* atom);
+
         void reset_configs();
         // checking logic
 
@@ -113,7 +119,6 @@ namespace smt
         std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs);
 
         std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
-
 
         void infer_emp_hterms();
 
@@ -423,7 +428,7 @@ namespace smt
             locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& fine_data);
             bool is_in_same_class(app* loc1, app* loc2);
             app* get_leader_locvar(app* loc);
-            // TODO: add is nil judgement here
+            bool is_nil(app* loc);
 
     };
 

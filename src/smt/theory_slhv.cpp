@@ -684,6 +684,16 @@ namespace smt {
         return this->fine_data[th.get_context().get_enode(loc)->get_root()][0];
     }
 
+    bool locvar_eq::is_nil(app* loc) {
+        enode* loc_root = this->th.get_context().get_enode(loc)->get_root();
+        for(app* l : this->fine_data[loc_root]) {
+            if(this->th.get_context().get_enode(l)->get_root() == this->th.get_context().get_enode(this->th.global_emp)->get_root()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     coarse_hvar_eq::coarse_hvar_eq(theory_slhv& t) {
         this->th = t;
         for(app* hvar : this->th.curr_hvars) {
@@ -716,7 +726,8 @@ namespace smt {
 
     int coarse_hvar_eq::is_emp_hvar(app* hvar) {
         enode* hvar_root_node = this->th.get_context().get_enode(hvar)->get_root();
-        if(this->th.curr_emp_hterm_enodes.find(hvar_root_node) != this->th.curr_emp_hterm_enodes.end()) {
+        if(this->th.curr_emp_hterm_enodes.find(hvar_root_node) != this->th.curr_emp_hterm_enodes.end() || 
+           this->th.get_context().get_enode(this->th.global_emp)->get_root() == hvar_root_node) {
             return 1;
         } else {
             return -1;
