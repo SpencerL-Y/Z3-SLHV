@@ -123,6 +123,31 @@ func_decl* slhv_decl_plugin::mk_const_locvar(sort* range, unsigned arity, sort* 
     return result_decl;
 
 }
+
+
+func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* const* domain) {
+    SASSERT(arity == 0);
+    func_decl_info info(m_family_id, OP_EMP);
+
+    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_emp result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    #endif
+    this->global_emp = result_decl;
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* const* domain) {
+    SASSERT(arity == 0);
+    func_decl_info info(m_family_id, OP_NIL);
+    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_nil result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    #endif
+    this->global_nil = result_decl;
+    return result_decl;
+}
+
 func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                      unsigned arity, sort * const * domain, sort * range)  {
     switch (k)

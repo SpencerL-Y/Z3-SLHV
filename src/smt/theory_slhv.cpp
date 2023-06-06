@@ -23,6 +23,25 @@ namespace smt {
         return false;
     }
 
+
+    bool theory_slhv::curr_locvars_contain_nil() {
+        for(app* locvar : this->curr_locvars) {
+            if(this->is_nil(locvar)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool theory_slhv::curr_hvars_contain_emp() {
+        for(app* hvar : this->curr_hvars) {
+            if(this->is_emp(hvar)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     theory *theory_slhv::mk_fresh(context * new_ctx)  {
         #ifdef SLHV_DEBUG
             std::cout << "slhv mk_fresh" << std::endl;
@@ -41,7 +60,7 @@ namespace smt {
         #ifdef SLHV_DEBUG
             std::cout << "slhv internalize term" << std::endl;
         #endif
-        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term)) {
+        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term)) {
             std::cout << "unsupported term op: " << term->get_name() << std::endl;
             return false;
         }
@@ -232,6 +251,24 @@ namespace smt {
             this->curr_disj_unions = slhv_util::setUnion(this->curr_disj_unions, this->collect_disj_unions(app_e));
             this->curr_pts = slhv_util::setUnion(this->curr_pts, this->collect_points_tos(app_e));
         }
+        // if "emp" or "nil" does not appear in the literals, add and internalize them manually:
+        slhv_decl_plugin* slhv_plugin = this->m.get_plugin(get_id());
+        if(!this->curr_hvars_contain_emp()) {
+            this->internalize_term(slhv_plugin->global_emp);
+            this->curr_hvars.insert(slhv_plugin->global_emp);
+            this->global_emp = slhv_plugin->global_emp;
+        } else {
+            SASSERT(this->global_emp == slhv_plugin->global_emp);
+        }
+
+        if(!this->curr_locvars_contain_nil()) {
+            this->internalize_term(slhv_plugin->global_nil);
+            this->curr_locvars.insert(slhv_plugin->global_nil);
+            this->global_nil = slhv_plugin->global_nil;
+        } else {
+            SASSERT(this->global_nil == slhv_plugin->global_nil);
+        }
+
     }
 
     std::pair<std::set<app* >, std::set<app *>> 
@@ -240,11 +277,19 @@ namespace smt {
         std::set<app*> collected_locvars;
         std::set<app*> collected_hvars;
         
-        if(is_hvar(expression)) {
+        if(is_hvar(expression) ) {
             collected_hvars.insert(expression);
+            return {collected_locvars, collected_hvars};
+        } else if (is_emp(expression)){
+            collected_hvars.insert(expression);
+            this->global_emp = expression;
             return {collected_locvars, collected_hvars};
         } else if(is_locvar(expression)) {
             collected_locvars.insert(expression);
+            return {collected_locvars, collected_hvars};
+        } else if(is_nil(expression)) {
+            collected_locvars.insert(expression);
+            this->global_nil = expression;
             return {collected_locvars, collected_hvars};
         } else {
             for(int i = 0; i < expression->get_num_args(); i ++) {
@@ -494,6 +539,8 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "slhv inter emp hterms" << std::endl;
         #endif
+        enode* emp_root = this->ctx.get_enode(this->global_emp);
+        this->curr_emp_hterm_enodes.insert(emp_root);
         for(app* disju : this->curr_disj_unions) {
             SASSERT(this->is_uplus(disju));
             for(int i = 0; i < disju->get_num_args(); i ++) {
@@ -546,13 +593,19 @@ namespace smt {
                     expr* addr_j = disj_pts[j]->get_arg(0);
                     enode* node_addr_i = ctx.get_enode(addr_i);
                     enode* node_addr_j = ctx.get_enode(addr_j);
-                    if(node_addr_i->get_root() == node_addr_j->get_root()) {
+                    enode* nil_root = this->ctx.get_enode(this->global_nil)->get_root();
+                    if(node_addr_i->get_root() == node_addr_j->get_root() ||
+                       node_addr_i->get_root() == nil_root || 
+                       node_addr_j->get_root() == nil_root) {
                         // UNSAT
                         // reason: two identical addr in one disj_union term
+                        // or one of them is equal to nil
                         this->check_status = slhv_unsat;
                         this->set_conflict_slhv();
                     } else {
-                        this->curr_distinct_locterm_pairs.insert({node_addr_i, node_addr_j});
+                        this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), node_addr_j->get_root()});
+                        this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), nil_root});
+                        this->curr_distinct_locterm_pairs.insert({node_addr_j->get_root(), nil_root});
                     }
                 }
             }
@@ -609,12 +662,12 @@ namespace smt {
 
     locvar_eq::locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& fine_d) {
         this->th = t;
-        for(auto map_pair : fine_d) {
-            if(this->fine_data[map_pair.first].empty()) {
-                for(app* locvar : map_pair.second) {
-                    this->fine_data[map_pair.first].push_back(locvar);
-                }
+        for(auto pair : fine_d) {
+            std::vector<app*> varsvec;
+            for(app* v : pair.second) {
+                varsvec.push_back(v);
             }
+            this->fine_data[pair.first] = varsvec;
         }
     }
 
@@ -633,15 +686,48 @@ namespace smt {
 
     coarse_hvar_eq::coarse_hvar_eq(theory_slhv& t) {
         this->th = t;
+        for(app* hvar : this->th.curr_hvars) {
+            enode* hvar_enode_root = this->th.get_context().get_enode(hvar)->get_root();
+            if(coarse_data[hvar_enode_root]) {
+                coarse_data[hvar_enode_root].push_back(hvar);
+            } else {
+                std::vector<app*> varsvec;
+                varsvec.push_back(hvar);
+                coarse_data[hvar_enode_root] = varsvec;
+            }
+        }
     }
 
     int coarse_hvar_eq::is_in_same_class(app* hvar1, app* hvar2) {
-        if(this->th.get_context().get_enode(hvar1)->get_root() == 
-           this->th.get_context().get_enode(hvar2)->get_root()) {
+        enode* hvar1_root_node = this->th.get_context().get_enode(hvar1)->get_root();
+        enode* hvar2_root_node = this->th.get_context().get_enode(hvar2)->get_root();
+        if(hvar1_root_node == hvar2_root_node) {
             return 1;
         } else  {
             return -1;
         }
     }
 
+
+    app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
+        enode* hvar_root_node = this->th.get_context().get_enode(hvar)->get_root();
+        return this->coarse_data[hvar_root_node][0];
+    }
+
+    int coarse_hvar_eq::is_emp_hvar(app* hvar) {
+        enode* hvar_root_node = this->th.get_context().get_enode(hvar)->get_root();
+        if(this->th.curr_emp_hterm_enodes.find(hvar_root_node) != this->th.curr_emp_hterm_enodes.end()) {
+            return 1;
+        } else {
+            return -1;
+        }
+    }
+
+
+    std::vector<app*> coarse_hvar_eq::get_leader_hvars() {
+        std::vector<app*> result;
+        for(auto pair : this->coarse_data) {
+            result.push_back(pair.second[0]);
+        }
+    }
 }

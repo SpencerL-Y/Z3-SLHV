@@ -36,6 +36,9 @@ namespace smt
         std::set<enode*> curr_emp_hterm_enodes;
         std::set<enode*> curr_notnil_locterms_enodes;
 
+        app* global_emp;
+        app* global_nil;
+
         // check_context for a construction based on locvar_eq and negation choice
 
         private:
@@ -53,6 +56,14 @@ namespace smt
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
 
+        bool is_emp(app const* n) const {
+            return n->is_app_of(get_id(), OP_EMP);
+        }
+
+        bool is_nil(app const* n) const {
+            return n->is_app_of(get_id(), OP_NIL);
+        }
+
         bool is_heapterm(app const* n) const {
             return (n->get_sort()->get_name() == INTHEAP_SORT_STR);
         }
@@ -62,6 +73,10 @@ namespace smt
         }
 
         bool enode_contains_points_to(enode* node);
+
+        bool curr_locvars_contain_nil();
+
+        bool curr_hvars_contain_emp();
 
         bool internalize_term_core(app * term);
 
@@ -415,12 +430,16 @@ namespace smt
     class coarse_hvar_eq {
         private:
             theory_slhv& th;
-            std::map<enode*, std::vector<app*>>
+            std::map<enode*, std::vector<app*>> coarse_data;
         public:
         coarse_hvar_eq(theory_slhv& th);
         // return 1 for yes, 0 for no and -1 for not sure
         int is_in_same_class(app* hvar1, app* hvar2);
         app* get_leader_hvar(app* hvar);
+        // return 1 for yes, 0 for no and -1 for unknown
+        int is_emp_hvar(app* hvar);
+
+        std::vector<app*> get_leader_hvars();
     };
 
 

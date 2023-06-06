@@ -2589,6 +2589,7 @@ namespace smt2 {
             #ifdef SLHV_DEBUG
             std::cout << "HVAR ID:" << id << std::endl;
             #endif
+            bool is_emp = (id == "emp");
             next();
             parse_sort("Invalid hvar declaration");
             SASSERT(!sort_stack().empty());
@@ -2596,7 +2597,7 @@ namespace smt2 {
             SASSERT(check_hvar_sort(hvar_sort));
             // next();
             func_decl_ref c(m());
-            func_decl_info hvar_info(m().mk_family_id("slhv"), OP_HVAR_CONST);
+            func_decl_info hvar_info(m().mk_family_id("slhv"), is_emp ? OP_EMP: OP_HVAR_CONST);
             c = m().mk_const_decl(id, hvar_sort, hvar_info);
             SASSERT(c != nullptr);
             m_ctx.insert(c);
@@ -2628,13 +2629,14 @@ namespace smt2 {
             #ifdef SLHV_DEBUG
             std::cout << "LOCVAR: " << id << std::endl;
             #endif
+            bool is_nil = (id == "nil");
             next();
             parse_sort("Invalid locvar declaration");
             SASSERT(!sort_stack().empty());
             sort* locvar_sort = sort_stack().back();
             SASSERT(check_locvar_sort(locvar_sort));
             func_decl_ref c(m());
-            func_decl_info locvar_info(m().mk_family_id("slhv"), OP_LOCVAR_CONST);
+            func_decl_info locvar_info(m().mk_family_id("slhv"), is_nil? OP_NIL : OP_LOCVAR_CONST);
             c = m().mk_const_decl(id, locvar_sort, locvar_info);
             SASSERT(c != nullptr);
             m_ctx.insert(c);
