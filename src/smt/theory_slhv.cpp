@@ -644,6 +644,41 @@ namespace smt {
         }
     }
 
+    void theory_slhv::infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs) {
+        for(app * atom : assigned_hcnstrs) {
+            this->infer_distinct_heapterms(app);
+        }
+    };
+
+    void theory_slhv::infer_distinct_heapterms(app* atom){
+        SASSERT(atom->is_app_of(basic_family_id, OP_EQ));
+        app* left_var = atom->get_arg(0);
+        SASSERT(this->is_hvar(left_var));
+        app* right_expr = atom->get_arg(1);
+        if(this->is_uplus(right_expr)) {
+            enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
+            bool contain_points_to = false;
+            for(app* arg : right_expr->get_args()) {
+                if(this->is_points_to(arg)) {
+                    contain_points_to = true;
+                    break;
+                }
+            }
+            // TODO: add
+        } else if(this->is_points_to(right_expr)) {
+            // left var is distinct with emp
+            enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
+            enode* left_var_root = this->ctx.get_enode(left_var)->get_root();
+            this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root});
+        } else if(this->is_emp(right_expr)) {
+            // PASS
+        } else if(this->is_hvar(right_expr)) {
+            // PASS
+        } else {
+            SASSERT(false);
+            // this should not happen
+        }
+    }
 
     void theory_slhv::init_model(model_generator & mg)  {
         #ifdef SLHV_DEBUG

@@ -35,6 +35,7 @@ namespace smt
         std::set<enode_pair> curr_distinct_locterm_pairs;
         std::set<enode*> curr_emp_hterm_enodes;
         std::set<enode*> curr_notnil_locterms_enodes;
+        std::set<enode_pair> curr_distinct_hterm_pairs;
 
         app* global_emp;
         app* global_nil;
@@ -104,11 +105,6 @@ namespace smt
         
         void record_distinct_locterms(app* atom);
 
-        // TODO: imple
-        void record_distinct_heapterms_in_assignments(app* atom);
-        // TODO: imple
-        void record_distinct_heapterms(app* atom);
-
         void reset_configs();
         // checking logic
 
@@ -129,6 +125,13 @@ namespace smt
         void infer_notnil_locterms_in_assignments(expr_ref_vector assigned_literals);
 
         void infer_notnil_locterms(app* expr);
+
+
+        // TODO: imple
+        void infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs);
+        // TODO: imple
+        void infer_distinct_heapterms(app* atom);
+
         public:
         theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
             #ifdef SLHV_DEBUG
@@ -449,7 +452,51 @@ namespace smt
         std::vector<app*> get_leader_hvars();
     };
 
+// edge-labelled directed graph
+    class edge_labelled_dgraph {
+        private:
+            theory_slhv& th;
+            locvar_eq& loc_eq;
+            coarse_hvar_eq& hvar_eq;
+            std::map<int, dgraph_node> nodes;
+            std::vector<dgraph_edge> edges;
+            void construct_graph_from_theory();
+        public:
+            edge_labelled_dgraph(theory_slhv& t, locvar_eq& l, coarse_hvar_eq& h);
 
+    };
+
+    class dgraph_node {
+        private:
+            int id;
+            edge_labelled_dgraph& dgraph;
+            app* node_expr;
+        public: 
+            dgraph_node(edge_labelled_dgraph& g, app* expr);
+            bool is_emp();
+            bool is_points_to();
+            int get_id();
+            bool is_rooted_joinfree_labelcomplete();
+    };
+
+    class dgraph_edge {
+        private:
+            edge_labelled_dgraph& dgraph;
+            dgraph_node& from;
+            dgraph_node& to;
+            app* hterm_label;
+        public:
+            dgraph_edge(dgraph_node& f, dgraph_node& t, app* hterm_label);
+            dgraph_node& get_from() {
+                return from;
+            }
+            dgraph_node& get_to() {
+                return to;
+            }
+            app* get_label() {
+                return hterm_label;
+            }
+    };
 
 // util class
     class slhv_util {
