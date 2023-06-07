@@ -229,6 +229,7 @@ namespace smt {
         this->collect_and_analyze_assignments(assigned_literals);
         this->record_distinct_locterms_in_assignments(assigned_literals);
         this->infer_distinct_locterms_in_assignments(assigned_literals);
+        this->infer_distinct_heapterms_in_assignments(assigned_literals);
         this->infer_emp_hterms();
         // TODO: add the equivalence checking of nil
         #ifdef SLHV_DEBUG
@@ -657,6 +658,7 @@ namespace smt {
         app* right_expr = atom->get_arg(1);
         if(this->is_uplus(right_expr)) {
             enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
+            enode* left_var_root_node = this->ctx.get_enode(left_var)->get_root();
             bool contain_points_to = false;
             for(app* arg : right_expr->get_args()) {
                 if(this->is_points_to(arg)) {
@@ -664,7 +666,13 @@ namespace smt {
                     break;
                 }
             }
-            // TODO: add
+            this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root_node});
+            for(app* arg : right_expr->get_args()) {
+                if(this->is_hvar(arg)) {
+                    enode* rhs_var_root_node = this->ctx.get_enode(arg)->get_root();
+                    this->curr_distinct_hterm_pairs.insert({left_var_root_node, rhs_var_root_node});
+                }
+            }
         } else if(this->is_points_to(right_expr)) {
             // left var is distinct with emp
             enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
@@ -808,5 +816,125 @@ namespace smt {
             }
         }
         return result;
+    }
+
+
+    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv& t, locvar_eq& l, coarse_hvar_eq& h) {
+        this->th = t;
+        this->loc_eq = l;
+        this->hvar_eq = h;
+        this->construct_graph_from_theory();
+    }
+
+    void edge_labelled_dgraph::construct_graph_from_theory() {
+        // construct nodes
+        
+        std::map<app*, dgraph_node*> node_map;
+        std::vector<app*> leader_hvars = this->hvar_eq.get_leader_hvars();
+        for(int i = 0; i < leader_hvars.size; i ++) {
+            SASSERT(!node_map[leader_hvars[i]]);
+            dgraph_node* new_node = alloc(hvar_dgraph_node, *this, leader_hvars[i]);
+            node_map[leader_hvars[i]] = new_node;
+            this->nodes.push_back(new_node);
+        }
+        std::set<std::pair<app*, app*>> addr_data_pairs;
+        
+        for(app* pt : this->th.curr_pts) {
+            app* addr_loc_leader = this->loc_eq.get_leader_locvar(pt->get_arg(0));
+            app* data_loc_leader = this->loc_eq.get_leader_locvar(pt->get_arg(1));
+            addr_data_pairs.insert({addr_loc_leader, data_loc_leader});
+        }
+        for(auto pair : addr_data_pairs) {
+            dgraph_node* new_node = alloc(pt_dgraph_node, *this, pair.first, pair.second);
+            this->nodes.push_back(new_node);
+        }
+
+        // construct edges
+        for(app* heap_equality : this->th.curr_heap_cnstr) {
+            SASSERT(is_app_of(heap_equality, basic_family_id, OP_EQ));
+            app* left_hvar = heap_equality->get_arg(0);
+            dgraph_node* from_dgraph_node = this->get_hvar_node(left_hvar);
+            app* label = heap_equality->get_arg(1);
+            if(this->th.is_uplus(label)) {
+                // add edge if rhs of the equality is a uplus, since otherwise 
+                // the equivalent class of hvar has already dealed with it
+                for(int i = 0; i < label->get_num_args(); i ++) {
+                    app* dst = label->get_arg(i);
+                    dgraph_node* temp_to_dgraph_node = nullptr;
+                    if(this->th.is_hvar(dst) || this->th.is_emp(dst)) {
+                        temp_to_dgraph_node = this->get_hvar_node(dst);
+                    } else if(this->th.is_points_to(dst)){
+                        temp_to_dgraph_node = this->get_pt_node(dst);
+                    } else {
+                        SASSERT(false);
+                        std::cout << "create dgraph edge: Currently unsupport !!" << std::endl;
+                    }
+
+                    dgraph_edge* new_edge = alloc(dgraph_edge, from_dgraph_node, temp_to_dgraph_node, label);
+                    if(!this->has_edge(new_edge)) {
+                        this->edges.push_back(new_edge);
+                    }
+                }
+            }
+        }
+    }
+
+
+    hvar_dgraph_node* edge_labelled_dgraph::get_hvar_node(app* orig_hvar){
+        app* leader_hvar = this->hvar_eq.get_leader_hvar(orig_hvar);
+        for(dgraph_node* n : nodes) {
+            if(n->is_hvar()) {
+                if(((hvar_dgraph_node *) n)->get_hvar_label() == leader_hvar) {
+                    return n;
+                }
+            }
+        }
+        std::cout << "get_hvar_dgraph_node error!!" << std::endl;
+        return nullptr;
+    }
+
+    pt_dgraph_node* edge_labelled_dgraph::get_pt_node(app* orig_pt){
+        app* orig_addr_loc = orig_pt->get_arg(0);
+        app* orig_data_loc = orig_pt->get_arg(1);
+        app* leader_addr_loc = this->loc_eq.get_leader_locvar(orig_addr_loc);
+        app* leader_data_loc = this->loc_eq.get_leader_locvar(orig_data_loc);
+        for(dgraph_node* n : nodes) {
+            if(n->is_points_to()) {
+                if(((pt_dgraph_node*)n)->get_pt_pair_label().first == leader_addr_loc &&
+                   ((pt_dgraph_node*)n)->get_pt_pair_label().second == leader_data_loc) {
+                    return n;
+                }
+            }
+        }
+        std::cout << "get_pt_dgraph_node error!!" << std::endl;
+        return nullptr;
+    }
+
+
+    bool edge_labelled_dgraph::has_edge(dgraph_edge* edge){
+        for(dgraph_edge* e : this->edges) {
+            if(e->get_from() == edge->get_from() && 
+               e->get_to() == edge->get_to() &&
+               e->get_label() == edge->get_label()) {
+                return true;
+               } 
+        }
+        return false;
+    }
+
+    dgraph_node::dgraph_node(edge_labelled_dgraph& g) {
+        this->dgraph = g;
+    }
+
+
+    hvar_dgraph_node::hvar_dgraph_node(edge_labelled_dgraph& g, app* hvar) {
+        dgraph_node(g);
+        this->leader_hvar = hvar;
+    }
+
+    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph& g, app* pt_addr, app* pt_data) {
+        dgraph_node(g);
+        this->pt_addr_leader = pt_addr;
+        this->pt_data_leader = pt_data;
     }
 }

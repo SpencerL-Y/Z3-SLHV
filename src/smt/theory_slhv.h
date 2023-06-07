@@ -127,9 +127,8 @@ namespace smt
         void infer_notnil_locterms(app* expr);
 
 
-        // TODO: imple
         void infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs);
-        // TODO: imple
+
         void infer_distinct_heapterms(app* atom);
 
         public:
@@ -454,43 +453,66 @@ namespace smt
 
 // edge-labelled directed graph
     class edge_labelled_dgraph {
+        //TODO: add labeling function for list segment later
         private:
             theory_slhv& th;
             locvar_eq& loc_eq;
             coarse_hvar_eq& hvar_eq;
-            std::map<int, dgraph_node> nodes;
-            std::vector<dgraph_edge> edges;
+            std::vector<dgraph_node*>  nodes;
+            std::vector<dgraph_edge*>  edges;
             void construct_graph_from_theory();
         public:
             edge_labelled_dgraph(theory_slhv& t, locvar_eq& l, coarse_hvar_eq& h);
+            hvar_dgraph_node* get_hvar_node(app* orig_hvar);
+            pt_dgraph_node* get_pt_node(app* orig_pt);
+
+            bool has_edge(dgraph_edge* edge);
 
     };
 
     class dgraph_node {
         private:
-            int id;
             edge_labelled_dgraph& dgraph;
-            app* node_expr;
         public: 
-            dgraph_node(edge_labelled_dgraph& g, app* expr);
-            bool is_emp();
-            bool is_points_to();
-            int get_id();
-            bool is_rooted_joinfree_labelcomplete();
+            dgraph_node(edge_labelled_dgraph& g);
+            virtual bool is_hvar();
+            virtual bool is_points_to();
+    };
+
+    class hvar_dgraph_node : public dgraph_node {
+        private: 
+            app* leader_hvar;
+        public:
+            hvar_dgraph_node(edge_labelled_dgraph& g, app* hvar);
+            app* get_hvar_label() {
+                return this->leader_hvar;
+            }
+    };
+
+    class pt_dgraph_node : public dgraph_node {
+        private:
+            app* pt_addr_leader;
+            app* pt_data_leader;
+        public:
+            pt_dgraph_node(edge_labelled_dgraph& g, app* pt_addr, app* pt_data);
+
+            std::pair<app*, app*> get_pt_pair_label() {
+                return {pt_addr_leader, pt_data_leader};
+            }
     };
 
     class dgraph_edge {
         private:
             edge_labelled_dgraph& dgraph;
-            dgraph_node& from;
-            dgraph_node& to;
+            dgraph_node* from;
+            dgraph_node* to;
             app* hterm_label;
         public:
-            dgraph_edge(dgraph_node& f, dgraph_node& t, app* hterm_label);
-            dgraph_node& get_from() {
+            dgraph_edge(dgraph_node* f, dgraph_node* t, app* hterm_label);
+            dgraph_node* get_from() {
                 return from;
             }
-            dgraph_node& get_to() {
+            dgraph_node* get_to() {
                 return to;
             }
             app* get_label() {
