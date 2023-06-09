@@ -237,6 +237,26 @@ namespace smt {
         #endif
     }
 
+    std::vector<expr_ref_vector> theory_slhv::elminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals) {
+
+    }
+
+    std::vector<expr_ref_vector> theory_slhv::eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit) {
+        app* curr_lit = to_app(curr_neg_lit);
+        SASSERT(is_app_of(curr_lit, basic_family_id, OP_NOT) || is_app_of(curr_lit, basic_family_id, OP_DISTINCT));
+
+        if(curr_lit->is_app_of(basic_family_id, OP_NOT)) {
+            app* equality = curr_lit->get_arg(0);
+            SASSERT(equality->is_app_of(basic_family_id, OP_EQ));
+            app* left_expr = equality->get_arg(0);
+            app* right_expr = equality->get_arg(1);
+            SASSERT(this->is_heapterm(left_expr) && this->is_heapterm(right_expr));
+        } else {
+            std::cout << "eliminate heap equality negation: this should not happen" << std::endl;
+            SASSERT(false);
+        }
+    }
+
     void theory_slhv::collect_and_analyze_assignments(expr_ref_vector assigned_literals) {
         #ifdef SLHV_DEBUG
         std::cout << "slhv collect and analze assignments" << std::endl;
@@ -936,5 +956,39 @@ namespace smt {
         dgraph_node(g);
         this->pt_addr_leader = pt_addr;
         this->pt_data_leader = pt_data;
+    }
+
+
+    // fresh var maker
+
+    slhv_fresh_var_maker::slhv_fresh_var_maker(theory_slhv& t) {
+        this->th = t;
+        slhv_decl_plugin* slhv_plugin = this->m.get_plugin(get_id());
+        this->fe_plug = slhv_plugin;
+    }
+
+    slhv_fresh_var_maker::reset() {
+        this->curr_locvar_id = 0;
+        this->curr_hvar_id = 0;
+        locvar_map.clear();
+        hvar_map.clear();
+    }
+
+    app* slhv_fresh_var_maker::mk_fresh_hvar() {
+        std::string name = "f_th_hvar" + std::to_string(this->curr_hvar_id);
+        sort* range_sort = this->fe_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        app* fresh_hvar = this->fe_plug->mk_const_hvar(range_sort, 0, nullptr);
+        this->hvar_map[curr_hvar_id] = fresh_hvar;
+        curr_hvar_id ++;
+        return fresh_hvar;
+    }
+
+    app* slhv_fresh_var_maker::mk_fresh_locvar() {
+        std::string name = "f_th_locvar" + std::to_string(this->curr_locvar_id);
+        sort* range_sort = this->fe_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        app* fresh_locvar = this->fe_plug->mk_const_locvar(range_sort, 0, nullptr);
+        this->locvar_map[curr_locvar_id] = fresh_locvar;
+        curr_locvar_id ++;
+        return fresh_locvar;
     }
 }

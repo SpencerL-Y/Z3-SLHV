@@ -88,6 +88,11 @@ namespace smt
         // ast to obtain all location variables, heap variables for later use
         // analyze all terms to do preprocessing later
         void preprocessing(expr_ref_vector assigned_literals);
+
+        std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
+
+        std::vector<expr_ref_vector> eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit);  
+
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
         void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
 
@@ -549,5 +554,24 @@ namespace smt
             }
             return true;
         }
+    };
+
+// fresh_var_maker
+    class slhv_fresh_var_maker {
+    private:
+        theory_slhv& th;
+        int curr_locvar_id;
+        int curr_hvar_id;
+        std::map<int, app*> locvar_map;
+        std::map<int, app*> hvar_map;
+        slhv_decl_plugin* fe_plug;
+    public:
+        slhv_fresh_var_maker(theory_slhv& t);
+
+        app* mk_fresh_locvar();
+        app* mk_fresh_hvar();
+
+        void reset();
+
     };
 } // namespace smt
