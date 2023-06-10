@@ -37,6 +37,8 @@ namespace smt
         std::set<enode*> curr_notnil_locterms_enodes;
         std::set<enode_pair> curr_distinct_hterm_pairs;
 
+        slhv_fresh_var_maker fv_maker;
+
         app* global_emp;
         app* global_nil;
 
@@ -555,7 +557,26 @@ namespace smt
             return true;
         }
     };
+// syntax maker
+    class slhv_syntax_maker {
+        private:
+        theory_slhv& th;
+        slhv_fresh_var_maker fv_maker;
+        public: 
+        void reset_fv_num();
+        slhv_syntax_maker(theory_slhv& t);
+        app* mk_fresh_locvar();
+        app* mk_fresh_hvar();
+        app* mk_read_formula(app* from_hvar, app* read_addr, app* read_data);
+        app* mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data);
+        app* mk_addr_in_hterm(app* hterm, app* addr);
+        app* mk_addr_notin_hterm(app* hterm, app* addr);
+        app* mk_hterm_negation(app* lhs, app* rhs);
 
+        app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
+        app* mk_points_to(app* addr_loc, app* data_loc);
+         
+    }
 // fresh_var_maker
     class slhv_fresh_var_maker {
     private:
@@ -574,4 +595,6 @@ namespace smt
         void reset();
 
     };
+
+    
 } // namespace smt

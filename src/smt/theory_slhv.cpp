@@ -251,6 +251,8 @@ namespace smt {
             app* left_expr = equality->get_arg(0);
             app* right_expr = equality->get_arg(1);
             SASSERT(this->is_heapterm(left_expr) && this->is_heapterm(right_expr));
+            SASSERT(this->is_hvar(left_expr));
+
         } else {
             std::cout << "eliminate heap equality negation: this should not happen" << std::endl;
             SASSERT(false);
@@ -958,12 +960,94 @@ namespace smt {
         this->pt_data_leader = pt_data;
     }
 
+    // syntax maker
 
+    slhv_syntax_maker::slhv_syntax_maker(theory_slhv& th) {
+        this->th = th;
+    }
+
+    void slhv_syntax_maker::reset_fv_num() {
+        this->fv_maker.reset();
+    }
+
+    app* slhv_syntax_maker::mk_fresh_hvar() {
+        return this->fv_maker.mk_fresh_hvar();
+    }
+
+    app* slhv_syntax_maker::mk_fresh_locvar() {
+        return this->fv_maker.mk_fresh_locvar();
+    }
+
+    app* slhv_syntax_maker::mk_read_formula(app* from_hvar, app* read_addr, app* read_data) {
+        SASSERT(this->th.is_hvar(from_hvar));
+        app* fresh_hvar = this->mk_fresh_hvar();
+        app* new_eq_left = from_hvar();
+        int right_arg_num = 2;
+        std::vector<app*> right_args;
+        right_args.push_back(fresh_hvar);
+        right_args.push_back(this->mk_points_to(read_addr, read_data));
+        app* new_eq_right = this->mk_uplus(right_arg_num, right_args);
+        // includes internalize:
+        literal* result = this->th.mk_eq(new_eq_left, new_eq_right, false);
+        return to_app(result);
+    }
+
+    app* slhv_syntax_maker::mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data) {
+        
+        app* fresh_hvar = this->mk_fresh_hvar();
+        app* fresh_locvar = this->mk_fresh_locvar();
+        app* first_eq_left = orig_hvar;
+        app* first_eq_right_pt = this->mk_points_to(write_addr, fresh_hvar);
+        std::vector<app*> first_uplus_args;
+        first_uplus_args.push_back(fresh_hvar);
+        first_uplus_args.push_back(first_eq_right_pt);
+        app* first_eq_right = this->mk_uplus(2, first_uplus_args);
+        app* first_eq = this->th.mk_eq(first_eq_left, first_eq_right, false);
+
+        app* second_eq_left = writed_hvar;
+        app* second_eq_right_pt = this->mk_points_to(write_addr, write_data);
+        std::vector<app*> second_uplus_args;
+        second_uplus_args.push_back(fresh_hvar);
+        second_uplus_args.push_back(second_eq_right_pt);
+        app* second_eq_right = this->mk_uplus(2, second_uplus_args);
+        app* second_eq = this->th.mk_eq(seoncd_eq_left, second_eq_right, false);
+
+        std::vector<app*> literals;
+        literals.push_back(first_eq);
+        literals.push_back(second_eq);
+        app* final_result = this->th.get_manager().mk_and(2, literals);
+        this->th.ctx.internalize(final_result, false);
+        return final_result;
+    }
+
+    app* slhv_syntax_maker::mk_addr_in_hterm(app* hterm, app* addr) {
+        
+    }
+    app* slhv_syntax_maker::mk_addr_notin_hterm(app* hterm, app* addr);
+    app* slhv_syntax_maker::mk_hterm_negation(app* lhs, app* rhs);
+
+    app* slhv_syntax_maker::mk_uplus(int num_arg, std::vector<app*> hterm_args) {
+        SASSERT(num_arg == hterm_args.size());
+        for(app* t : hterm_args) {
+            SASSERT(this->th.is_heapterm(t));
+        }
+        expr_ref e_ref(this->th.m);
+        this->th.m.mk_app(symbol("uplus"), num_arg, hterm_args, nullptr, nullptr, e_ref);
+        return e_ref.get();
+    }
+
+    app* slhv_syntax_maker::mk_points_to(app* addr_loc, app* data_loc) {
+        SASSERT(this->th.is_locterm(addr_loc) && this->th.is_locterm(data_loc));
+        std::vector<app*> args = {addr_loc, data_loc};
+        expr_ref e_ref(this->th.m);
+        this->th.m.mk_app(symbol("pt"), 2, args, 0, nullptr, nullptr, e_ref);
+        return e_ref.get();
+    }
     // fresh var maker
 
     slhv_fresh_var_maker::slhv_fresh_var_maker(theory_slhv& t) {
         this->th = t;
-        slhv_decl_plugin* slhv_plugin = this->m.get_plugin(get_id());
+        slhv_decl_plugin* slhv_plugin = this->th.m.get_plugin(get_id());
         this->fe_plug = slhv_plugin;
     }
 
