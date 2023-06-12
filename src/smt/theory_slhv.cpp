@@ -149,67 +149,72 @@ namespace smt {
         // reset collected hvars, locvars and 
         this->reset_configs();
 
-        // TODO: enumerate all possible situations for negation imposed on hterm equalities.
-        
-        // preprocessing
-        this->preprocessing(assignments);
-        //
-        std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
+        //  enumerate all possible situations for negation imposed on hterm equalities
+        std::vector<expr_ref_vector> evs = this->eliminate_heap_equality_negation_in_assignments(assignments);
+        for(expr_ref_vector curr_assignments) {
+            // reset info from previous curr_assignments
+            this->reset_configs();
 
-        
-        for(auto e : assignments) {
-            /*-------------- learning enode -----------*/
-            #ifdef SLHV_DEBUG
-            std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
-            #endif
-            // SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e, basic_family_id, OP_NOT));
-            // app* equality = to_app(e);
-            // expr* lhsExpr = std::get<0>(equality->args2());
-            // expr* rhsExpr = std::get<1>(equality->args2());
-            // theory_var lhsVar = get_th_var(lhsExpr);
-            // theory_var rhsVar = get_th_var(rhsExpr);
-            // std::cout << "lhsVar: " << lhsVar << std::endl;
-            // std::cout << "rhsVar: " << rhsVar << std::endl;
-            // enode* lhsNode = get_enode(lhsVar);
-            // enode* rhsNode = get_enode(rhsVar);
-            // #ifdef SLHV_DEBUG
-            // std::cout << "lhsVar: " << lhsVar << std::endl;
-            // std::cout << "lhsEnode: " << std::endl;
-            // std::cout << mk_ismt2_pp(lhsNode->get_expr(), m) << " " << mk_ismt2_pp(lhsNode->get_root()->get_expr(), m) << std::endl;
-            // enode* curr = lhsNode->get_root();
-            // enode* head = curr;
-            // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-            // curr = curr->get_next();
-            // while(curr != head) {
-            //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-            //     curr = curr->get_next();
-            // }
-            // std::cout << std::endl;
-            // std::cout << "rhsVar: " << rhsVar << std::endl;
-            // std::cout << "rhsEnode: " << std::endl;
-            // std::cout << mk_ismt2_pp(rhsNode->get_expr(), m) << " " << mk_ismt2_pp(rhsNode->get_root()->get_expr(), m) << std::endl;
-            // curr = rhsNode->get_root();
-            // head = curr;
-            // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-            // curr = curr->get_next();
-            // while(curr != head) {
-            //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-            //     curr = curr->get_next();
-            // }
-            // std::cout << std::endl;
-            // #endif
+            // preprocessing
+            this->preprocessing(assignments);
 
-            // SASSERT(is_app_of(lhsExpr, ctx.get_manager().mk_family_id("slhv"), OP_HVAR_CONST));
-            // if(!is_app_of(rhsExpr, ctx.get_manager().mk_family_id("slhv"), OP_HEAP_DISJUNION)) {
-            //     ctx.set_conflict(
-            //         ctx.mk_justification(
-            //         ext_theory_conflict_justification(
-            //             get_id(), ctx, 0, nullptr, 0, nullptr, 0, nullptr
-            //         ))
-            //     );
-            //     return false;
-            // }
-         }
+            // enumerate all possible loc eqs
+            std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
+            for(auto e : assignments) {
+                /*-------------- learning enode -----------*/
+                #ifdef SLHV_DEBUG
+                std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
+                #endif
+                // SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e,     basic_family_id, OP_NOT));
+                // app* equality = to_app(e);
+                // expr* lhsExpr = std::get<0>(equality->args2());
+                // expr* rhsExpr = std::get<1>(equality->args2());
+                // theory_var lhsVar = get_th_var(lhsExpr);
+                // theory_var rhsVar = get_th_var(rhsExpr);
+                // std::cout << "lhsVar: " << lhsVar << std::endl;
+                // std::cout << "rhsVar: " << rhsVar << std::endl;
+                // enode* lhsNode = get_enode(lhsVar);
+                // enode* rhsNode = get_enode(rhsVar);
+                // #ifdef SLHV_DEBUG
+                // std::cout << "lhsVar: " << lhsVar << std::endl;
+                // std::cout << "lhsEnode: " << std::endl;
+                // std::cout << mk_ismt2_pp(lhsNode->get_expr(), m) << " " <<   mk_ismt2_pp(lhsNode->get_root()->get_expr(), m) << std::endl;
+                // enode* curr = lhsNode->get_root();
+                // enode* head = curr;
+                // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                // curr = curr->get_next();
+                // while(curr != head) {
+                //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                //     curr = curr->get_next();
+                // }
+                // std::cout << std::endl;
+                // std::cout << "rhsVar: " << rhsVar << std::endl;
+                // std::cout << "rhsEnode: " << std::endl;
+                // std::cout << mk_ismt2_pp(rhsNode->get_expr(), m) << " " <<   mk_ismt2_pp(rhsNode->get_root()->get_expr(), m) << std::endl;
+                // curr = rhsNode->get_root();
+                // head = curr;
+                // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                // curr = curr->get_next();
+                // while(curr != head) {
+                //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
+                //     curr = curr->get_next();
+                // }
+                // std::cout << std::endl;
+                // #endif
+
+                // SASSERT(is_app_of(lhsExpr, ctx.get_manager().mk_family_id("slhv"),   OP_HVAR_CONST));
+                // if(!is_app_of(rhsExpr, ctx.get_manager().mk_family_id("slhv"),   OP_HEAP_DISJUNION)) {
+                //     ctx.set_conflict(
+                //         ctx.mk_justification(
+                //         ext_theory_conflict_justification(
+                //             get_id(), ctx, 0, nullptr, 0, nullptr, 0, nullptr
+                //         ))
+                //     );
+                //     return false;
+                // }
+                }
+            }
+        
         return true;
     }
 
@@ -238,24 +243,63 @@ namespace smt {
     }
 
     std::vector<expr_ref_vector> theory_slhv::elminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals) {
-
+        std::vector<std::vector<expr>> last_result;
+        for(auto e : this->assigned_literals) {
+            std::vector<std::vector<expr>> temp_result = this->eliminate_heap_equality_negation(last_result, e);
+            last_result = temp_result;
+        }
+        std::vector<expr_ref_vector> final_result;
+        for(std::vector<expr> ev : last_result) {
+            expr_ref_vector ref_v(m);
+            for(expr e : ev) {
+                ref_v.append(e);
+            }
+            final_result.push_back(ref_v);
+        }
+        return last_result;
     }
 
-    std::vector<expr_ref_vector> theory_slhv::eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit) {
+    std::vector<std::vector<expr>> theory_slhv::eliminate_heap_equality_negation(std::vector<std::vector<expr>> eliminated_neg_vec, expr curr_neg_lit) {
         app* curr_lit = to_app(curr_neg_lit);
-        SASSERT(is_app_of(curr_lit, basic_family_id, OP_NOT) || is_app_of(curr_lit, basic_family_id, OP_DISTINCT));
-
-        if(curr_lit->is_app_of(basic_family_id, OP_NOT)) {
-            app* equality = curr_lit->get_arg(0);
-            SASSERT(equality->is_app_of(basic_family_id, OP_EQ));
-            app* left_expr = equality->get_arg(0);
-            app* right_expr = equality->get_arg(1);
-            SASSERT(this->is_heapterm(left_expr) && this->is_heapterm(right_expr));
-            SASSERT(this->is_hvar(left_expr));
-
+        if(is_app_of(curr_lit, basic_family_id, OP_NOT) || is_app_of(curr_lit, basic_family_id, OP_DISTINCT)) {
+            if(curr_lit->is_app_of(basic_family_id, OP_NOT)) {
+                app* equality = curr_lit->get_arg(0);
+                SASSERT(equality->is_app_of(basic_family_id, OP_EQ));
+                app* left_expr = equality->get_arg(0);
+                app* right_expr = equality->get_arg(1);
+                SASSERT(this->is_heapterm(left_expr) && this->is_heapterm   (right_expr));
+                SASSERT(this->is_hvar(left_expr));
+                std::vector<app*> three_disjuncts_after_elim = this->syntax_maker.mk_hterm_disequality(left_expr, right_expr);
+                std::vector<std::vector<expr>> final_result;
+                if(eliminated_neg_vec.size() != 0) {
+                    for(std::vector<expr> ev : eliminated_neg_vec) {
+                        for(app* disj : three_disjuncts_after_elim) {
+                            std::vector<expr> result = ev;
+                            result.push_back(disj);
+                            final_result.push_back(result);
+                        }
+                    }
+                } else {
+                    for(app* disj : three_disjuncts_after_elim) {
+                        std::vector<expr> result;
+                        result.push_back(disj);
+                        final_result.push_back(result);
+                    }
+                }
+                return final_result;
+            } else {
+                std::cout << "eliminate heap equality negation: this should not   happen" << std::endl;
+                SASSERT(false);
+                return nullptr;
+            }
         } else {
-            std::cout << "eliminate heap equality negation: this should not happen" << std::endl;
-            SASSERT(false);
+            std::vector<std::vector<expr>> final_result;
+            for(std::vector<expr> v : eliminated_neg_vec) {
+                std::vector<expr> result = v;
+                result.push_back(curr_neg_lit);
+                final_result.push_back(result);
+            }
+            return final_result;
         }
     }
 

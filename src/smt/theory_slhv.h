@@ -37,7 +37,7 @@ namespace smt
         std::set<enode*> curr_notnil_locterms_enodes;
         std::set<enode_pair> curr_distinct_hterm_pairs;
 
-        slhv_fresh_var_maker fv_maker;
+        slhv_syntax_maker syntax_maker;
 
         app* global_emp;
         app* global_nil;
@@ -93,7 +93,7 @@ namespace smt
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
-        std::vector<expr_ref_vector> eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit);  
+        std::vector<std::vector<expr>> eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit);  
 
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
         void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
