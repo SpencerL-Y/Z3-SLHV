@@ -571,7 +571,7 @@ namespace smt
         app* mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data);
         app* mk_addr_in_hterm(app* hterm, app* addr);
         app* mk_addr_notin_hterm(app* hterm, app* addr);
-        app* mk_hterm_negation(app* lhs, app* rhs);
+        std::vector<app*> mk_hterm_disequality(app* lhs, app* rhs);
 
         app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);

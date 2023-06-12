@@ -1016,15 +1016,98 @@ namespace smt {
         literals.push_back(first_eq);
         literals.push_back(second_eq);
         app* final_result = this->th.get_manager().mk_and(2, literals);
+        // the ast made by manager should be internalize manually
         this->th.ctx.internalize(final_result, false);
         return final_result;
     }
 
     app* slhv_syntax_maker::mk_addr_in_hterm(app* hterm, app* addr) {
-        
+        app* fresh_unrelated_h = this->mk_fresh_hvar();
+        app* addr_data_fresh_l = this->mk_fresh_locvar();
+        app* eq_lhs = hterm;
+        std::vector<app*> rhs_uplus_args;
+        app* rhs_pt = this->mk_points_to(addr, addr_data_fresh_l);
+        rhs_uplus_args.push_back(fresh_unrelated_h);
+        rhs_uplus_args.push_back(rhs_pt);
+        app* eq_rhs_uplus = this->mk_uplus(2, rhs_uplus_args);
+        app* final_result = this->th.mk_eq(eq_lhs, eq_rhs_uplus);
+        return final_result;
     }
-    app* slhv_syntax_maker::mk_addr_notin_hterm(app* hterm, app* addr);
-    app* slhv_syntax_maker::mk_hterm_negation(app* lhs, app* rhs);
+
+    app* slhv_syntax_maker::mk_addr_notin_hterm(app* hterm, app* addr) {
+        app* fresh_whole_h = this->mk_fresh_hvar();
+        app* fresh_data = this->mk_fresh_locvar();
+        app* eq_lhs = fresh_whole_h;
+        app* rhs_points_to = this->mk_points_to(addr, fresh_data);
+        std::vector<app*> uplus_args;
+        uplus_args.push_back(hterm);
+        uplus_args.push_back(rhs_points_to);
+        app* eq_rhs = this->mk_uplus(2, uplus_args);
+        app* final_result = this->th.mk_eq(eq_lhs, eq_rhs);
+        return final_result;
+    }
+
+    std::vector<app*> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
+        app* h = this->mk_fresh_hvar();
+        app* h_prime = this->mk_fresh_hvar();
+        app* x = this->mk_fresh_locvar();
+        app* y = this->mk_fresh_locvar();
+        app* z = this->mk_freappsh_locvar();
+        std::vector<app*> final_result;
+
+        // first disjunct
+        app* first_conj_eq_lhs = lhs_hterm;
+        std::vector<app*> first_conj_eq_rhs_uplus_args;
+        app* first_eq_rhs_pt = this->mk_points_to(x, y);
+        first_conj_eq_rhs_uplus_args.push_back(h);
+        fisrt_conj_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
+        app* first_conj_eq_rhs = this->mk_uplus(first_conj_eq_rhs_uplus_args.size(), first_conj_eq_rhs_uplus_args);
+        app* first_conj_eq = this->th.mk_eq(first_conj_eq_lhs, first_conj_eq_rhs);
+        
+        app* second_conj_eq_lhs = rhs_hterm;
+        app* second_conj_eq_rhs_pt = this->mk_points_to(x, z);
+        std::vector<app*> second_conj_eq_rhs_uplus_args;
+        second_conj_eq_rhs_uplus_args.push_back(h_prime);
+        second_conj_eq_rhs_uplus_args.push_back(second_conj_eq_rhs_pt);
+        app* second_conj_eq_rhs = this->mk_uplus(second_conj_eq_rhs_uplus_args.size(), second_conj_eq_rhs_uplus_args);
+        app* second_conj_eq = this->th.mk_eq(second_conj_eq_lhs, second_conj_eq_rhs);
+
+        expr_ref_vector distinct_pair(this->th.m);
+        distinct_pair.append(y);
+        distinct_pair.append(z);
+        app* third_conj_diseq = this->th.get_manager().mk_distinct(2, distinct_pair.data());
+        this->th.get_context().internalize(third_conj_diseq);
+
+
+        std::vector<app*> first_disjunct_literals;
+        first_disjunct_literals.push_back(first_conj_eq);
+        first_disjunct_literals.push_back(second_conj_eq);
+        first_disjunct_literals.push_back(third_conj_diseq);
+        app* first_disj = this->th.get_manager().mk_and(3, first_disjunct_literals);
+        this->th.get_context().internalize(first_disj);
+        final_result.push_back(first_disj);
+
+        // second disjunct
+        app* x_in_ht1 = this->mk_addr_in_hterm(lhs_hterm, x);
+        app* x_notin_ht2 = this->mk_addr_notin_hterm(rhs_hterm, x);
+        std::vector<app*> second_disjunct_literals;
+        second_disjunct_literals.push_back(x_in_ht1);
+        second_disjunct_literals.push_back(x_notin_ht2);
+        app* second_disj = this->th.get_manager().mk_and(2, second_disjunct_literals);
+        this->th.get_context().internalize(second_disj);
+        final_result.push_back(second_disj);
+
+        // third_disjunct
+        app* x_in_ht2 = this->mk_addr_in_hterm(rhs_hterm, x);
+        app* x_notin_ht1 = this->mk_addr_notin_hterm(lhs_hterm, x);
+        std::vector<app*> third_disjunct_literals;
+        third_disjunct_literals.push_back(x_notin_ht1);
+        third_disjunct_literals.push_back(x_in_ht2);
+        app* third_disj = this->th.get_manager().mk_and(2, third_disjunct_literals);
+        this->th.get_context().internalize(third_disj);
+        final_result.push_back(third_disj);
+        return final_result;
+    }
 
     app* slhv_syntax_maker::mk_uplus(int num_arg, std::vector<app*> hterm_args) {
         SASSERT(num_arg == hterm_args.size());
