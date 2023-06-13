@@ -9,8 +9,12 @@
 #include <map>
 namespace smt
 {
-    
-
+    class slhv_fresh_var_maker;
+    class slhv_syntax_maker;
+    class dgraph_node;
+    class hvar_dgraph_node;
+    class pt_dgraph_node;
+    class dgraph_edge;
     class theory_slhv : public theory {
 
         public:
@@ -37,7 +41,7 @@ namespace smt
         std::set<enode*> curr_notnil_locterms_enodes;
         std::set<enode_pair> curr_distinct_hterm_pairs;
 
-        slhv_syntax_maker syntax_maker;
+        slhv_syntax_maker* syntax_maker;
 
         app* global_emp;
         app* global_nil;
@@ -93,7 +97,7 @@ namespace smt
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
-        std::vector<std::vector<expr>> eliminate_heap_equality_negation(std::vector<std::vector<expr>> elimnated_neg_vec, expr curr_neg_lit);  
+        std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
 
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
         void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
@@ -139,11 +143,7 @@ namespace smt
         void infer_distinct_heapterms(app* atom);
 
         public:
-        theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
-            #ifdef SLHV_DEBUG
-            std::cout << "SLHV theory plugin created" << std::endl;
-            #endif
-        }
+        theory_slhv(context& ctx);
         
 
         ~theory_slhv() override {}
@@ -431,10 +431,10 @@ namespace smt
 
     class locvar_eq {
         private:
-            theory_slhv& th;
+            theory_slhv* th;
             std::map<enode*, std::vector<app*>> fine_data;
         public: 
-            locvar_eq(theory_slhv& t, std::map<enode*, std::set<app*>>& fine_data);
+            locvar_eq(theory_slhv* t, std::map<enode*, std::set<app*>>& fine_data);
             bool is_in_same_class(app* loc1, app* loc2);
             app* get_leader_locvar(app* loc);
             bool is_nil(app* loc);
@@ -445,10 +445,10 @@ namespace smt
 
     class coarse_hvar_eq {
         private:
-            theory_slhv& th;
+            theory_slhv* th;
             std::map<enode*, std::vector<app*>> coarse_data;
         public:
-        coarse_hvar_eq(theory_slhv& th);
+        coarse_hvar_eq(theory_slhv* th);
         // return 1 for yes, 0 for no and -1 for not sure
         int is_in_same_class(app* hvar1, app* hvar2);
         app* get_leader_hvar(app* hvar);
@@ -462,14 +462,14 @@ namespace smt
     class edge_labelled_dgraph {
         //TODO: add labeling function for list segment later
         private:
-            theory_slhv& th;
-            locvar_eq& loc_eq;
-            coarse_hvar_eq& hvar_eq;
+            theory_slhv* th;
+            locvar_eq* loc_eq;
+            coarse_hvar_eq* hvar_eq;
             std::vector<dgraph_node*>  nodes;
             std::vector<dgraph_edge*>  edges;
             void construct_graph_from_theory();
         public:
-            edge_labelled_dgraph(theory_slhv& t, locvar_eq& l, coarse_hvar_eq& h);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
 
@@ -479,20 +479,30 @@ namespace smt
 
     class dgraph_node {
         private:
-            edge_labelled_dgraph& dgraph;
+            edge_labelled_dgraph* dgraph;
         public: 
-            dgraph_node(edge_labelled_dgraph& g);
-            virtual bool is_hvar();
-            virtual bool is_points_to();
+            dgraph_node(edge_labelled_dgraph* g);
+            virtual bool is_hvar() {
+                return false;
+            }
+            virtual bool is_points_to() {
+                return false;
+            }
     };
 
     class hvar_dgraph_node : public dgraph_node {
         private: 
             app* leader_hvar;
         public:
-            hvar_dgraph_node(edge_labelled_dgraph& g, app* hvar);
+            hvar_dgraph_node(edge_labelled_dgraph* g, app* hvar);
             app* get_hvar_label() {
                 return this->leader_hvar;
+            }
+            bool is_hvar() override {
+                return true;
+            }
+            bool is_points_to() override {
+                return false;
             }
     };
 
@@ -501,10 +511,18 @@ namespace smt
             app* pt_addr_leader;
             app* pt_data_leader;
         public:
-            pt_dgraph_node(edge_labelled_dgraph& g, app* pt_addr, app* pt_data);
+            pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_data);
 
             std::pair<app*, app*> get_pt_pair_label() {
                 return {pt_addr_leader, pt_data_leader};
+            }
+
+            bool is_hvar() override {
+                return false;
+            }
+            
+            bool is_points_to() override {
+                return true;
             }
     };
 
@@ -557,14 +575,32 @@ namespace smt
             return true;
         }
     };
+
+// fresh_var_maker
+    class slhv_fresh_var_maker {
+    private:
+        theory_slhv* th;
+        int curr_locvar_id;
+        int curr_hvar_id;
+        std::map<int, app*> locvar_map;
+        std::map<int, app*> hvar_map;
+        slhv_decl_plugin* fe_plug;
+    public:
+        slhv_fresh_var_maker(theory_slhv* t);
+
+        app* mk_fresh_locvar();
+        app* mk_fresh_hvar();
+
+        void reset();
+    };
 // syntax maker
     class slhv_syntax_maker {
         private:
-        theory_slhv& th;
-        slhv_fresh_var_maker fv_maker;
+        theory_slhv* th;
+        slhv_fresh_var_maker* fv_maker;
         public: 
-        void reset_fv_num();
-        slhv_syntax_maker(theory_slhv& t);
+        void reset_fv_maker();
+        slhv_syntax_maker(theory_slhv* t);
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
         app* mk_read_formula(app* from_hvar, app* read_addr, app* read_data);
@@ -576,25 +612,8 @@ namespace smt
         app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
          
-    }
-// fresh_var_maker
-    class slhv_fresh_var_maker {
-    private:
-        theory_slhv& th;
-        int curr_locvar_id;
-        int curr_hvar_id;
-        std::map<int, app*> locvar_map;
-        std::map<int, app*> hvar_map;
-        slhv_decl_plugin* fe_plug;
-    public:
-        slhv_fresh_var_maker(theory_slhv& t);
-
-        app* mk_fresh_locvar();
-        app* mk_fresh_hvar();
-
-        void reset();
-
     };
+
 
     
 } // namespace smt

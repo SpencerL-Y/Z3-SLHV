@@ -127,6 +127,10 @@ func_decl* slhv_decl_plugin::mk_const_locvar(sort* range, unsigned arity, sort* 
 
 func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
+
+    if(this->global_emp != nullptr) {
+        return this->global_emp;
+    }
     func_decl_info info(m_family_id, OP_EMP);
 
     func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
@@ -139,6 +143,9 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
 
 func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
+    if(this->global_nil != nullptr) {
+        return this->global_nil;
+    }
     func_decl_info info(m_family_id, OP_NIL);
     func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
     #ifdef SLHV_DEBUG
