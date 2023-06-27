@@ -478,7 +478,7 @@ namespace smt
             dgraph_node* get_unvisited();
             bool check_established_reachable(std::set<int> nontrivial_ids);
             coarse_hvar_eq* check_and_merge_scc_hvars(std::set<int> nontrivial_ids);
-            std::set<int> get_simplified_nodes_id(std::set<int> nontrivial_ids);
+            std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
         public:
             edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
 
@@ -494,6 +494,7 @@ namespace smt
             }
             void add_node(dgraph_node* n);
             void add_edge(dgraph_edge* e);
+            dgraph_node* get_node_by_low(int low_idx);
 
     };
 
@@ -524,6 +525,15 @@ namespace smt
             }
             virtual bool is_established() {
                 return false;
+            }
+            void set_graph(edge_labelled_dgraph* g) {
+                this->dgraph = g;
+            }
+            void set_low_index(int idx) {
+                this->low_index = idx;
+            }
+            void set_dfs_index(int idx) {
+                this->dfs_index = idx;
             }
     };
 

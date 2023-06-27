@@ -163,65 +163,21 @@ namespace smt {
             this->reset_configs();
 
             // preprocessing
-            this->preprocessing(assignments);
+            this->preprocessing(curr_assignments);
 
             // enumerate all possible loc eqs
             std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
-            for(auto e : assignments) {
-                /*-------------- learning enode -----------*/
-                #ifdef SLHV_DEBUG
-                std::cout << "current expr: " << mk_ismt2_pp(e, m) << std::endl;
-                #endif
-                // SASSERT(is_app_of(e, basic_family_id, OP_EQ) || is_app_of(e,     basic_family_id, OP_NOT));
-                // app* equality = to_app(e);
-                // expr* lhsExpr = std::get<0>(equality->args2());
-                // expr* rhsExpr = std::get<1>(equality->args2());
-                // theory_var lhsVar = get_th_var(lhsExpr);
-                // theory_var rhsVar = get_th_var(rhsExpr);
-                // std::cout << "lhsVar: " << lhsVar << std::endl;
-                // std::cout << "rhsVar: " << rhsVar << std::endl;
-                // enode* lhsNode = get_enode(lhsVar);
-                // enode* rhsNode = get_enode(rhsVar);
-                // #ifdef SLHV_DEBUG
-                // std::cout << "lhsVar: " << lhsVar << std::endl;
-                // std::cout << "lhsEnode: " << std::endl;
-                // std::cout << mk_ismt2_pp(lhsNode->get_expr(), m) << " " <<   mk_ismt2_pp(lhsNode->get_root()->get_expr(), m) << std::endl;
-                // enode* curr = lhsNode->get_root();
-                // enode* head = curr;
-                // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-                // curr = curr->get_next();
-                // while(curr != head) {
-                //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-                //     curr = curr->get_next();
-                // }
-                // std::cout << std::endl;
-                // std::cout << "rhsVar: " << rhsVar << std::endl;
-                // std::cout << "rhsEnode: " << std::endl;
-                // std::cout << mk_ismt2_pp(rhsNode->get_expr(), m) << " " <<   mk_ismt2_pp(rhsNode->get_root()->get_expr(), m) << std::endl;
-                // curr = rhsNode->get_root();
-                // head = curr;
-                // std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-                // curr = curr->get_next();
-                // while(curr != head) {
-                //     std::cout << mk_ismt2_pp(curr->get_expr(), m) << " ";
-                //     curr = curr->get_next();
-                // }
-                // std::cout << std::endl;
-                // #endif
+            coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
+            for(std::map<enode*, std::set<app*>> loc_eq_data : loc_eqs_raw) {
+                locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
+                
+                edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq);
 
-                // SASSERT(is_app_of(lhsExpr, ctx.get_manager().mk_family_id("slhv"),   OP_HVAR_CONST));
-                // if(!is_app_of(rhsExpr, ctx.get_manager().mk_family_id("slhv"),   OP_HEAP_DISJUNION)) {
-                //     ctx.set_conflict(
-                //         ctx.mk_justification(
-                //         ext_theory_conflict_justification(
-                //             get_id(), ctx, 0, nullptr, 0, nullptr, 0, nullptr
-                //         ))
-                //     );
-                //     return false;
-                // }
-                }
+                edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
+
+                // TODO: infer hterm inclusion
             }
-        
+        }
         return true;
     }
 
@@ -1033,12 +989,82 @@ namespace smt {
                 nontrivial_ids.insert(pair.first);
             }
         }
-        bool result1 = this->check_established_reachable(nontrivial_ids);
-        if(result1) {
+        // check whether some nontrivial scc can reach established node
+        bool estab_reached = this->check_established_reachable(nontrivial_ids);
+        if(estab_reached) {
             return nullptr;
         }
-        
-        
+        // compute the hvar eq after merging
+        coarse_hvar_eq* new_hvar_eq = this->check_and_merge_scc_hvars(nontrivial_ids);
+        if(new_hvar_eq == nullptr) {
+            return nullptr;
+        }
+        // compute the nodes that can be reached from some nontrivial scc
+        std::set<dgraph_node*> deleted_nodes = this->get_simplified_nodes(nontrivial_ids);
+        // compute the remaining node scc ids
+        std::set<int> remained_nontrivial_ids = nontrivial_ids;
+        for(dgraph_node* n : deleted_nodes) {
+            remained_nontrivial_ids.erase(n->get_low_index());
+        }
+        // compute the remaining edges by deleting edges related to deleted nodes
+        std::set<dgraph_edge*> remained_edges;
+        for(dgraph_edge* e : this->edges) {
+            if(deleted_nodes.find(e->get_from()) == deleted_nodes.end() &&
+               deleted_nodes.find(e->get_to()) == deleted_nodes.end()) {
+                    remained_edges.insert(e);
+               }
+        }
+
+        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq);
+        new_graph->set_simplified();
+
+        // create nodes for new graph
+        for(dgraph_node* n : this->nodes) {
+            if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
+                if(n->is_points_to()) {
+                    pt_dgraph_node* old_node = (pt_dgraph_node*)n;
+                    pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_pt_pair_label().first, old_node->get_pt_pair_label().second);
+                    new_node->set_dfs_index(old_node->get_dfs_index());
+                    new_node->set_low_index(old_node->get_low_index());
+                    new_graph->add_node(new_node);
+                } else if(n->is_hvar()) {
+                    hvar_dgraph_node* old_node = (hvar_dgraph_node*)n;
+                    hvar_dgraph_node* new_node = alloc(hvar_dgraph_node, new_graph, old_node->get_hvar_label());
+                    new_node->set_dfs_index(old_node->get_dfs_index());
+                    new_node->set_low_index(old_node->get_low_index());
+                    new_graph->add_node(new_node);
+                } else {
+                    SASSERT(false);
+                }
+            } 
+        }
+
+        for(int id : remained_nontrivial_ids) {
+            hvar_dgraph_node* id_node = nullptr;
+            for(dgraph_node* n : this->nodes) {
+                if(id == n->get_low_index()) {
+                    id_node = (hvar_dgraph_node*)n;
+                    break;
+                }
+            }
+            SASSERT(id_node->is_hvar());
+            app* leader_hvar = id_node->get_hvar_label();
+            app* leader_eq_repre = new_hvar_eq->get_leader_hvar(leader_hvar);
+            hvar_dgraph_node* scc_node = alloc(hvar_dgraph_node, new_graph, leader_eq_repre);
+            scc_node->set_dfs_index(0);
+            scc_node->set_low_index(id);
+            new_graph->add_node(scc_node);
+        }
+        // add edges for new graph
+        for(dgraph_edge* e : remained_edges) {
+            dgraph_node* new_from = new_graph->get_node_by_low(e->get_from()->get_low_index());
+            dgraph_node* new_to = new_graph->get_node_by_low(e->get_to()->get_low_index());
+            app* hterm_label = e->get_label();
+            dgraph_edge* new_edge = alloc(dgraph_edge, new_graph, new_from, new_to, hterm_label);
+            new_graph->add_edge(new_edge);
+        }
+        // TODO: add label complete here
+        return new_graph;
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {
@@ -1069,6 +1095,14 @@ namespace smt {
         this->edges.push_back(e);
     }
 
+    dgraph_node* get_node_by_low(int low_idx) {
+        for(dgraph_node* n : this->nodes) {
+            if(n->get_low_index() == low_idx) {
+                return n;
+            }
+        }
+        return nullptr;
+    }
 
             
 
@@ -1157,7 +1191,7 @@ namespace smt {
     }
 
 
-    std::set<dgraph_node*> edge_labelled_dgraph::get_simplified_nodes_id(std::set<int> nontrivial_ids) {
+    std::set<dgraph_node*> edge_labelled_dgraph::get_simplified_nodes(std::set<int> nontrivial_ids) {
         // return the set of ids that the nodes are simplified and eliminated in the simplified graph
         SASSERT(this->is_scc_computed());
         std::set<dgraph_node*> to_nodes;
@@ -1166,9 +1200,25 @@ namespace smt {
                 to_nodes.insert(n);
             }
         }
+        std::set<dgraph_node*> temp_nodes = to_nodes;
+        do {
+            std::set<dgraph_node*> new_nodes;
+            for(dgraph_node* n : temp_nodes) {
+                for(dgraph_edge* e : this->edges) {
+                    if(e->get_from() == n && to_nodes.find(e->get_to()) == to_nodes.end()) {
+                        new_nodes.insert(e->get_to());
+                    }
+                }
+            }
+            temp_nodes = new_nodes;
+            to_nodes = slhv_util::setUnion(to_nodes, new_nodes);
+        } while(temp_nodes.size() != 0);
         for(dgraph_node* n : to_nodes) {
-            
+            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
+                to_nodes.erase(n);
+            }
         }
+        return to_nodes;
     }
 
     std::vector<dgraph_edge*> edge_labelled_dgraph::get_edges_from_node(dgraph_node* n) {
