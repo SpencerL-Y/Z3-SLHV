@@ -845,6 +845,34 @@ namespace smt {
         }
     }
 
+    coarse_hvar_eq* coarse_hvar_eq::merge_hvar_nodes(std::vector<std::set<enode*>> nodes_sets) {
+        coarse_hvar_eq* new_eq = alloc(coarse_hvar_eq, this->th);
+        for(std::set<enode*> nodes : nodes_sets) {
+            new_eq->merge_enodes(nodes);
+        }
+        return new_eq;
+    }
+
+    void coarse_hvar_eq::merge_enodes(std::set<enode*> nodes) {
+        std::set<app*> merged_hvars;
+        for(enode* rt_node : nodes) {
+            SASSERT(coarse_data.find(rt_node) != coarse_data.end());
+            std::vector<app*> temp_hvars = this->coarse_data[rt_node];
+            for(app* hvar : temp_hvars) {
+                if(merged_hvars.find(hvar) == merged_hvars.end()) {
+                    merged_hvars.insert(hvar);
+                }
+            }
+        }
+        std::vector<app*> merged_result;
+        for(app* hvar : merged_hvars) {
+            merged_result.push_back(hvar);
+        }
+        for(enode* rt_node : nodes) {
+            this->coarse_data[rt_node] = merged_result;
+        }
+    }
+
     int coarse_hvar_eq::is_in_same_class(app* hvar1, app* hvar2) {
         enode* hvar1_root_node = this->th->get_context().get_enode(hvar1)->get_root();
         enode* hvar2_root_node = this->th->get_context().get_enode(hvar2)->get_root();
@@ -900,6 +928,7 @@ namespace smt {
         this->loc_eq = l;
         this->hvar_eq = h;
         this->construct_graph_from_theory();
+        this->simplified = false;
     }
 
     void edge_labelled_dgraph::construct_graph_from_theory() {
@@ -946,7 +975,7 @@ namespace smt {
                         std::cout << "create dgraph edge: Currently unsupport !!" << std::endl;
                     }
 
-                    dgraph_edge* new_edge = alloc(dgraph_edge, from_dgraph_node, temp_to_dgraph_node, label);
+                    dgraph_edge* new_edge = alloc(dgraph_edge, this, from_dgraph_node, temp_to_dgraph_node, label);
                     if(!this->has_edge(new_edge)) {
                         this->edges.push_back(new_edge);
                     }
@@ -986,6 +1015,187 @@ namespace smt {
         return nullptr;
     }
 
+    edge_labelled_dgraph* edge_labelled_dgraph::check_and_simplify() {
+        SASSERT(!this->is_scc_computed());
+        std::set<dgraph_node*> sources = this->get_sources();
+        this->tarjanSCC(sources);
+        std::map<int, int> nontrivial_SCC_ids;
+        for(dgraph_node* n : this->nodes) {
+            if(nontrivial_SCC_ids.find(n->get_low_index()) != nontrivial_SCC_ids.end()) {
+                nontrivial_SCC_ids[n->get_low_index()] += 1;
+            } else {
+                nontrivial_SCC_ids[n->get_low_index()] = 0;
+            }
+        }
+        std::set<int> nontrivial_ids;
+        for(auto pair : nontrivial_SCC_ids) {
+            if(pair.second > 0) {
+                nontrivial_ids.insert(pair.first);
+            }
+        }
+        bool result1 = this->check_established_reachable(nontrivial_ids);
+        if(result1) {
+            return nullptr;
+        }
+        
+        
+    }
+
+    bool edge_labelled_dgraph::is_scc_computed() {
+        for(dgraph_node* n : this->nodes) {
+            if(!n->is_tarjan_visited()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    void edge_labelled_dgraph::add_node(dgraph_node* n)  {
+        if(nodes.find(n) != nodes.end())  {
+            std::cout << "node already exists" << std::endl;
+        } else {
+            this->nodes.push_back(n);
+        }
+    }
+
+    void edge_labelled_dgraph::add_edge(dgraph_edge* e) {
+        for(dgraph_edge* ee : this->edges) {
+            if(ee->get_from() == e->get_from() &&
+               ee->get_to() == e->get_to() &&
+               ee->get_label() == e->get_label()) {
+                return;
+               }
+        }
+        this->edges.push_back(e);
+    }
+
+
+            
+
+    std::set<dgraph_node*> edge_labelled_dgraph::get_sources() {
+        std::map<dgraph_node*, bool> is_source_map;
+        for(dgraph_node* n : this->nodes) {
+            is_source_map[n] = true;
+        }
+        for(dgraph_edge* e : this->edges) {
+            is_source_map[e->get_to()] = false;
+        }
+        std::set<dgraph_node*> result;
+        for(auto p : is_source_map) {
+            if(p.second) {
+                result.insert(p.first);
+            }
+        }
+        return result;
+    }
+
+    dgraph_node* edge_labelled_dgraph::get_unvisited() {
+        for(dgraph_node* n : this->nodes) {
+            if(n->is_tarjan_visited()) {
+                return n;
+            }
+        }
+        return nullptr;
+    }
+
+    bool edge_labelled_dgraph::check_established_reachable(std::set<int> nontrivial_ids) {
+        SASSERT(this->is_scc_computed());
+        std::set<dgraph_node*> established_reachable_nodes;
+        for(dgraph_node* n : this->nodes) {
+            if(n->is_established()) {
+                established_reachable_nodes.insert(n);
+            }
+        }
+        std::set<dgraph_node*> next_nodes = established_reachable_nodes;
+        do {
+            
+            for(dgraph_edge* e : this->edges) {
+                if(established_reachable_nodes.find(e->get_to()) !=  established_reachable_nodes.end()) {
+                    next_nodes.insert(e->get_from());
+                }
+            }
+        } while(next_nodes.size() - established_reachable_nodes.size() > 0);
+        for(dgraph_node* n : established_reachable_nodes) {
+            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
+                this->th->check_status = theory_slhv::slhv_unsat;
+                this->th->set_conflict_slhv();
+                return true;
+            }
+        }
+        return false;
+    }
+
+    coarse_hvar_eq* edge_labelled_dgraph::check_and_merge_scc_hvars(std::set<int> nontrivial_ids) {
+        SASSERT(this->is_scc_computed());
+        std::vector<std::set<enode*>> enode_sets_to_merge;
+        for(int id : nontrivial_ids) {
+            std::set<dgraph_node*> nodes2merge;
+            std::set<enode*> enode_set;
+            for(dgraph_node* n : this->nodes) {
+                if(n->get_low_index() == id) {
+                    nodes2merge.insert(n);
+                    SASSERT(!n->is_points_to());
+                    hvar_dgraph_node* hvar_node = (hvar_dgraph_node*) n;
+                    app* leader_hvar = hvar_node->get_hvar_label();
+                    enode* leader_hvar_node = this->th->get_context().get_enode(leader_hvar)->get_root();
+                    enode_set.insert(leader_hvar_node);
+                }
+                for(enode_pair p : this->th->curr_distinct_hterm_pairs) {
+                    if(enode_set.find(p.first) != enode_set.end() && 
+                       enode_set.find(p.second) != enode_set.end()) {
+                            this->th->check_status = theory_slhv::slhv_unsat;
+                            this->th->set_conflict_slhv();
+                            return nullptr;
+                       }
+                }
+                enode_sets_to_merge.push_back(enode_set);
+            }
+        }
+        // new hvar equivalence class
+        coarse_hvar_eq* new_hvar_eq = this->hvar_eq->merge_hvar_nodes(enode_sets_to_merge);
+        return new_hvar_eq;
+    }
+
+
+    std::set<dgraph_node*> edge_labelled_dgraph::get_simplified_nodes_id(std::set<int> nontrivial_ids) {
+        // return the set of ids that the nodes are simplified and eliminated in the simplified graph
+        SASSERT(this->is_scc_computed());
+        std::set<dgraph_node*> to_nodes;
+        for(dgraph_node* n : this->nodes) {
+            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
+                to_nodes.insert(n);
+            }
+        }
+        for(dgraph_node* n : to_nodes) {
+            
+        }
+    }
+
+    std::vector<dgraph_edge*> edge_labelled_dgraph::get_edges_from_node(dgraph_node* n) {
+        std::vector<dgraph_edge*> result;
+        for(dgraph_edge* e : this->edges) {
+            if(e->get_from() == n) {    
+                result.push_back(e);
+            }
+        }
+        return result;
+    }
+
+    void edge_labelled_dgraph::tarjanSCC(std::set<dgraph_node*> tarjanSCC) {
+        int dfs_num = 1;
+        for(dgraph_node* n : this->get_sources()) {
+            n->tarjanSCC(dfs_num);
+        }
+        dgraph_node* curr_unvisited = this->get_unvisited();
+        while(curr_unvisited != nullptr) {
+            curr_unvisited->tarjanSCC(dfs_num);
+            curr_unvisited = this->get_unvisited();
+        }
+        for(dgraph_node* n : this->nodes) {
+            SASSERT(n->is_tarjan_visited());
+        }
+    }
+
 
     bool edge_labelled_dgraph::has_edge(dgraph_edge* edge){
         for(dgraph_edge* e : this->edges) {
@@ -1000,6 +1210,27 @@ namespace smt {
 
     dgraph_node::dgraph_node(edge_labelled_dgraph* g) {
         this->dgraph = g;
+        this->dfs_index = -1;
+        this->low_index = -1;
+    }
+
+    int dgraph_node::tarjanSCC(int& dfs_num) {
+        if(this->dfs_index == -1) {
+            this->low_index = dfs_num;
+            this->dfs_index = dfs_num;
+            dfs_num += 1;
+        } else {
+            return this->low_index;
+        }
+        std::vector<dgraph_edge*> edges = this->dgraph->get_edges_from_node(this);
+        for(dgraph_edge* e : edges) {
+            dgraph_node* curr_next_node = e->get_to();
+            int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
+            if(ret_low_index < this->low_index) {
+                this->low_index = ret_low_index;
+            }
+        }
+        return this->low_index;
     }
 
 
@@ -1011,7 +1242,16 @@ namespace smt {
         this->pt_addr_leader = pt_addr;
         this->pt_data_leader = pt_data;
     }
-    // TODO: continue here
+    
+    // dgraph edge
+    dgraph_edge::dgraph_edge(edge_labelled_dgraph* g, dgraph_node* f, dgraph_node* t, app* hterm_label) {
+        this->dgraph = g;
+        this->from = f;
+        this->to = t;
+        this->hterm_label = hterm_label;
+    }
+
+
     // syntax maker
 
     slhv_syntax_maker::slhv_syntax_maker(theory_slhv* th) {

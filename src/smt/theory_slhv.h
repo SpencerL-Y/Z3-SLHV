@@ -76,6 +76,8 @@ namespace smt
         bool is_locterm(app const* n) const {
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
+
+        void set_conflict_slhv();
         private:
         bool final_check();
         
@@ -88,7 +90,6 @@ namespace smt
 
         bool internalize_term_core(app * term);
 
-        void set_conflict_slhv();
 
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use
@@ -447,8 +448,11 @@ namespace smt
         private:
             theory_slhv* th;
             std::map<enode*, std::vector<app*>> coarse_data;
+            void merge_enodes(std::set<enode*> nodes);
         public:
+        // construct coarse hvar eq from th curr_hvars
         coarse_hvar_eq(theory_slhv* th);
+        coarse_hvar_eq* merge_hvar_nodes(std::vector<std::set<enode*>> enode_sets);
         // return 1 for yes, 0 for no and -1 for not sure
         int is_in_same_class(app* hvar1, app* hvar2);
         app* get_leader_hvar(app* hvar);
@@ -467,25 +471,58 @@ namespace smt
             coarse_hvar_eq* hvar_eq;
             std::vector<dgraph_node*>  nodes;
             std::vector<dgraph_edge*>  edges;
+            bool simplified;
             void construct_graph_from_theory();
+            std::set<dgraph_node*> get_sources();
+            void tarjanSCC(std::set<dgraph_node*> sources);
+            dgraph_node* get_unvisited();
+            bool check_established_reachable(std::set<int> nontrivial_ids);
+            coarse_hvar_eq* check_and_merge_scc_hvars(std::set<int> nontrivial_ids);
+            std::set<int> get_simplified_nodes_id(std::set<int> nontrivial_ids);
         public:
             edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
+
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
 
             bool has_edge(dgraph_edge* edge);
+            std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
+            bool is_scc_computed();
+            edge_labelled_dgraph* check_and_simplify();
+            void set_simplified() {
+                this->simplified = true;
+            }
+            void add_node(dgraph_node* n);
+            void add_edge(dgraph_edge* e);
 
     };
 
     class dgraph_node {
         private:
             edge_labelled_dgraph* dgraph;
+            // -1 for not visited
+            // other means visited
+            int dfs_index;
+            int low_index;
         public: 
             dgraph_node(edge_labelled_dgraph* g);
+            int tarjanSCC(int& dfs_num);
+            bool is_tarjan_visited() {
+                return !(dfs_index == -1);
+            }
+            int get_low_index() {
+                return this->low_index;
+            }
+            int get_dfs_index() {
+                return dfs_index;
+            }
             virtual bool is_hvar() {
                 return false;
             }
             virtual bool is_points_to() {
+                return false;
+            }
+            virtual bool is_established() {
                 return false;
             }
     };
@@ -502,6 +539,9 @@ namespace smt
                 return true;
             }
             bool is_points_to() override {
+                return false;
+            }
+            bool is_established() override {
                 return false;
             }
     };
@@ -524,16 +564,19 @@ namespace smt
             bool is_points_to() override {
                 return true;
             }
+            bool is_established() override {
+                return true;
+            }
     };
 
     class dgraph_edge {
         private:
-            edge_labelled_dgraph& dgraph;
+            edge_labelled_dgraph* dgraph;
             dgraph_node* from;
             dgraph_node* to;
             app* hterm_label;
         public:
-            dgraph_edge(dgraph_node* f, dgraph_node* t, app* hterm_label);
+            dgraph_edge(edge_labelled_dgraph* graph, dgraph_node* f, dgraph_node* t, app* hterm_label);
             dgraph_node* get_from() {
                 return from;
             }
