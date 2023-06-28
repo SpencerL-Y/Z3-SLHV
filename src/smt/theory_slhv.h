@@ -481,6 +481,7 @@ namespace smt
             std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
         public:
             edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
 
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
@@ -488,6 +489,9 @@ namespace smt
             bool has_edge(dgraph_edge* edge);
             std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
             bool is_scc_computed();
+            bool is_subgraph() {
+                return false;
+            }
             edge_labelled_dgraph* check_and_simplify();
             void set_simplified() {
                 this->simplified = true;
@@ -495,8 +499,38 @@ namespace smt
             void add_node(dgraph_node* n);
             void add_edge(dgraph_edge* e);
             dgraph_node* get_node_by_low(int low_idx);
+            std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs();
 
+            locvar_eq* get_locvar_eq() {
+                return this->loc_eq;
+            }
+            coarse_hvar_eq* get_hvar_eq() {
+                return this->hvar_eq;
+            }
+            theory_slhv* get_th() {
+                return this->th;
+            }
+            bool get_simplified() {
+                return this->simplified;
+            }
+            std::vector<dgraph_node*> get_nodes() {
+                return this->nodes;
+            }
+            std::vector<dgraph_edge*> get_edges() {
+                return this->edges;
+            }
     };
+
+    class edge_labelled_subgraph : private edge_labelled_dgraph {
+        private:
+            edge_labelled_dgraph* parent;
+        public:
+        edge_labelled_subgraph(edge_labelled_dgraph* p, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
+        bool is_subgraph() override {
+            return true;
+        }
+        bool is_rooted_disjoint_labelcomplete();
+    }
 
     class dgraph_node {
         private:
@@ -506,7 +540,7 @@ namespace smt
             int dfs_index;
             int low_index;
         public: 
-            dgraph_node(edge_labelled_dgraph* g);
+            dgraph_node(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
             int tarjanSCC(int& dfs_num);
             bool is_tarjan_visited() {
                 return !(dfs_index == -1);
@@ -516,6 +550,9 @@ namespace smt
             }
             int get_dfs_index() {
                 return dfs_index;
+            }
+            edge_labelled_dgraph* get_dgraph() {
+                return this->dgraph;
             }
             virtual bool is_hvar() {
                 return false;
@@ -595,6 +632,9 @@ namespace smt
             }
             app* get_label() {
                 return hterm_label;
+            }
+            edge_labelled_dgraph* get_dgraph() {
+                return dgraph;
             }
     };
 

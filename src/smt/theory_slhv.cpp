@@ -176,6 +176,7 @@ namespace smt {
                 edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
 
                 // TODO: infer hterm inclusion
+
             }
         }
         return true;
@@ -799,6 +800,12 @@ namespace smt {
                 coarse_data[hvar_enode_root] = varsvec;
             }
         }
+        for(auto pair : this->coarse_data) {
+            enode* rt_node = pair.first;
+            if(this->th->curr_emp_hterm_enodes.find(rt_node) != this->th->curr_emp_hterm_enodes.end()) {
+                this->coarse_data[rt_node].insert(this->th->global_emp);
+            }
+        }
     }
 
     coarse_hvar_eq* coarse_hvar_eq::merge_hvar_nodes(std::vector<std::set<enode*>> nodes_sets) {
@@ -811,6 +818,7 @@ namespace smt {
 
     void coarse_hvar_eq::merge_enodes(std::set<enode*> nodes) {
         std::set<app*> merged_hvars;
+        bool is_emp = false;
         for(enode* rt_node : nodes) {
             SASSERT(coarse_data.find(rt_node) != coarse_data.end());
             std::vector<app*> temp_hvars = this->coarse_data[rt_node];
@@ -818,11 +826,20 @@ namespace smt {
                 if(merged_hvars.find(hvar) == merged_hvars.end()) {
                     merged_hvars.insert(hvar);
                 }
+                if(hvar == this->th->global_emp) {
+                    is_emp = true;
+                }
             }
         }
+        
         std::vector<app*> merged_result;
+        if(is_emp) {
+            merged_result.push_back(this->th->global_emp);
+        }
         for(app* hvar : merged_hvars) {
-            merged_result.push_back(hvar);
+            if(hvar != this->th->global_emp) {
+                merged_result.push_back(hvar);
+            }
         }
         for(enode* rt_node : nodes) {
             this->coarse_data[rt_node] = merged_result;
@@ -885,6 +902,15 @@ namespace smt {
         this->hvar_eq = h;
         this->construct_graph_from_theory();
         this->simplified = false;
+    }
+
+    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified) {
+        this->th = t;
+        this->loc_eq = l;
+        this->hvar_eq = h;
+        this->edges = es;
+        this->nodes = ns;
+        this->simplified = simplified;
     }
 
     void edge_labelled_dgraph::construct_graph_from_theory() {
@@ -1104,7 +1130,65 @@ namespace smt {
         return nullptr;
     }
 
-            
+    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root) {
+
+    }
+
+    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), ns, es, g->get_simplified()){
+        for(dgraph_node* n : ns) {
+            SASSERT(n->get_dgraph() == g);
+        }
+        for(dgraph_edge* e : es) {
+            SASSERT(e->get_dgraph() == g);
+        }
+        this->parent = g;
+    }
+
+    bool edge_labelled_subgraph::is_rooted_disjoint_labelcomplete() {
+        // single root
+        std::set<dgraph_node*> root = this->get_sources();
+        if(root.size() != 1) {
+            return false;
+        }
+        // each node can be reached from single root and no loop exists
+        std::set<dgraph_node*> visited_nodes; 
+        std::set<dgraph_node*> newly_visited;
+        newly_visited.insert(*root.begin());
+        while(newly_visited.size() > 0) {
+            std::set<dgraph_node*> next_newly_visited;
+            for(dgraph_node* frontier : newly_visited) {
+                for(dgraph_edge* e : this->edges) {
+                    if(e->get_from() == root) {
+                        if(visited_nodes.find(e->get_to()) !=  visited_nodes.end() || newly_visited.find(e->get_to()) != newly_visited.end()){
+                            return false;
+                        }
+                        next_newly_visited.insert(e->get_to());
+                    }
+                }
+            }
+            visited_nodes = slhv_util::setUnion(visited_nodes, newly_visited);
+            newly_visited = next_newly_visited;
+        }
+        for(dgraph_node* n : this->nodes) {
+            if(visited_nodes.find(n) == visited_nodes.end()) {
+                return false;
+            }
+        }
+        // all outgoing edges of a node share the same label
+        for(dgraph_node* n : this->nodes) {
+            app* outgoing_label = nullptr;
+            for(dgraph_edge* e : this->edges) {
+                if(outgoing_label == nullptr) {
+                    outgoing_label = e->get_label();
+                } else {
+                    if(e->get_label() != outgoing_label) {
+                        return false;
+                    }
+                }
+            }
+        }
+        return true;
+    }
 
     std::set<dgraph_node*> edge_labelled_dgraph::get_sources() {
         std::map<dgraph_node*, bool> is_source_map;
