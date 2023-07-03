@@ -176,7 +176,16 @@ namespace smt {
                 edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
 
                 // TODO: infer hterm inclusion
-
+                std::set<dgraph_node*> roots = simplified_graph->get_sources();
+                std::vector<edge_labelled_subgraph*> all_subgraphs;
+                std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> subgraph_info;
+                for(dgraph_node* r : roots) {
+                    all_subgraphs = slhv_util::vecConcat(
+                        all_subgraphs, 
+                        simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(r, subgraph_info);
+                    )
+                }
+                
             }
         }
         return true;
@@ -1130,9 +1139,103 @@ namespace smt {
         return nullptr;
     }
 
-    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root) {
-
+    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, 
+     std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraphs) {
+        //TODO: enumerate all subgraphs
+        // if computed
+        if(node2subgraphs.find(root) != node2subgraphs.end()) {
+            return node2subgraphs[root];
+        }
+        // if the node is leaf node:
+        if(!this->has_edge_from(root)) {
+            std::vector<edge_labelled_subgraph*> result;
+            std::vector<dgraph_node*> ns; ns.insert(root);
+            std::vector<dgraph_edge*> es;
+            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
+                this, ns, es
+            )
+        } else {
+            std::set<dgraph_edge*> root_edges;
+            std::set<app*> edge_labels;
+            for(dgraph_edge* e : this->edges) {
+                if(e->get_from() == root) {
+                    root_edges.insert(e);
+                    edge_labels.insert(e->get_label());
+                }
+            }
+            
+            std::vector<edge_labelled_subgraph*> subgraphs;
+            for(app* label : edge_labels) {
+                std::set<dgraph_edge*> edges2merge;
+                curr_ns.insert(root);
+                for(dgraph_edge* e : root_edges) {
+                    if(e->get_label() == label) {
+                        curr_es.insert(e);
+                        if(node2subgraphs.find(e->get_to()) == node2subgraphs.end()) {
+                            node2subgraphs[e->get_to()] =  this->extract_all_rooted_disjoint_labelcomplete_subgraphs(e->get_to(), node2subgraphs);
+                        }
+                        edges2merge.insert(e);
+                    }
+                }
+                // TODO:  merge them
+                std::vector<edge_labelled_subgraph*> curr_result;
+                std::vector<edge_labelled_subgraph*> next_result;
+                std::vector<dgraph_edge*> curr_es;
+                std::vector<dgraph_node*> curr_ns;
+                curr_ns.push_back(root);
+                for(dgraph_edge* e : edges2merge) {
+                    curr_es.push_back(e);
+                    curr_ns.push_back(root);
+                }
+                edge_labelled_subgraph* stem_graph = alloc(edge_labelled_subgraph, this, curr_ns, curr_es);
+                curr_result.push_back(stem_graph);
+                for(dgraph_edge* e : edges2merge) {
+                    next_result = this->subgraphs_union(curr_result, node2subgraphs[e->get_to()]);
+                    curr_result = next_result;
+                }
+                for(edge_labelled_subgraph* sb : curr_result) {
+                    subgraphs.push_back(sb);
+                }
+            }
+            return subgraphs;
+        }
     }
+
+    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2) {
+        std::vector<edge_labelled_subgraph*> result;
+        for(edge_labelled_subgraph* sg1 : graphs1) {
+            for(edge_labelled_subgraph* sg2 : graphs2) {
+                SASSERT(sg1->get_parent() == sg2->get_parent());
+                edge_labelled_dgraph* parent = sg1->get_parent();
+                std::set<dgraph_node*> merged_nodes;
+                std::set<dgraph_edge*> merged_edges;
+                for(dgraph_node* n : sg1->get_nodes()) {
+                    merged_nodes.insert(n);
+                }
+                for(dgraph_node* n : sg2->get_nodes()) {
+                    merged_nodes.insert(n);
+                }
+                for(dgraph_edge* e : sg1->get_edges()) {
+                    merged_edges.insert(e);
+                }
+                for(dgraph_edge* e : sg2->get_edges()) {
+                    merged_edges.insert(e);
+                }
+                std::vector<dgraph_node*> curr_ns;
+                std::vector<dgraph_edge*> curr_es;
+                for(dgraph_node* n : merged_nodes) {
+                    curr_ns.push_back(n);
+                }
+                for(dgraph_edge* e : merged_edges) {
+                    curr_es.push_back(e);
+                }
+                edge_labelled_subgraph* merged_graph = alloc(edge_labelled_subgraph, parent, curr_ns, curr_es);
+                result.push_back(merged_graph);
+            }
+        }
+    }
+
+
 
     edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), ns, es, g->get_simplified()){
         for(dgraph_node* n : ns) {
@@ -1338,6 +1441,24 @@ namespace smt {
                e->get_label() == edge->get_label()) {
                 return true;
                } 
+        }
+        return false;
+    }
+
+    bool edge_labelled_dgraph::has_edge_from(dgraph_node* node) {
+        for(dgraph_edge* e : this->edges) {
+            if(e->get_from() == node) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool edge_labelled_dgraph::has_edge_to(dgraph_node* node) {
+        for(dgraph_edge* e : this->edges) {
+            if(e->get_to() == node) {
+                return true;
+            }
         }
         return false;
     }

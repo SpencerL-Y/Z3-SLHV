@@ -487,6 +487,8 @@ namespace smt
             pt_dgraph_node* get_pt_node(app* orig_pt);
 
             bool has_edge(dgraph_edge* edge);
+            bool has_edge_to(dgraph_node* node);
+            bool has_edge_from(dgraph_node* node);
             std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
             bool is_scc_computed();
             bool is_subgraph() {
@@ -499,7 +501,8 @@ namespace smt
             void add_node(dgraph_node* n);
             void add_edge(dgraph_edge* e);
             dgraph_node* get_node_by_low(int low_idx);
-            std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs();
+            std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraph);
+            std::vector<edge_labelled_subgraph*> subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2);
 
             locvar_eq* get_locvar_eq() {
                 return this->loc_eq;
@@ -528,6 +531,9 @@ namespace smt
         edge_labelled_subgraph(edge_labelled_dgraph* p, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
         bool is_subgraph() override {
             return true;
+        }
+        edge_labelled_dgraph* get_parent() {
+            return this->parent;
         }
         bool is_rooted_disjoint_labelcomplete();
     }
@@ -666,6 +672,18 @@ namespace smt
                 }
             }
             return true;
+        }
+
+        template<typename T>
+        static std::vector<T> vecConcat(std::vector<T> v1, std::vector<T> v2) {
+            std::vector<T> result;
+            for(T t1 : v1) {
+                result.push_back(t1);
+            }
+            for(T t2 : v2) {
+                result.push_back(t2);
+            }
+            return result;
         }
     };
 
