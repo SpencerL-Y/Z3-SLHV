@@ -185,7 +185,7 @@ namespace smt {
                         simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(r, subgraph_info);
                     )
                 }
-                
+
             }
         }
         return true;
@@ -1504,6 +1504,24 @@ namespace smt {
         this->from = f;
         this->to = t;
         this->hterm_label = hterm_label;
+    }
+
+    // hterm class
+    bool hterm::is_sub_hterm_of(hterm* ht) {
+        SASSERT(this->h_eq == ht->get_h_eq());
+        std::set<app*> h_atoms_larger = ht->get_h_atoms();
+        if(slhv_util::setIsSubset(h_atoms_larger, this->h_atoms)) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    hterm* hterm::subtract_hterm(hterm* subtractor) {
+        SASSERT(subtractor->is_sub_hterm_of(this));
+        SASSERT(this->h_eq == subtractor->get_h_eq());
+        std::set<app*> h_atom_remained = slhv_util::setSubtract(this->h_atoms, subtractor->get_h_atoms());
+        hterm* result = alloc(hterm, h_atom_remained, this->h_eq);
     }
 
 

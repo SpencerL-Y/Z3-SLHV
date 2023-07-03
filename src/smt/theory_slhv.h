@@ -429,7 +429,7 @@ namespace smt
     };
 
 
-
+// variable equivalence class
     class locvar_eq {
         private:
             theory_slhv* th;
@@ -643,7 +643,23 @@ namespace smt
                 return dgraph;
             }
     };
+// hterm class
+    class hterm {
+        private:
+            std::set<app*> h_atoms;
+            coarse_hvar_eq* h_eq;
+        public:
+            hterm(std::set<app*> hts, coarse_hvar_eq* hvar_eq) : h_atoms(hts), h_eq(hvar_eq) {}
+            bool is_sub_hterm_of(hterm* ht);
+            std::set<app*> get_h_atoms() {
+                return h_atoms;
+            }
+            hterm* subtract_hterm(hterm* subtracted);
+            coarse_hvar_eq* get_h_eq() {
+                return this->h_eq;
+            }
 
+    };
 // util class
     class slhv_util {
         public:
@@ -675,6 +691,27 @@ namespace smt
         }
 
         template<typename T>
+        static bool setIsSubset(std::set<T> larger, std::set<T> smaller) {
+            for(T t : smaller) {
+                if(larger.find(t) == larger.end()) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        template<typename T>
+        static std::set<T> setSubtract(std::set<T> subtracted, std::set<T> subtractor) {
+            std::set<T> result;
+            for(T t : subtracted) {
+                if(subtractor.find(t) == subtractor.end()) {
+                    result.insert(t);
+                }
+            }
+            return result;
+        }
+
+        template<typename T>
         static std::vector<T> vecConcat(std::vector<T> v1, std::vector<T> v2) {
             std::vector<T> result;
             for(T t1 : v1) {
@@ -684,6 +721,66 @@ namespace smt
                 result.push_back(t2);
             }
             return result;
+        }
+
+        template<typename T>
+        static std::vector<T> vecIncluded(std::vector<T> larger, std::vector<T> smaller) {
+            std::map<T, int> larger_map;
+            std::map<T, int> smaller_map;
+            for(T t : larger) {
+                if(larger_map.find(t) != larger_map.end()) {
+                    larger_map[t] += 1;
+                } else {
+                    larger_map[t] = 1;
+                }
+            }
+            for(T t : smaller) {
+                if(smaller_map.find(t) != smaller_map.end()) {
+                    smaller_map[t] += 1;
+                } else {
+                    smaller_map[t] = 1;
+                }
+            }
+            for(auto pair : smaller_map) {
+                if(larger_map.find(pair.first) == larger_map.end()) {
+                    return false;
+                } else {
+                    if(larger_map[pair.first] < pair.second) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        template<typename T>
+        static std::vector<T> vecEqual() {
+            std::map<T, int> larger_map;
+            std::map<T, int> smaller_map;
+            for(T t : larger) {
+                if(larger_map.find(t) != larger_map.end()) {
+                    larger_map[t] += 1;
+                } else {
+                    larger_map[t] = 1;
+                }
+            }
+            for(T t : smaller) {
+                if(smaller_map.find(t) != smaller_map.end()) {
+                    smaller_map[t] += 1;
+                } else {
+                    smaller_map[t] = 1;
+                }
+            }
+            for(auto pair : smaller_map) {
+                if(larger_map.find(pair.first) == larger_map.end()) {
+                    return false;
+                } else {
+                    if(larger_map[pair.first] != pair.second) {
+                        return false;
+                    }
+                }
+            }
+            return true;
         }
     };
 
