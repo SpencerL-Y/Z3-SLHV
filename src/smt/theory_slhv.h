@@ -145,6 +145,11 @@ namespace smt
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
+        subheap_relation* check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::vector<edge_labelled_subgraph*>& all_subgraphs);
+
+        subheap_relation* check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs);
+
+        std::set<hterm*> propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels); 
         public:
         theory_slhv(context& ctx);
         
@@ -505,6 +510,12 @@ namespace smt
             dgraph_node* get_node_by_low(int low_idx);
             std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraph);
             std::vector<edge_labelled_subgraph*> subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2);
+            
+            bool is_rooted() {
+                return this->get_sources().size() == 1;
+            }
+            dgraph_node* get_root_node();
+            std::set<dgraph_node*> get_dest_nodes();
 
             locvar_eq* get_locvar_eq() {
                 return this->loc_eq;
@@ -652,9 +663,12 @@ namespace smt
             std::set<std::pair<app*,app*>> h_atoms;
             coarse_hvar_eq* h_eq;
             locvar_eq* loc_eq;
+
+            std::set<hterm*> concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom);
         public:
             hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {}
             bool is_sub_hterm_of(hterm* ht);
+            bool is_super_hterm_of(hterm* ht);
             std::set<std::pair<app*, app*>> get_h_atoms() {
                 return h_atoms;
             }
@@ -666,7 +680,7 @@ namespace smt
                 return this->loc_eq;
             }
             std::set<hterm*> get_all_atom_hterms();
-
+            std::set<hterm*> generate_all_subhterms();
 
     };
 
@@ -683,9 +697,17 @@ namespace smt
                 this->hterm_set.insert(ht);
             }
             void add_pair(hterm* ht_smaller, hterm* ht_larger);
+            void add_equal(hterm* first, hterm* second);
             bool contain_hterm(hterm* ht);
             bool is_subheap(hterm* smaller, hterm* larger);
+            bool is_equal_heap(hterm* first, hterm* second);
             std::set<hterm*> get_all_smaller_hterms(hterm* larger);
+            std::set<hterm*> get_hterm_set() {
+                return this->hterm_set;
+            }
+            std::set<std::pair<hterm*, hterm*>> get_subheap_pairs() {
+                return this->subheap_pairs;
+            }
     };
 
 // util class
