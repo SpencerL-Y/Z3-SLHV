@@ -465,6 +465,9 @@ namespace smt
         app* get_leader_hvar(app* hvar);
         // return 1 for yes, 0 for no and -1 for unknown
         int is_emp_hvar(app* hvar);
+        app* get_emp() {
+            return this->th->global_emp;
+        }
 
         std::vector<app*> get_leader_hvars();
     };
@@ -666,7 +669,11 @@ namespace smt
 
             std::set<hterm*> concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom);
         public:
-            hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {}
+            hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {
+                if(h_atoms.size() == 0) {
+                    h_atoms.insert(this->h_eq->get_emp());
+                }
+            }
             bool is_sub_hterm_of(hterm* ht);
             bool is_super_hterm_of(hterm* ht);
             std::set<std::pair<app*, app*>> get_h_atoms() {

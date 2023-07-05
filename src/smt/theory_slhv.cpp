@@ -1664,11 +1664,14 @@ namespace smt {
 
 
     std::set<hterm*> hterm::generate_all_subhterms() {
-        for
+        std::set<hterm*> curr_result;
+        // TODO: add generation
     }
 
 
     std::set<hterm*> hterm::concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom) {
+
+        // TODO: map be buggy because the original hterm maybe emp
         for(hterm* ht : hterm_set) {
             for(auto pair : ht->get_h_atoms()) {
                 SASSERT(pair != curr_atom);
@@ -1676,8 +1679,14 @@ namespace smt {
         }
         std::set<hterm*> result_hterm_set;
         for(hterm* ht : hterm_set) {
-            
+            std::set<std::pair<app*, app*>> contain_set = ht->get_h_atoms();
+            contain_set.insert(curr_atom);
+            hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
+            hterm* not_contain_hterm = ht;
+            result_hterm_set.insert(contain_hterm);
+            result_hterm_set.insert(not_contain_hterm);
         }
+        return result_hterm_set;
     }
 
     hterm* hterm::subtract_hterm(hterm* subtractor) {
