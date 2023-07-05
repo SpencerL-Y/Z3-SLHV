@@ -143,6 +143,8 @@ namespace smt
 
         void infer_distinct_heapterms(app* atom);
 
+        std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
+
         public:
         theory_slhv(context& ctx);
         
@@ -535,6 +537,7 @@ namespace smt
         edge_labelled_dgraph* get_parent() {
             return this->parent;
         }
+        hterm* obtain_graph_hterm();
         bool is_rooted_disjoint_labelcomplete();
     }
 
@@ -646,20 +649,45 @@ namespace smt
 // hterm class
     class hterm {
         private:
-            std::set<app*> h_atoms;
+            std::set<std::pair<app*,app*>> h_atoms;
             coarse_hvar_eq* h_eq;
+            locvar_eq* loc_eq;
         public:
-            hterm(std::set<app*> hts, coarse_hvar_eq* hvar_eq) : h_atoms(hts), h_eq(hvar_eq) {}
+            hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {}
             bool is_sub_hterm_of(hterm* ht);
-            std::set<app*> get_h_atoms() {
+            std::set<std::pair<app*, app*>> get_h_atoms() {
                 return h_atoms;
             }
             hterm* subtract_hterm(hterm* subtracted);
             coarse_hvar_eq* get_h_eq() {
                 return this->h_eq;
             }
+            locvar_eq* get_loc_eq() {
+                return this->loc_eq;
+            }
+            std::set<hterm*> get_all_atom_hterms();
+
 
     };
+
+// hterm inclusion relation
+    class subheap_relation {
+        private:
+            std::set<hterm*> hterm_set;
+            std::set<std::pair<hterm*, hterm*>> subheap_pairs;
+            // first <= second
+        public:
+            subheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), subheap_pairs(pairs) {}
+            subheap_relation() {}
+            void add_hterm(hterm* ht) {
+                this->hterm_set.insert(ht);
+            }
+            void add_pair(hterm* ht_smaller, hterm* ht_larger);
+            bool contain_hterm(hterm* ht);
+            bool is_subheap(hterm* smaller, hterm* larger);
+            std::set<hterm*> get_all_smaller_hterms(hterm* larger);
+    };
+
 // util class
     class slhv_util {
         public:

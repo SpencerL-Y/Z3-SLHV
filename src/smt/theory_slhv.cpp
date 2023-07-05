@@ -730,6 +730,23 @@ namespace smt {
         }
     }
 
+    std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs) {
+        // collect hterm from subgraphs:
+        std::set<hterm*> result;
+        coarse_hvar_eq* curr_eq = nullptr;
+        for(edge_labelled_subgraph* sb : all_subgraphs) {
+            if(curr_eq != nullptr) {
+                if(curr_eq != sb->get_hvar_eq()) {
+                    SASSERT(false);
+                }
+            } else {
+                curr_eq = sb->get_hvar_eq();
+            }
+            result.insert(sb->obtain_graph_hterm());
+        }
+        return result;
+    }
+
     void theory_slhv::init_model(model_generator & mg)  {
         #ifdef SLHV_DEBUG
         std::cout << "slhv init model" << std::endl;
@@ -1247,6 +1264,43 @@ namespace smt {
         this->parent = g;
     }
 
+    hterm* edge_labelled_subgraph::obtain_graph_hterm() {
+        std::set<std::pair<app*, app*>> rep_hterm;
+        std::set<dgraph_node*> leaves;
+        for(dgraph_node* n : this->nodes) {
+            bool is_leaf = true;
+            for(dgraph_edge* e : this->edges) {
+                if(e->get_from() == n) {
+                    is_leaf = false;
+                    break;
+                }
+            }
+            if(is_leaf) {
+                leaves.insert(n);
+            }
+        }
+        for(dgraph_node* n : leaves) {
+            if(n->is_hvar()) {
+                hvar_dgraph_node* hvar_node = (hvar_dgraph_node*) n;
+                if(rep_hterm.find({hvar_node->get_hvar_label(), nullptr}) != rep_hterm.end()) {
+                    rep_hterm.erase({hvar_node->get_hvar_label(), nullptr});
+                }
+                rep_hterm.insert({hvar_node->get_hvar_label(), nullptr});
+            } else if(n->is_points_to) {
+                pt_dgraph_node* pt_node = (pt_dgraph_node*) n;
+                SASSERT(rep_hterm.find(pt_node->get_pt_pair_label()) != rep_hterm.end());
+                rep_hterm.insert(pt_node->get_pt_pair_label());
+            } else {
+                SASSERT(false);
+            }
+        }
+        if(rep_hterm.size() == 0) {
+            rep_hterm.insert(this->get_th()->global_emp);
+        }
+        hterm* result = alloc(hterm, rep_hterm, this->get_hvar_eq(), this->get_locvar_eq());
+        return result;
+    }
+
     bool edge_labelled_subgraph::is_rooted_disjoint_labelcomplete() {
         // single root
         std::set<dgraph_node*> root = this->get_sources();
@@ -1509,7 +1563,7 @@ namespace smt {
     // hterm class
     bool hterm::is_sub_hterm_of(hterm* ht) {
         SASSERT(this->h_eq == ht->get_h_eq());
-        std::set<app*> h_atoms_larger = ht->get_h_atoms();
+        std::set<std::pair<app*, app*>> h_atoms_larger = ht->get_h_atoms();
         if(slhv_util::setIsSubset(h_atoms_larger, this->h_atoms)) {
             return true;
         } else {
@@ -1517,12 +1571,67 @@ namespace smt {
         }
     }
 
+
+    std::set<hterm*> hterm::get_all_atom_hterms() {
+        for(auto app_pair : this->h_atoms) {
+            std::set<std::pair<app*, app*>> atom;
+            atom.insert(app_pair); 
+            hterm* atom_hterm = alloc(hterm, atom, this->h_eq, this->loc_eq);
+        }
+    }
+
     hterm* hterm::subtract_hterm(hterm* subtractor) {
         SASSERT(subtractor->is_sub_hterm_of(this));
         SASSERT(this->h_eq == subtractor->get_h_eq());
-        std::set<app*> h_atom_remained = slhv_util::setSubtract(this->h_atoms, subtractor->get_h_atoms());
-        hterm* result = alloc(hterm, h_atom_remained, this->h_eq);
+        std::set<std::pair<app*, app*>> h_atom_remained = slhv_util::setSubtract(this->h_atoms, subtractor->get_h_atoms());
+        hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
     }
+    // subheap relation
+    void subheap_relation::add_pair(hterm* ht_smaller, hterm* ht_larger) {
+        for(auto smaller_ht : ht_smaller->get_h_atoms()) {
+            if(smaller_ht.second != nullptr) {
+                for(auto larger_ht : ht_larger->get_h_atoms()) {
+                    if(larger_ht.second != nullptr && larger_ht.first == smaller_ht.first && smaller_ht.second != larger_ht.second) {
+                        SASSERT(false);
+                        // this should not happen
+                    }
+                }
+            }
+        }
+        this->subheap_pairs.insert({ht_smaller, ht_larger});
+    }
+
+    bool subheap_relation::contain_hterm(hterm* ht) {
+        if(this->hterm_set.find(ht) != this->hterm_set.end()) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    bool subheap_relation::is_subheap(hterm* smaller, hterm* larger) {
+        if(this->contain_hterm(smaller) && this->contain_hterm(larger)) {
+            for(auto pair : this->subheap_pairs) {
+                if(smaller == pair.first && larger == pair.second) {
+                    return true;
+                }
+            }
+        } else {
+            return false;
+        }
+    }
+
+    std::set<hterm*> subheap_relation::get_all_smaller_hterms(hterm* larger) {
+        SASSERT(this->contain_hterm(larger));
+        std::set<hterm*> result;
+        for(auto pair : this->subheap_pairs) {
+            if(pair.second == larger) {
+                result.insert(pair.first);
+            }
+        }
+        return result;
+    }
+
 
 
     // syntax maker
