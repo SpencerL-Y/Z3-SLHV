@@ -671,7 +671,7 @@ namespace smt
         public:
             hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {
                 if(h_atoms.size() == 0) {
-                    h_atoms.insert(this->h_eq->get_emp());
+                    h_atoms.insert({this->h_eq->get_emp(), nullptr});
                 }
             }
             bool is_sub_hterm_of(hterm* ht);

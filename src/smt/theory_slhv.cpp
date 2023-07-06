@@ -799,12 +799,14 @@ namespace smt {
     subheap_relation* theory_slhv::check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs) {
         //TODO: imple
         // merge all hterms rooted node
+        std::set<hterm*> relation_hterms;
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            std::vector<dgraph_edge*> edges_from_node = sb->get_edges_from_node(node);
-            hterm* total_hterm = sb->obtain_graph_hterm();
-
+            if(sb->get_root_node() == node) {
+                hterm* total_hterm = sb->obtain_graph_hterm();
+                std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
+                relation_hterms = slhv_util::setUnion(relation_hterms, total_hterm_subterms);
+            }
         }
-        
     }
 
     std::set<hterm*> theory_slhv::propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels) {
@@ -1665,13 +1667,18 @@ namespace smt {
 
     std::set<hterm*> hterm::generate_all_subhterms() {
         std::set<hterm*> curr_result;
-        // TODO: add generation
+        std::set<hterm*> next_result;
+        std::set<std::pair<app*, app*>> empty;
+        hterm* emp_hterm = alloc(hterm, empty, this->h_eq, this->loc_eq);
+        for(std::pair<app*, app*> curr_atom : this->h_atoms) {
+            next_result = this->concat_subhterms(curr_result, curr_atom);
+            curr_result = next_result;
+        }
+        return curr_result;
     }
 
 
     std::set<hterm*> hterm::concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom) {
-
-        // TODO: map be buggy because the original hterm maybe emp
         for(hterm* ht : hterm_set) {
             for(auto pair : ht->get_h_atoms()) {
                 SASSERT(pair != curr_atom);
@@ -1679,12 +1686,21 @@ namespace smt {
         }
         std::set<hterm*> result_hterm_set;
         for(hterm* ht : hterm_set) {
-            std::set<std::pair<app*, app*>> contain_set = ht->get_h_atoms();
-            contain_set.insert(curr_atom);
-            hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
-            hterm* not_contain_hterm = ht;
-            result_hterm_set.insert(contain_hterm);
-            result_hterm_set.insert(not_contain_hterm);
+            if(ht->get_h_atoms().size() == 1 && *ht->get_h_atoms().begin() == this->h_eq->get_emp()) {
+                std::set<std::pair<app*, app*>> contain_set;
+                contain_set.insert(curr_atom);
+                hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
+                hterm* not_contain_hterm = ht;
+                result_hterm_set.insert(contain_hterm);
+                result_hterm_set.insert(not_contain_hterm);
+            } else {
+                std::set<std::pair<app*, app*>> contain_set = ht->get_h_atoms();
+                contain_set.insert(curr_atom);
+                hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
+                hterm* not_contain_hterm = ht;
+                result_hterm_set.insert(contain_hterm);
+                result_hterm_set.insert(not_contain_hterm);
+            }
         }
         return result_hterm_set;
     }
