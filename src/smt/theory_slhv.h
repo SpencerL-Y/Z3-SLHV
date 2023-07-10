@@ -149,6 +149,13 @@ namespace smt
 
         subheap_relation* check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs);
 
+        // RULE3 RULE4
+        std::set<std::pair<hterm*, hterm*>> deduce_replaced_equivalent_pairs(std::set<hterm*>& existing_hterms, std::set<std::pair<hterm*, hterm*>> curr_eqs, std::set<std::pair<hterm*, hterm*>> child_eqs);
+
+        std::pair<hterm*, hterm*> replace_and_find(std::set<hterm*>& existing_hterms, hterm* unchanged_orig, hterm* changed_orig, hterm* changed_frag, hterm* replacer);
+
+        std::pair<hterm*, hterm*> substract_and_find(std::set<hterm*>& existing_hterms, hterm* large1, hterm* large2, hterm* small1, hterm* small2);
+
         std::set<hterm*> propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels); 
         public:
         theory_slhv(context& ctx);
@@ -676,10 +683,11 @@ namespace smt
             }
             bool is_sub_hterm_of(hterm* ht);
             bool is_super_hterm_of(hterm* ht);
+            bool is_established();
             std::set<std::pair<app*, app*>> get_h_atoms() {
                 return h_atoms;
             }
-            hterm* subtract_hterm(hterm* subtracted);
+            hterm* substract_hterm(hterm* substracted);
             coarse_hvar_eq* get_h_eq() {
                 return this->h_eq;
             }
@@ -688,6 +696,16 @@ namespace smt
             }
             std::set<hterm*> get_all_atom_hterms();
             std::set<hterm*> generate_all_subhterms();
+
+            bool operator==(const hterm& other) {
+                if(this->h_eq == other.h_eq &&
+                   this->loc_eq == other.loc_eq &&
+                   this->h_atoms == other.h_atoms) {
+                    return true;
+                   } else {
+                    return false;
+                   }
+            }
 
     };
 
@@ -715,6 +733,7 @@ namespace smt
             std::set<std::pair<hterm*, hterm*>> get_subheap_pairs() {
                 return this->subheap_pairs;
             }
+            std::set<std::pair<hterm*, hterm*>> extract_equivalent_hterms();
     };
 
 // util class
@@ -758,10 +777,10 @@ namespace smt
         }
 
         template<typename T>
-        static std::set<T> setSubtract(std::set<T> subtracted, std::set<T> subtractor) {
+        static std::set<T> setSubstract(std::set<T> substracted, std::set<T> substractor) {
             std::set<T> result;
-            for(T t : subtracted) {
-                if(subtractor.find(t) == subtractor.end()) {
+            for(T t : substracted) {
+                if(substractor.find(t) == substractor.end()) {
                     result.insert(t);
                 }
             }

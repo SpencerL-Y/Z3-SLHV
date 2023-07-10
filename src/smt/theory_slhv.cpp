@@ -789,7 +789,8 @@ namespace smt {
                     if(g->get_root_node() == n) {
                         root_n_subgraphs.insert(g);
                     }
-                }
+                } 
+                // TODO: check and deduce subheap relation for node
 
             }
         }
@@ -801,12 +802,157 @@ namespace smt {
         // merge all hterms rooted node
         std::set<hterm*> relation_hterms;
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
+            // RULE1, RULE2
+            if(sb->get)
+        }
+        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             if(sb->get_root_node() == node) {
                 hterm* total_hterm = sb->obtain_graph_hterm();
                 std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
                 relation_hterms = slhv_util::setUnion(relation_hterms, total_hterm_subterms);
             }
+            std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
+            std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
+            for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
+                dgraph_node* child_node = e->get_to();
+                SASSERT(rooted_node_subgraphs.find(child_node) != rooted_node_subgraphs.end());
+                    subheap_relation* child_relation = root2relation[child_node];
+                    // merge the hterms
+                    relation_hterms = slhv_util::setUnion(relation_hterms, child_relation->get_hterm_set());
+                    // merge subheap pairs
+                    new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, child_relation->get_subheap_pairs());
+                    
+            }
+
+            for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
+                dgraph_node* child_node = e->get_to();
+                subheap_relation* child_relation = root2relation[child_node];
+
+                // RULE 3&4 DO equivalence replacement when simply merging the existing subheap relation for child node
+                std::set<std::pair<hterm*, hterm*>> child_eq_pairs = child_relation->extract_equivalent_hterms();
+                if(equivalent_pairs.size() == 0) {
+                    equivalent_pairs = child_eq_pairs;
+                } else {
+                    std::set<std::pair<hterm*, hterm*>> new_eq_pairs = this->deduce_replaced_equivalent_pairs(relation_hterms, equivalent_pairs, child_eq_pairs);
+                    for(auto p : new_eq_pairs) {
+                        new_subheap_pairs.insert(p);
+                        new_subheap_pairs.insert({p.second, p.first});
+                    }
+                    equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
+                }
+            }
+
         }
+    }
+
+    // RULE3 RULE4
+    std::set<std::pair<hterm*, hterm*>> theory_slhv::deduce_replaced_equivalent_pairs(std::set<hterm*>& existing_hterms, std::set<std::pair<hterm*, hterm*>> curr_eqs, std::set<std::pair<hterm*, hterm*>> child_eqs) {
+        std::set<std::pair<hterm*, hterm*>> result;
+        std::set<std::pair<hterm*, hterm*>> curr_new;
+        for(auto cp : child_eqs) {
+            for(auto p : curr_eqs) {
+                hterm* ht1 = cp.first; hterm* ht2 = cp.second;
+                hterm* ht1_p = p.first; hterm* ht2_p = p.second;
+                //RULE3
+                if(ht2->is_super_hterm_of(ht1_p) && !ht1->is_super_hterm_of(ht1_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht1, ht2, ht1_p, ht2_p);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_super_hterm_of(ht1_p) && !ht2->is_super_hterm_of(ht1_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht2, ht1, ht1_p, ht2_p);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_sub_hterm_of(ht1_p) && !ht1->is_sub_hterm_of(ht2_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht2_p, ht1_p, ht1, ht2);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_sub_hterm_of(ht2_p) && !ht1->is_sub_hterm_of(ht1_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht1_p, ht2_p, ht1, ht2);
+                    curr_new.insert(result_pair);
+                } else if(ht2->is_super_hterm_of(ht2_p) && !ht1->is_super_hterm_of(ht2_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht1, ht2, ht2_p, ht1_p);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_super_hterm_of(ht2_p) && !ht2->is_super_hterm_of(ht2_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht2, ht1, ht2_p, ht1_p);
+                    curr_new.insert(result_pair);
+                } else if(ht2->is_sub_hterm_of(ht1_p) && !ht2->is_sub_hterm_of(ht2_p)) {    
+                    auto result_pair = this->replace_and_find(existing_hterms, ht2_p, ht1_p, ht2, ht1);
+                    curr_new.insert(result_pair);
+                } else if(ht2->is_sub_hterm_of(ht2_p) && !ht2->is_sub_hterm_of(ht1_p)) {
+                    auto result_pair = this->replace_and_find(existing_hterms, ht1_p, ht2_p, ht2, ht1);
+                    curr_new.insert(result_pair);
+                } else {
+                    //RULE3 not applied
+                }
+
+                //RULE4
+                if(ht1->is_super_hterm_of(ht1_p) && ht2->is_super_hterm_of(ht2_p)) {
+                    auto result_pair = this->substract_and_find(existing_hterms, ht1, ht2, ht1_p, ht2_p);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_super_hterm_of(ht2_p) && ht2->is_super_hterm_of(ht1_p) ) {
+                    auto result_pair = this->substract_and_find(existing_hterms, ht1, ht2, ht2_p, ht1_p);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_sub_hterm_of(ht1_p) && ht2->is_sub_hterm_of(ht2_p)) {
+                    auto result_pair = this->substract_and_find(existing_hterms, ht1_p, ht2_p, ht1, ht2);
+                    curr_new.insert(result_pair);
+                } else if(ht1->is_sub_hterm_of(ht2_p) && ht2->is_sub_hterm_of(ht1_p)) {
+                    auto result_pair = this->substract_and_find(existing_hterms, ht1_p, ht2_p, ht2, ht1);
+                    curr_new.insert(result_pair);
+                } else {
+                    // RULE4 not applied
+                }
+            }
+        }
+        //TODO: recursion maybe needed
+        return curr_new;
+    }
+
+
+    std::pair<hterm*, hterm*> theory_slhv::replace_and_find(std::set<hterm*>& existing_hterms, hterm* unchanged_orig, hterm* changed_orig, hterm* changed_frag, hterm* replacer) {
+        std::set<std::pair<app*, app*>> changed_atoms = changed_orig->get_h_atoms();
+        std::set<std::pair<app*, app*>> replaced_atoms = changed_frag->get_h_atoms();
+        std::set<std::pair<app*, app*>> replacer_atoms = replacer->get_h_atoms();
+
+        std::set<std::pair<app*, app*>> new_atoms = slhv_util::setUnion(
+            slhv::setSubstract(changed_atoms, replaced_atoms),
+            replacer_atoms
+        );
+        for(hterm* existing : existing_hterms) {
+            if(existing->get_h_atoms() == new_atoms) {
+                return {unchanged_orig, existing};
+            }
+        }
+        hterm* new_hterm = alloc(hterm, new_atoms, unchanged_orig->get_h_eq(), unchanged_orig->get_loc_eq());
+        return {unchanged_orig, new_hterm};
+    }
+
+
+    std::pair<hterm*, hterm*> theory_slhv::substract_and_find(std::set<hterm*>& existing_hterms, hterm* large1, hterm* large2, hterm* small1, hterm* small2) {
+        // eq_pair1 is the larger pair
+        std::set<std::pair<app*, app*>> large1_atoms = large1->get_h_atoms();
+        std::set<std::pair<app*, app*>> large2_atoms = large2->get_h_atoms();
+        std::set<std::pair<app*, app*>> small1_atoms = small1->get_h_atoms();
+        std::set<std::pair<app*, app*>> small2_atoms = small2->get_h_atoms();
+        std::set<std::pair<app*, app*>> substract1_atoms = slhv_util::setSubstract(large1_atoms, small1_atoms);
+        std::set<std::pair<app*, app*>> substract2_atoms = slhv_util::setSubstract(large2_atoms, small2_atoms);
+        hterm* result_first, result_second;
+        bool result1_found = false, result2_found = false;
+        for(hterm* existing : existing_hterms) {
+            if(!result1_found && existing->get_h_atoms() == substract1_atoms) {
+                result_first = existing;
+                result1_found = true;
+            }
+            if(!result2_found && existing->get_h_atoms() == substract2_atoms) {
+                result_second = existing;
+                result2_found = true;
+            }   
+        }
+        if(!result1_found) {
+            result_first = alloc(hterm, substract1_atoms, large1->get_h_eq(), large1->get_loc_eq());
+            existing_hterms.insert(result_first);
+        }
+        if(!result2_found) {
+            result_second = alloc(hterm, substract2_atoms, large2->get_h_eq(), large2->get_loc_eq());
+            existing_hterms.insert(result_first);
+        }
+        return {result_first, result_second};
     }
 
     std::set<hterm*> theory_slhv::propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels) {
@@ -1656,12 +1802,21 @@ namespace smt {
         }
     }
 
+    bool hterm::is_established() {
+        for(auto p : this->h_atoms) {
+            if(p.second != nullptr) {
+                return true;
+            }
+        }
+    }
+
     std::set<hterm*> hterm::get_all_atom_hterms() {
         for(auto app_pair : this->h_atoms) {
             std::set<std::pair<app*, app*>> atom;
             atom.insert(app_pair); 
             hterm* atom_hterm = alloc(hterm, atom, this->h_eq, this->loc_eq);
         }
+        return false;
     }
 
 
@@ -1705,10 +1860,10 @@ namespace smt {
         return result_hterm_set;
     }
 
-    hterm* hterm::subtract_hterm(hterm* subtractor) {
-        SASSERT(subtractor->is_sub_hterm_of(this));
-        SASSERT(this->h_eq == subtractor->get_h_eq());
-        std::set<std::pair<app*, app*>> h_atom_remained = slhv_util::setSubtract(this->h_atoms, subtractor->get_h_atoms());
+    hterm* hterm::substract_hterm(hterm* substractor) {
+        SASSERT(substractor->is_sub_hterm_of(this));
+        SASSERT(this->h_eq == substractor->get_h_eq());
+        std::set<std::pair<app*, app*>> h_atom_remained = slhv_util::setSubstract(this->h_atoms, substractor->get_h_atoms());
         hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
     }
     // subheap relation
@@ -1780,6 +1935,21 @@ namespace smt {
         for(auto pair : this->subheap_pairs) {
             if(pair.second == larger) {
                 result.insert(pair.first);
+            }
+        }
+        return result;
+    }
+
+
+
+
+    std::set<std::pair<hterm*. hterm*>> subheap_relation::extract_equivalent_hterms() {
+        std::set<std::pair<hterm*, hterm*>> result; 
+        for(auto p1 : this->subheap_pairs) {
+            for(auto p2 : this->subheap_pairs) {
+                if(p1.first == p2.second && p2.second == p1.first) {
+                    result.insert({p1.first, p1.second});
+                }
             }
         }
         return result;
