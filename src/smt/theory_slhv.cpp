@@ -801,18 +801,26 @@ namespace smt {
         //TODO: imple
         // merge all hterms rooted node
         std::set<hterm*> relation_hterms;
-        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            // RULE1, RULE2
-            if(sb->get)
-        }
+        std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
+        std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
+
+        std::set<edge_labelled_subgraph*> related_subgraphs;
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             if(sb->get_root_node() == node) {
+                related_subgraphs.insert(sb);
+
                 hterm* total_hterm = sb->obtain_graph_hterm();
                 std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
                 relation_hterms = slhv_util::setUnion(relation_hterms, total_hterm_subterms);
             }
-            std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
-            std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
+        }
+
+        // RULE1, RULE2
+        for(edge_labelled_subgraph* sb : related_subgraphs) {
+            hterm* graph_hterm = sb->obtain_graph_hterm();
+            for()
+        }
+        for(edge_labelled_subgraph* sb : related_subgraphs) {
             for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
                 dgraph_node* child_node = e->get_to();
                 SASSERT(rooted_node_subgraphs.find(child_node) != rooted_node_subgraphs.end());
@@ -841,7 +849,6 @@ namespace smt {
                     equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
                 }
             }
-
         }
     }
 
