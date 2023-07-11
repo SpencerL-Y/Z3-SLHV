@@ -1497,6 +1497,8 @@ namespace smt {
             edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
                 this, ns, es
             );
+            result.push_back(subgraph);
+            return result;
         } else {
             std::set<dgraph_edge*> root_edges;
             std::set<app*> edge_labels;
@@ -1512,10 +1514,10 @@ namespace smt {
                 std::vector<dgraph_edge*> curr_es;
                 std::vector<dgraph_node*> curr_ns;
                 std::set<dgraph_edge*> edges2merge;
-                curr_ns.insert(root);
+                curr_ns.insert(curr_ns.begin(), root);
                 for(dgraph_edge* e : root_edges) {
                     if(e->get_label() == label) {
-                        curr_es.insert(e);
+                        curr_es.insert(curr_es.begin(), e);
                         if(node2subgraphs.find(e->get_to()) == node2subgraphs.end()) {
                             node2subgraphs[e->get_to()] =  this->extract_all_rooted_disjoint_labelcomplete_subgraphs(e->get_to(), node2subgraphs);
                         }
@@ -1576,6 +1578,7 @@ namespace smt {
                 result.push_back(merged_graph);
             }
         }
+        return result;
     }
 
 
@@ -1600,7 +1603,7 @@ namespace smt {
                     rep_hterm.erase({hvar_node->get_hvar_label(), nullptr});
                 }
                 rep_hterm.insert({hvar_node->get_hvar_label(), nullptr});
-            } else if(n->is_points_to) {
+            } else if(n->is_points_to()) {
                 pt_dgraph_node* pt_node = (pt_dgraph_node*) n;
                 SASSERT(rep_hterm.find(pt_node->get_pt_pair_label()) != rep_hterm.end());
                 rep_hterm.insert(pt_node->get_pt_pair_label());
@@ -1628,8 +1631,8 @@ namespace smt {
         while(newly_visited.size() > 0) {
             std::set<dgraph_node*> next_newly_visited;
             for(dgraph_node* frontier : newly_visited) {
-                for(dgraph_edge* e : this->edges) {
-                    if(e->get_from() == root) {
+                for(dgraph_edge* e : this->get_edges()) {
+                    if(e->get_from() == *root.begin()) {
                         if(visited_nodes.find(e->get_to()) !=  visited_nodes.end() || newly_visited.find(e->get_to()) != newly_visited.end()){
                             return false;
                         }
@@ -1640,15 +1643,15 @@ namespace smt {
             visited_nodes = slhv_util::setUnion(visited_nodes, newly_visited);
             newly_visited = next_newly_visited;
         }
-        for(dgraph_node* n : this->nodes) {
+        for(dgraph_node* n : this->get_nodes()) {
             if(visited_nodes.find(n) == visited_nodes.end()) {
                 return false;
             }
         }
         // all outgoing edges of a node share the same label
-        for(dgraph_node* n : this->nodes) {
+        for(dgraph_node* n : this->get_nodes()) {
             app* outgoing_label = nullptr;
-            for(dgraph_edge* e : this->edges) {
+            for(dgraph_edge* e : this->get_edges()) {
                 if(outgoing_label == nullptr) {
                     outgoing_label = e->get_label();
                 } else {
@@ -1922,15 +1925,27 @@ namespace smt {
                 return true;
             }
         }
+        return false;
+    }
+
+    bool hterm::is_emp() {
+        SASSERT(this->h_atoms.size() > 0);
+        if(this->h_atoms.size() == 1 && (*this->h_atoms.begin()).first == this->h_eq->get_emp()) {
+            return true;
+        } else {
+            return false;
+        }
     }
 
     std::set<hterm*> hterm::get_all_atom_hterms() {
+        std::set<hterm*> result;
         for(auto app_pair : this->h_atoms) {
             std::set<std::pair<app*, app*>> atom;
             atom.insert(app_pair); 
             hterm* atom_hterm = alloc(hterm, atom, this->h_eq, this->loc_eq);
+            result.insert(atom_hterm);
         }
-        return false;
+        return result;
     }
 
 
@@ -1955,7 +1970,7 @@ namespace smt {
         }
         std::set<hterm*> result_hterm_set;
         for(hterm* ht : hterm_set) {
-            if(ht->get_h_atoms().size() == 1 && *ht->get_h_atoms().begin() == this->h_eq->get_emp()) {
+            if(ht->get_h_atoms().size() == 1 && (*ht->get_h_atoms().begin()).first == this->h_eq->get_emp()) {
                 std::set<std::pair<app*, app*>> contain_set;
                 contain_set.insert(curr_atom);
                 hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
@@ -1979,6 +1994,7 @@ namespace smt {
         SASSERT(this->h_eq == substractor->get_h_eq());
         std::set<std::pair<app*, app*>> h_atom_remained = slhv_util::setSubstract(this->h_atoms, substractor->get_h_atoms());
         hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
+        return result;
     }
     // subheap relation
     void subheap_relation::add_pair(hterm* ht_smaller, hterm* ht_larger) {
@@ -2015,6 +2031,7 @@ namespace smt {
                     return true;
                 }
             }
+            return false;
         } else {
             return false;
         }
@@ -2025,15 +2042,16 @@ namespace smt {
             bool subheap, overheap = false;
             for(auto pair : this->subheap_pairs) {
                 if(first == pair.first && second == pair.second) {
-                    subheap = true
+                    subheap = true;
                 }
-                if(first = pair.second && second = pair.first) {
+                if(first == pair.second && second == pair.first) {
                     overheap = true;
                 }
                 if(subheap && overheap) {
                     return true;
                 }
             }
+            return false;
         } else {
             if(slhv_util::setEqual(first->get_h_atoms(), second->get_h_atoms())) {
                 return true;
@@ -2057,7 +2075,7 @@ namespace smt {
 
 
 
-    std::set<std::pair<hterm*. hterm*>> subheap_relation::extract_equivalent_hterms() {
+    std::set<std::pair<hterm*, hterm*>> subheap_relation::extract_equivalent_hterms() {
         std::set<std::pair<hterm*, hterm*>> result; 
         for(auto p1 : this->subheap_pairs) {
             for(auto p2 : this->subheap_pairs) {

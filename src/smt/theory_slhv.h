@@ -575,7 +575,7 @@ namespace smt
             int dfs_index;
             int low_index;
         public: 
-            dgraph_node(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
+            dgraph_node(edge_labelled_dgraph* g);
             int tarjanSCC(int& dfs_num);
             bool is_tarjan_visited() {
                 return !(dfs_index == -1);
