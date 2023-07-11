@@ -15,6 +15,10 @@ namespace smt
     class hvar_dgraph_node;
     class pt_dgraph_node;
     class dgraph_edge;
+    class hterm;
+    class edge_labelled_dgraph;
+    class edge_labelled_subgraph;
+    class subheap_relation;
     class theory_slhv : public theory {
 
         public:
@@ -158,7 +162,6 @@ namespace smt
 
         bool check_new_subheap_pair(hterm* smaller, hterm* larger);
 
-        std::set<hterm*> propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels); 
         public:
         theory_slhv(context& ctx);
         
@@ -492,7 +495,6 @@ namespace smt
             std::vector<dgraph_edge*>  edges;
             bool simplified;
             void construct_graph_from_theory();
-            std::set<dgraph_node*> get_sources();
             void tarjanSCC(std::set<dgraph_node*> sources);
             dgraph_node* get_unvisited();
             bool check_established_reachable(std::set<int> nontrivial_ids);
@@ -500,17 +502,18 @@ namespace smt
             std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
         public:
             edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified);
 
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
 
+            std::set<dgraph_node*> get_sources();
             bool has_edge(dgraph_edge* edge);
             bool has_edge_to(dgraph_node* node);
             bool has_edge_from(dgraph_node* node);
             std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
             bool is_scc_computed();
-            bool is_subgraph() {
+            virtual bool is_subgraph() {
                 return false;
             }
             edge_labelled_dgraph* check_and_simplify();
@@ -549,7 +552,7 @@ namespace smt
             }
     };
 
-    class edge_labelled_subgraph : private edge_labelled_dgraph {
+    class edge_labelled_subgraph : public    edge_labelled_dgraph {
         private:
             edge_labelled_dgraph* parent;
         public:
@@ -562,7 +565,7 @@ namespace smt
         }
         hterm* obtain_graph_hterm();
         bool is_rooted_disjoint_labelcomplete();
-    }
+    };
 
     class dgraph_node {
         private:
@@ -833,28 +836,28 @@ namespace smt
         }
 
         template<typename T>
-        static std::vector<T> vecEqual() {
-            std::map<T, int> larger_map;
-            std::map<T, int> smaller_map;
-            for(T t : larger) {
-                if(larger_map.find(t) != larger_map.end()) {
-                    larger_map[t] += 1;
+        static std::vector<T> vecEqual(std::vector<T> first, std::vector<T> second) {
+            std::map<T, int> first_map;
+            std::map<T, int> second_map;
+            for(T t : first) {
+                if(first_map.find(t) != first_map.end()) {
+                    first_map[t] += 1;
                 } else {
-                    larger_map[t] = 1;
+                    first_map[t] = 1;
                 }
             }
-            for(T t : smaller) {
-                if(smaller_map.find(t) != smaller_map.end()) {
-                    smaller_map[t] += 1;
+            for(T t : second) {
+                if(second_map.find(t) != second_map.end()) {
+                    second_map[t] += 1;
                 } else {
-                    smaller_map[t] = 1;
+                    second_map[t] = 1;
                 }
             }
-            for(auto pair : smaller_map) {
-                if(larger_map.find(pair.first) == larger_map.end()) {
+            for(auto pair : second_map) {
+                if(first_map.find(pair.first) == first_map.end()) {
                     return false;
                 } else {
-                    if(larger_map[pair.first] != pair.second) {
+                    if(first_map[pair.first] != pair.second) {
                         return false;
                     }
                 }

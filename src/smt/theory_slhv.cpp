@@ -842,7 +842,7 @@ namespace smt {
                         break;
                     }
                 }
-                if(!found) {relation_hterms.insert(ht)};
+                if(!found) {relation_hterms.insert(ht);};
             }
         }
 
@@ -895,26 +895,26 @@ namespace smt {
                     if(!found2) {
                         relation_hterms.insert(ht2);
                     }
+
+                    new_subheap_pairs.insert({ht1, ht2});
+                    new_subheap_pairs.insert({ht2, ht1});
+
+                    if(!this->check_new_subheap_pair(ht1, ht2) || !this->check_new_subheap_pair(ht2, ht1)) {
+                        return {nullptr, false};
+                    }
+                    equivalent_pairs.insert({ht1, ht2});
                 }
-                new_subheap_pairs.insert({ht1, ht2});
-                new_subheap_pairs.insert({ht2, ht1});
-                if(!this->check_new_subheap_pair(ht1, ht2) || !this->check_new_subheap_pair(ht2, ht1)) {
-                    return {root2relation, false};
-                }
-                equivalent_pairs.insert({ht1, ht2})
             }
         }
 
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
                 dgraph_node* child_node = e->get_to();
-                SASSERT(rooted_node_subgraphs.find(child_node) != rooted_node_subgraphs.end());
-                    subheap_relation* child_relation = root2relation[child_node];
+                subheap_relation* child_relation = root2relation[child_node];
                     // merge the hterms
-                    relation_hterms = slhv_util::setUnion(relation_hterms, child_relation->get_hterm_set());
+                relation_hterms = slhv_util::setUnion(relation_hterms, child_relation->get_hterm_set());
                     // merge subheap pairs
-                    new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, child_relation->get_subheap_pairs());
-                    
+                new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, child_relation->get_subheap_pairs());
             }
 
             for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
@@ -931,7 +931,7 @@ namespace smt {
                         new_subheap_pairs.insert(p);
                         new_subheap_pairs.insert({p.second, p.first});
                         if(!this->check_new_subheap_pair(p.first, p.second) || !this->check_new_subheap_pair(p.second, p.first)) {
-                            return {nullptr, false}
+                            return {nullptr, false};
                         }
                     }
                     equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
@@ -1009,7 +1009,7 @@ namespace smt {
         std::set<std::pair<app*, app*>> replacer_atoms = replacer->get_h_atoms();
 
         std::set<std::pair<app*, app*>> new_atoms = slhv_util::setUnion(
-            slhv::setSubstract(changed_atoms, replaced_atoms),
+            slhv_util::setSubstract(changed_atoms, replaced_atoms),
             replacer_atoms
         );
         for(hterm* existing : existing_hterms) {
@@ -1030,7 +1030,8 @@ namespace smt {
         std::set<std::pair<app*, app*>> small2_atoms = small2->get_h_atoms();
         std::set<std::pair<app*, app*>> substract1_atoms = slhv_util::setSubstract(large1_atoms, small1_atoms);
         std::set<std::pair<app*, app*>> substract2_atoms = slhv_util::setSubstract(large2_atoms, small2_atoms);
-        hterm* result_first, result_second;
+        hterm* result_first = nullptr;
+        hterm* result_second = nullptr;
         bool result1_found = false, result2_found = false;
         for(hterm* existing : existing_hterms) {
             if(!result1_found && existing->get_h_atoms() == substract1_atoms) {
@@ -1070,10 +1071,6 @@ namespace smt {
             return false;
         }
         return true;
-    }
-
-    std::set<hterm*> theory_slhv::propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels) {
-        // TODO: add propagation
     }
 
     void theory_slhv::init_model(model_generator & mg)  {
@@ -1158,7 +1155,7 @@ namespace smt {
         for(auto pair : this->coarse_data) {
             enode* rt_node = pair.first;
             if(this->th->curr_emp_hterm_enodes.find(rt_node) != this->th->curr_emp_hterm_enodes.end()) {
-                this->coarse_data[rt_node].insert(this->th->global_emp);
+                this->coarse_data[rt_node].insert(this->coarse_data[rt_node].begin(), this->th->global_emp);
             }
         }
     }
@@ -1458,7 +1455,7 @@ namespace smt {
     }
 
     void edge_labelled_dgraph::add_node(dgraph_node* n)  {
-        if(nodes.find(n) != nodes.end())  {
+        if(std::find(this->nodes.begin(), this->nodes.end(), n) != nodes.end())  {
             std::cout << "node already exists" << std::endl;
         } else {
             this->nodes.push_back(n);
@@ -1476,7 +1473,7 @@ namespace smt {
         this->edges.push_back(e);
     }
 
-    dgraph_node* get_node_by_low(int low_idx) {
+    dgraph_node* edge_labelled_dgraph::get_node_by_low(int low_idx) {
         for(dgraph_node* n : this->nodes) {
             if(n->get_low_index() == low_idx) {
                 return n;
@@ -1487,7 +1484,7 @@ namespace smt {
 
     std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, 
      std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraphs) {
-        //TODO: enumerate all subgraphs
+        // enumerate all subgraphs
         // if computed
         if(node2subgraphs.find(root) != node2subgraphs.end()) {
             return node2subgraphs[root];
@@ -1495,11 +1492,11 @@ namespace smt {
         // if the node is leaf node:
         if(!this->has_edge_from(root)) {
             std::vector<edge_labelled_subgraph*> result;
-            std::vector<dgraph_node*> ns; ns.insert(root);
+            std::vector<dgraph_node*> ns; ns.insert(ns.begin(), root);
             std::vector<dgraph_edge*> es;
             edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
                 this, ns, es
-            )
+            );
         } else {
             std::set<dgraph_edge*> root_edges;
             std::set<app*> edge_labels;
@@ -1512,6 +1509,8 @@ namespace smt {
             
             std::vector<edge_labelled_subgraph*> subgraphs;
             for(app* label : edge_labels) {
+                std::vector<dgraph_edge*> curr_es;
+                std::vector<dgraph_node*> curr_ns;
                 std::set<dgraph_edge*> edges2merge;
                 curr_ns.insert(root);
                 for(dgraph_edge* e : root_edges) {
@@ -1526,8 +1525,6 @@ namespace smt {
                 // TODO:  merge them
                 std::vector<edge_labelled_subgraph*> curr_result;
                 std::vector<edge_labelled_subgraph*> next_result;
-                std::vector<dgraph_edge*> curr_es;
-                std::vector<dgraph_node*> curr_ns;
                 curr_ns.push_back(root);
                 for(dgraph_edge* e : edges2merge) {
                     curr_es.push_back(e);
