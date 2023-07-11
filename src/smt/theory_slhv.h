@@ -145,9 +145,9 @@ namespace smt
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
-        subheap_relation* check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::vector<edge_labelled_subgraph*>& all_subgraphs);
+        std::pair<std::map<dgraph_node*, subheap_relation*>, bool> check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
 
-        subheap_relation* check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs);
+        std::pair<subheap_relation*, bool> check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs);
 
         // RULE3 RULE4
         std::set<std::pair<hterm*, hterm*>> deduce_replaced_equivalent_pairs(std::set<hterm*>& existing_hterms, std::set<std::pair<hterm*, hterm*>> curr_eqs, std::set<std::pair<hterm*, hterm*>> child_eqs);
@@ -155,6 +155,8 @@ namespace smt
         std::pair<hterm*, hterm*> replace_and_find(std::set<hterm*>& existing_hterms, hterm* unchanged_orig, hterm* changed_orig, hterm* changed_frag, hterm* replacer);
 
         std::pair<hterm*, hterm*> substract_and_find(std::set<hterm*>& existing_hterms, hterm* large1, hterm* large2, hterm* small1, hterm* small2);
+
+        bool check_new_subheap_pair(hterm* smaller, hterm* larger);
 
         std::set<hterm*> propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels); 
         public:
@@ -684,6 +686,7 @@ namespace smt
             bool is_sub_hterm_of(hterm* ht);
             bool is_super_hterm_of(hterm* ht);
             bool is_established();
+            bool is_emp();
             std::set<std::pair<app*, app*>> get_h_atoms() {
                 return h_atoms;
             }

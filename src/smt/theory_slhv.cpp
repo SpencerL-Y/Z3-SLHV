@@ -175,20 +175,22 @@ namespace smt {
 
                 edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
 
-                // TODO: infer hterm inclusion
+                // infer hterm inclusion
+                // first compute the node2subgraphs mapping
                 std::set<dgraph_node*> roots = simplified_graph->get_sources();
-                std::vector<edge_labelled_subgraph*> all_subgraphs;
-                std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> subgraph_info;
-                for(dgraph_node* r : roots) {
-                    all_subgraphs = slhv_util::vecConcat(
-                        all_subgraphs, 
-                        simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(r, subgraph_info);
-                    )
+                std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
+                for(dgraph_node* n : roots) {
+                    orig_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
                 }
 
+                // deduce subheap relation for each node
+                std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(orig_graph, node2subgraphs);
+                if(curr_result.second) {
+                    return true;
+                }
             }
         }
-        return true;
+        return false;
     }
 
     void theory_slhv::set_conflict_slhv() {
@@ -747,25 +749,21 @@ namespace smt {
         return result;
     }
 
-    subheap_relation* theory_slhv::check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::vector<edge_labelled_subgraph*>& all_subgraphs){
+    std::pair<std::map<dgraph_node*, subheap_relation*>, bool>  theory_slhv::check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs){
         std::map<dgraph_node*, subheap_relation*> root2relation;
         SASSERT(orig_graph->get_simplified());
-        for(auto g : all_subgraphs) {
-            SASSERT(g->is_rooted_disjoint_labelcomplete());
-        }
         std::set<dgraph_node*> visited;
         // first construct subheap relation for leaf nodes
         for(dgraph_node* leaf : orig_graph->get_dest_nodes() ) {
-            for(edge_labelled_subgraph* sb : all_subgraphs) {
-                if(sb->get_root_node() == leaf) {
-                    hterm* leaf_term = sb->obtain_graph_hterm();
-                    subheap_relation* rel = alloc(subheap_relation);
-                    rel->add_hterm(leaf_term);
-                    rel->add_equal(leaf_term, leaf_term);
-                    root2relation[leaf] = rel;
-                    visited.insert(leaf);
-                    break;
-                }
+            for(edge_labelled_subgraph* sb : all_subgraphs[leaf]) {
+                SASSERT(sb->get_root_node() == leaf);
+                hterm* leaf_term = sb->obtain_graph_hterm();
+                subheap_relation* rel = alloc(subheap_relation);
+                rel->add_hterm(leaf_term);
+                rel->add_equal(leaf_term, leaf_term);
+                root2relation[leaf] = rel;
+                visited.insert(leaf);
+                break;
             }
         }
         
@@ -783,44 +781,131 @@ namespace smt {
             }
         }
         while(frontier_nodes.size() > 0) {
+            // check and deduce subheap relation for each frontier node
             for(dgraph_node* n : frontier_nodes) {
                 std::set<edge_labelled_subgraph*> root_n_subgraphs;
-                for(edge_labelled_subgraph* g : all_subgraphs) {
-                    if(g->get_root_node() == n) {
-                        root_n_subgraphs.insert(g);
-                    }
+                for(edge_labelled_subgraph* g : all_subgraphs[n]) {
+                    root_n_subgraphs.insert(g);
                 } 
-                // TODO: check and deduce subheap relation for node
-
+                // check and deduce subheap relation for node
+                std::pair<subheap_relation*, bool> n_relation = this->check_and_deduce_subheap_relation_for_node(n, root2relation, root_n_subgraphs);
+                if(!n_relation.second) {
+                    return {root2relation, false};
+                }
+                root2relation[n] = n_relation.first;
+                visited.insert(n);
+            }
+            // compute new frontier nodes
+            for(dgraph_node* n : orig_graph->get_nodes()) {
+                bool abandoned = false;
+                for(dgraph_edge* e : orig_graph->get_edges()) {
+                    if(e->get_from() == n && visited.find(e->get_to()) == visited.end()) {
+                        abandoned = true;
+                        break;
+                    }
+                }
+                if(!abandoned) {
+                    frontier_nodes.insert(n);
+                }
             }
         }
+        return {root2relation, true};
     }
 
 
-    subheap_relation* theory_slhv::check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs) {
-        //TODO: imple
+    std::pair<subheap_relation*, bool>  theory_slhv::check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs) {
+        //TODO: equivalent pair may be redundant
+        //TODO: relation_hterm may repeat
         // merge all hterms rooted node
         std::set<hterm*> relation_hterms;
         std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
         std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
 
-        std::set<edge_labelled_subgraph*> related_subgraphs;
+        // gathering existing hterms
+        for(edge_labelled_dgraph* sb : rooted_node_subgraphs) {
+            for(dgraph_edge* e : sb->get_edges_from_node(node)) {
+                subheap_relation* to_relation = root2relation[e->get_to()];
+                for(hterm* ht : to_relation->get_hterm_set()) {
+                    relation_hterms.insert(ht);
+                }
+            }
+        }
+        // generate remaining hterms
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            if(sb->get_root_node() == node) {
-                related_subgraphs.insert(sb);
-
-                hterm* total_hterm = sb->obtain_graph_hterm();
-                std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
-                relation_hterms = slhv_util::setUnion(relation_hterms, total_hterm_subterms);
+            hterm* total_hterm = sb->obtain_graph_hterm();
+            std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
+            for(hterm* ht : total_hterm_subterms) {
+                bool found = false;
+                for(hterm* eht : relation_hterms) {
+                    if(*ht == *eht) {
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found) {relation_hterms.insert(ht)};
             }
         }
 
-        // RULE1, RULE2
-        for(edge_labelled_subgraph* sb : related_subgraphs) {
+        // RULE1
+        std::set<hterm*> graph_hterms;
+        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             hterm* graph_hterm = sb->obtain_graph_hterm();
-            for()
+            bool found = false;
+            for(hterm* ht : relation_hterms) {
+                if(*graph_hterm == *ht) {
+                    graph_hterm = ht;
+                    found = true;
+                    break;
+                }
+            }
+            if(!found) {
+                relation_hterms.insert(graph_hterm);
+            }
+            graph_hterms.insert(graph_hterm);
+            new_subheap_pairs.insert({graph_hterm, graph_hterm});
+            if(!this->check_new_subheap_pair(graph_hterm, graph_hterm)) {
+                return {nullptr, false};
+            }
+            equivalent_pairs.insert({graph_hterm, graph_hterm});
         }
-        for(edge_labelled_subgraph* sb : related_subgraphs) {
+
+        // RULE2
+        for(edge_labelled_subgraph* sb1 : rooted_node_subgraphs) {
+            for(edge_labelled_subgraph* sb2 : rooted_node_subgraphs) {
+                if(sb1 != sb2) {
+                    hterm* ht1 = sb1->obtain_graph_hterm();
+                    hterm* ht2 = sb2->obtain_graph_hterm();
+                    bool found1 = false, found2 = false;
+                    for(hterm* ht : relation_hterms) {
+                        if(found1 && found2) {
+                            break;
+                        }
+                        if(*ht == *ht1 && !found1) {
+                            ht1 = ht;
+                            found1 = true;
+                        }
+                        if(*ht == *ht2 && !found2) {
+                            ht2 = ht;
+                            found2 = true;
+                        }
+                    }
+                    if(!found1) {
+                        relation_hterms.insert(ht1);
+                    }
+                    if(!found2) {
+                        relation_hterms.insert(ht2);
+                    }
+                }
+                new_subheap_pairs.insert({ht1, ht2});
+                new_subheap_pairs.insert({ht2, ht1});
+                if(!this->check_new_subheap_pair(ht1, ht2) || !this->check_new_subheap_pair(ht2, ht1)) {
+                    return {root2relation, false};
+                }
+                equivalent_pairs.insert({ht1, ht2})
+            }
+        }
+
+        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
                 dgraph_node* child_node = e->get_to();
                 SASSERT(rooted_node_subgraphs.find(child_node) != rooted_node_subgraphs.end());
@@ -845,11 +930,17 @@ namespace smt {
                     for(auto p : new_eq_pairs) {
                         new_subheap_pairs.insert(p);
                         new_subheap_pairs.insert({p.second, p.first});
+                        if(!this->check_new_subheap_pair(p.first, p.second) || !this->check_new_subheap_pair(p.second, p.first)) {
+                            return {nullptr, false}
+                        }
                     }
                     equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
+                    equivalent_pairs = slhv_util::setUnion(equivalent_pairs, child_eq_pairs);
                 }
             }
         }
+        subheap_relation* result_relation = alloc(subheap_relation, relation_hterms, new_subheap_pairs);
+        return {result_relation, true};
     }
 
     // RULE3 RULE4
@@ -960,6 +1051,25 @@ namespace smt {
             existing_hterms.insert(result_first);
         }
         return {result_first, result_second};
+    }
+
+    bool theory_slhv::check_new_subheap_pair(hterm* smaller, hterm* larger) {
+        std::set<std::pair<app*, app*>> smaller_atoms = smaller->get_h_atoms();
+        std::set<std::pair<app*, app*>> larger_atoms = larger->get_h_atoms();
+        // FIRST CHECK
+        for(auto sp : smaller_atoms) {
+            if(sp.second != nullptr) {
+                for(auto lp : larger_atoms) {
+                    if(lp.first == sp.first && lp.second != sp.second) {
+                        return false;
+                    } 
+                }
+            }
+        }
+        if(smaller->is_established() && larger->is_emp()) {
+            return false;
+        }
+        return true;
     }
 
     std::set<hterm*> theory_slhv::propagate_hterms(std::set<hterm*> new_hterms, std::set<subheap_relation*> rels) {
@@ -1502,7 +1612,7 @@ namespace smt {
             }
         }
         if(rep_hterm.size() == 0) {
-            rep_hterm.insert(this->get_th()->global_emp);
+            rep_hterm.insert({this->get_th()->global_emp, nullptr});
         }
         hterm* result = alloc(hterm, rep_hterm, this->get_hvar_eq(), this->get_locvar_eq());
         return result;
