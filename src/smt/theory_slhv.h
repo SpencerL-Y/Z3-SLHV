@@ -128,9 +128,11 @@ namespace smt
 
         std::vector<enode_pair> get_unassigned_locvar_pairs();
 
-        std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs);
+        std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs, std::map<enode*, std::set<app*>>& existing_data);
 
         std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
+
+        bool check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq);
 
         void infer_emp_hterms();
 

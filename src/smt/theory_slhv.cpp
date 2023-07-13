@@ -172,7 +172,10 @@ namespace smt {
             // enumerate all possible loc eqs
             std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
             coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
-            
+            if(!this->check_hterm_distinct_hvar_eq_consistency(curr_hvar_eq)) {
+                continue;
+            }
+
             for(std::map<enode*, std::set<app*>> loc_eq_data : loc_eqs_raw) {
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
                 
@@ -571,11 +574,8 @@ namespace smt {
     }
 
 
-    std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs){
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv get_fine_locvar_eq" << std::endl;
-        #endif
-        auto unique_node_map = std::move(this->get_coarse_locvar_eq());
+    std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs, std::map<enode*, std::set<app*>>& existing_data){
+        auto unique_node_map = existing_data;
 
 
         std::map<enode*, std::set<app*>> result = unique_node_map;
@@ -652,10 +652,21 @@ namespace smt {
         }
 
         std::vector<std::map<enode*, std::set<app*>>> result_maps;
+        std::map<enode*, std::set<app*>> existing_loc_eq_data = std::move(this->get_coarse_locvar_eq());
         for(auto e : all_assigned_situations) {
-            result_maps.push_back(this->get_fine_locvar_eq(e));
+            result_maps.push_back(this->get_fine_locvar_eq(e, existing_loc_eq_data));
         }
         return result_maps;
+    }
+
+
+    bool theory_slhv::check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq) {
+        for(auto p : this->curr_distinct_hterm_pairs) {
+            if(p.first == p.second) {
+                return false;
+            }
+        }
+        return true;
     }
 
 
