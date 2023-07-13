@@ -158,13 +158,17 @@ namespace smt {
 
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
+        #ifdef SLHV_DEBUG
+        std::cout << "assignments number after elimination negations: " << elim_enums.size() << std::endl;
+        #endif
+       
         for(expr_ref_vector curr_assignments : elim_enums) {
             // reset info from previous curr_assignments
             this->reset_configs();
 
             // preprocessing
             this->preprocessing(curr_assignments);
-
+ 
             // enumerate all possible loc eqs
             std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
             coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
@@ -190,7 +194,7 @@ namespace smt {
                 }
             }
         }
-        return false;
+        return true;
     }
 
     void theory_slhv::set_conflict_slhv() {
@@ -220,6 +224,9 @@ namespace smt {
     std::vector<expr_ref_vector> theory_slhv::eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals) {
         std::vector<std::vector<expr*>> last_result;
         for(auto e : assigned_literals) {
+            #ifdef SLHV_DEBUG
+            std::cout << " eliminate heap negation for " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+            #endif
             std::vector<std::vector<expr*>> temp_result = this->eliminate_heap_equality_negation(last_result, e);
             last_result = temp_result;
         }
@@ -243,25 +250,40 @@ namespace smt {
                 SASSERT(equality->is_app_of(basic_family_id, OP_EQ));
                 app* left_expr = to_app(equality->get_arg(0));
                 app* right_expr = to_app(equality->get_arg(1));
-                SASSERT(this->is_heapterm(left_expr) && this->is_heapterm(right_expr));
-                SASSERT(this->is_hvar(left_expr));
-                std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
-                if(eliminated_neg_vec.size() != 0) {
-                    for(std::vector<expr*> ev : eliminated_neg_vec) {
+                if(this->is_heapterm(left_expr) && this->is_heapterm(right_expr)) {
+                    SASSERT(this->is_hvar(left_expr));
+                    std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
+                    if(eliminated_neg_vec.size() != 0) {
+                        for(std::vector<expr*> ev : eliminated_neg_vec) {
+                            for(app* disj : three_disjuncts_after_elim) {
+                                std::vector<expr*> result = ev;
+                                result.push_back(disj);
+                                final_result.push_back(result);
+                            }
+                        }
+                    } else {
                         for(app* disj : three_disjuncts_after_elim) {
-                            std::vector<expr*> result = ev;
+                            std::vector<expr* > result;
                             result.push_back(disj);
                             final_result.push_back(result);
                         }
                     }
+                    return final_result;
                 } else {
-                    for(app* disj : three_disjuncts_after_elim) {
-                        std::vector<expr* > result;
-                        result.push_back(disj);
+                    if(eliminated_neg_vec.size() != 0) {
+                        for(std::vector<expr*> v : eliminated_neg_vec) {
+                            std::vector<expr*> result = v;
+                            result.push_back(curr_neg_lit);
+                            final_result.push_back(result);
+                        }
+                        return final_result;
+                    } else {
+                        std::vector<expr*> result;
+                        result.push_back(curr_neg_lit);
                         final_result.push_back(result);
+                        return final_result;
                     }
                 }
-                return final_result;
             } else {
                 std::cout << "eliminate heap equality negation: this should not   happen" << std::endl;
                 SASSERT(false);
@@ -286,32 +308,56 @@ namespace smt {
             std::cout << "collect expr: " << mk_ismt2_pp(e, m) << std::endl;
             #endif
             app* app_e = to_app(e);
+            #ifdef SLHV_DEBUG
+            std::cout << "collect vars in literal" << std::endl;
+            #endif
             auto collected_vars = this->collect_vars(app_e);
             this->curr_locvars = slhv_util::setUnion(this->curr_locvars, collected_vars.first);
-            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, collected_vars.second);            
+            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, collected_vars.second);
+            #ifdef SLHV_DEBUG
+            std::cout << "collect disj unions in literal" << std::endl;
+            #endif
             this->curr_disj_unions = slhv_util::setUnion(this->curr_disj_unions, this->collect_disj_unions(app_e));
+
+            #ifdef SLHV_DEBUG
+            std::cout << "collect pts in literal" << std::endl;
+            #endif
             this->curr_pts = slhv_util::setUnion(this->curr_pts, this->collect_points_tos(app_e));
         }
         // if "emp" or "nil" does not appear in the literals, add and internalize them manually:
         decl_plugin* plug = this->m.get_plugin(get_id());
         SASSERT(plug->get_family_id() == this->get_manager().mk_family_id("slhv"));
+        SASSERT(plug != nullptr);
         slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*) plug;
+        #ifdef SLHV_DEBUG
+        std::cout << "begin construct emp" << std::endl;
+        #endif
         if(!this->curr_hvars_contain_emp()) {
+            SASSERT(slhv_plugin->global_emp != nullptr);
+            to_app(slhv_plugin->global_emp)     ;
+            std::cout << "internalize term" << std::endl;
             this->internalize_term(to_app(slhv_plugin->global_emp));
+            std::cout << "internalize term" << std::endl;
             this->curr_hvars.insert(to_app(slhv_plugin->global_emp));
             this->global_emp = to_app(slhv_plugin->global_emp);
         } else {
             SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
         }
-
+        #ifdef SLHV_DEBUG
+        std::cout << "begin construct nil" << std::endl;
+        #endif
         if(!this->curr_locvars_contain_nil()) {
+            std::cout << "internalize term" << std::endl;
             this->internalize_term(to_app(slhv_plugin->global_nil));
+            std::cout << "internalize term" << std::endl;
             this->curr_locvars.insert(to_app(slhv_plugin->global_nil));
             this->global_nil = to_app(slhv_plugin->global_nil);
         } else {
             SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
         }
-
+        #ifdef SLHV_DEBUG
+        std::cout << "collect and analyze assignments end" << std::endl;
+        #endif
     }
 
     std::pair<std::set<app* >, std::set<app *>> 
@@ -376,6 +422,9 @@ namespace smt {
         for(auto e : assigned_literals) {
             this->record_distinct_locterms(to_app(e));
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "record distinc locterms in assignments end" << std::endl;
+        #endif
     }
 
     void theory_slhv::record_distinct_locterms(app* atom) {
@@ -445,6 +494,7 @@ namespace smt {
 
 
     void theory_slhv::reset_configs() {
+        std::cout << "reset configs for slhv theory" << std::endl;
         this->curr_pts.clear();
         this->curr_disj_unions.clear();
         this->curr_hvars.clear();

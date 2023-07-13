@@ -129,7 +129,7 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
     SASSERT(arity == 0);
 
     if(this->global_emp != nullptr) {
-        return this->global_emp;
+        return this->global_emp->get_decl();
     }
     func_decl_info info(m_family_id, OP_EMP);
 
@@ -137,21 +137,23 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
     #ifdef SLHV_DEBUG
     std::cout << "mk_emp result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
-    this->global_emp = result_decl;
+    expr* const* result_expr = nullptr;
+    this->global_emp = this->m_manager->mk_app(result_decl, result_expr);
     return result_decl;
 }
 
 func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
     if(this->global_nil != nullptr) {
-        return this->global_nil;
+        return this->global_nil->get_decl();
     }
     func_decl_info info(m_family_id, OP_NIL);
     func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_nil result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
-    this->global_nil = result_decl;
+    expr* const* result_expr = nullptr;
+    this->global_nil = this->m_manager->mk_app(result_decl, result_expr);
     return result_decl;
 }
 
@@ -171,6 +173,17 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_points_to" << std::endl; 
     #endif 
         return this->mk_points_to(arity, domain);
+    case OP_EMP:
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;
+    #endif
+        return this->mk_const_emp(range, arity, domain);
+    case OP_NIL:
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_func_decl in slhv plugin op_nil" << std::endl;
+    #endif
+        return this->mk_const_nil(range, arity, domain);
+    
     default:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin default!!" << std::endl; 

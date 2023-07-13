@@ -30,8 +30,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     public:
 
-    func_decl* global_emp;
-    func_decl* global_nil;
+    app* global_emp;
+    app* global_nil;
     slhv_decl_plugin();
 
     decl_plugin * mk_fresh() override {
