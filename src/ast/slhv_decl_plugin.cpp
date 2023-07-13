@@ -10,7 +10,9 @@
 slhv_decl_plugin::slhv_decl_plugin() :
     m_disj_union_sym("uplus"),
     m_list_segment_sym("lseg"),
-    m_points_to_sym("pt")
+    m_points_to_sym("pt"),
+    global_emp(nullptr),
+    global_nil(nullptr)
 {
     // this->m_family_id = this->m_manager->mk_family_id("slhv");
     
@@ -71,8 +73,6 @@ func_decl* slhv_decl_plugin::mk_uplus(unsigned arity, sort * const * domain) {
     #endif
     parameter param(s);
     func_decl_info info(m_family_id, OP_HEAP_DISJUNION, num_parameters, &param);
-    info.set_associative();
-    info.set_commutative();
     sort *domain2[arity];
     for(int i = 0; i < arity; i ++) {
         domain2[i] = domain[0];
@@ -102,29 +102,27 @@ func_decl* slhv_decl_plugin::mk_points_to(unsigned arity, sort * const* domain) 
 
 }
 
-func_decl* slhv_decl_plugin::mk_const_hvar(sort* range, unsigned arity, sort* const* domain) {
+func_decl* slhv_decl_plugin::mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
     func_decl_info info(m_family_id, OP_HVAR_CONST);
 
-    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    func_decl* result_decl = m_manager->mk_const_decl(name, range, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_const_hvar result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 }
 
-func_decl* slhv_decl_plugin::mk_const_locvar(sort* range, unsigned arity, sort* const* domain) {
+func_decl* slhv_decl_plugin::mk_const_locvar(symbol name, sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
     func_decl_info info(m_family_id, OP_LOCVAR_CONST);
-    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    func_decl* result_decl = m_manager->mk_const_decl(name, range, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_const_locvar result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 
 }
-
-
 func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
 
@@ -133,7 +131,7 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
     }
     func_decl_info info(m_family_id, OP_EMP);
 
-    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    func_decl* result_decl = m_manager->mk_const_decl(symbol("emp"), range, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_emp result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
@@ -148,7 +146,7 @@ func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* con
         return this->global_nil->get_decl();
     }
     func_decl_info info(m_family_id, OP_NIL);
-    func_decl* result_decl = m_manager->mk_func_decl(arity, domain, info);
+    func_decl* result_decl = m_manager->mk_const_decl(symbol("nil"), range, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_nil result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
     #endif
@@ -183,7 +181,17 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_nil" << std::endl;
     #endif
         return this->mk_const_nil(range, arity, domain);
-    
+    case OP_LOCVAR_CONST:
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_func_decl in slhv plugin op_locvar_const" << std::endl;
+    #endif
+        return this->mk_const_locvar(this->curr_locvar_name, range, arity, domain);
+    case OP_HVAR_CONST:
+
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_func_decl in slhv plugin op_hvar_const" << std::endl;
+    #endif
+        return this->mk_const_hvar(this->curr_hvar_name, range, arity, domain);
     default:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin default!!" << std::endl; 

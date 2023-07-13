@@ -27,6 +27,8 @@ class slhv_decl_plugin : public decl_plugin {
     symbol m_disj_union_sym;
     symbol m_points_to_sym;
     symbol m_list_segment_sym;
+    symbol curr_locvar_name;
+    symbol curr_hvar_name;
 
     public:
 
@@ -44,15 +46,23 @@ class slhv_decl_plugin : public decl_plugin {
 
     void get_op_names(svector<builtin_name> & op_names, symbol const & logic) override;
 
+    void set_curr_locvar(symbol locvar_name) {
+        this->curr_locvar_name = locvar_name;
+    }
+    
+    void set_curr_hvar(symbol hvar_name) {
+        this->curr_hvar_name = hvar_name;
+    }
+
     func_decl* mk_uplus(unsigned arity, sort * const * domain);
 
     func_decl* mk_disj_union(unsigned arity, sort* const* domain);
 
     func_decl* mk_points_to(unsigned arity, sort * const* domain);
 
-    func_decl* mk_const_hvar(sort* range, unsigned arity, sort* const* domain);
+    func_decl* mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain);
 
-    func_decl* mk_const_locvar(sort* range, unsigned arity, sort* const* domain);
+    func_decl* mk_const_locvar(symbol name, sort* range, unsigned arity, sort* const* domain);
 
     func_decl* mk_const_emp(sort* range, unsigned arity, sort* const* domain);
 

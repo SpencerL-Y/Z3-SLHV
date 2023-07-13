@@ -2596,9 +2596,13 @@ namespace smt2 {
             sort* hvar_sort = sort_stack().back();
             SASSERT(check_hvar_sort(hvar_sort));
             // next();
+            slhv_decl_plugin* plug = (slhv_decl_plugin*)this->m().get_plugin(m().mk_family_id("slhv"));
+            plug->set_curr_hvar(id);
+            func_decl* c = plug->mk_func_decl(is_emp ? OP_EMP: OP_HVAR_CONST, 0, nullptr, 0, nullptr, hvar_sort);
+            /*
             func_decl_ref c(m());
             func_decl_info hvar_info(m().mk_family_id("slhv"), is_emp ? OP_EMP: OP_HVAR_CONST);
-            c = m().mk_const_decl(id, hvar_sort, hvar_info);
+            c = m().mk_const_decl(id, hvar_sort, hvar_info);*/
             SASSERT(c != nullptr);
             m_ctx.insert(c);
             check_rparen("invalid hvar declaration, ')' expected");
@@ -2635,9 +2639,9 @@ namespace smt2 {
             SASSERT(!sort_stack().empty());
             sort* locvar_sort = sort_stack().back();
             SASSERT(check_locvar_sort(locvar_sort));
-            func_decl_ref c(m());
-            func_decl_info locvar_info(m().mk_family_id("slhv"), is_nil? OP_NIL : OP_LOCVAR_CONST);
-            c = m().mk_const_decl(id, locvar_sort, locvar_info);
+            slhv_decl_plugin* plug = (slhv_decl_plugin*)this->m().get_plugin(m().mk_family_id("slhv"));
+            plug->set_curr_locvar(id);
+            func_decl* c = plug->mk_func_decl(is_nil ? OP_NIL : OP_LOCVAR_CONST, 0, nullptr, 0, nullptr, locvar_sort);
             SASSERT(c != nullptr);
             m_ctx.insert(c);
             check_rparen("invalid locvar declaration, ')' expected");

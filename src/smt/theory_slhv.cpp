@@ -172,6 +172,7 @@ namespace smt {
             // enumerate all possible loc eqs
             std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
             coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
+            
             for(std::map<enode*, std::set<app*>> loc_eq_data : loc_eqs_raw) {
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
                 
@@ -212,8 +213,22 @@ namespace smt {
         #endif
         this->collect_and_analyze_assignments(assigned_literals);
         this->record_distinct_locterms_in_assignments(assigned_literals);
-        this->infer_distinct_locterms_in_assignments(assigned_literals);
-        this->infer_distinct_heapterms_in_assignments(assigned_literals);
+        // collect heap constraints in the assigned literals
+        expr_ref_vector heap_cnstr(m);
+        for(expr* e : assigned_literals) {
+            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
+                app* inner = to_app(to_app(e)->get_arg(0));
+                if(this->is_heapterm(to_app(inner->get_arg(0)))) {
+                    heap_cnstr.push_back(e);
+                }
+            } else {
+                if(this->is_heapterm(to_app(to_app(e)->get_arg(0)))) {
+                    heap_cnstr.push_back(e);
+                }
+            }
+        }
+        this->infer_distinct_locterms_in_assignments(heap_cnstr);
+        this->infer_distinct_heapterms_in_assignments(heap_cnstr);
         this->infer_emp_hterms();
         // TODO: add the equivalence checking of nil
         #ifdef SLHV_DEBUG
@@ -429,19 +444,18 @@ namespace smt {
 
     void theory_slhv::record_distinct_locterms(app* atom) {
         // record all locterm enode that are distinct 
-        #ifdef SLHV_DEBUG
-        std::cout << "record distinct locvars: " << mk_ismt2_pp(atom, m) << std::endl;
-        #endif
         if(atom->is_app_of(basic_family_id, OP_DISTINCT)) {
             expr* lhs_expr = atom->get_arg(0);
             expr* rhs_expr = atom->get_arg(1);
             SASSERT(lhs_expr->get_sort()->get_name() == rhs_expr->get_sort()->get_name());
             if(this->is_locterm(to_app(lhs_expr))) {
-                theory_var lhsVar = get_th_var(lhs_expr);
-                theory_var rhsVar = get_th_var(rhs_expr);
-                enode* lhs_node = get_enode(lhsVar);
-                enode* rhs_node = get_enode(rhsVar);
+                enode* lhs_node = this->ctx.get_enode(lhs_expr);
+                enode* rhs_node = this->ctx.get_enode(rhs_expr);
                 this->curr_distinct_locterm_pairs.insert({lhs_node->get_root(), rhs_node->get_root()});
+
+                #ifdef SLHV_DEBUG
+                std::cout << "record distinct locvars: " << mk_ismt2_pp(lhs_expr, m) << ", " <<  mk_ismt2_pp(rhs_expr, m)  << std::endl;
+                #endif
             }
             
         } else if(atom->is_app_of(basic_family_id, OP_NOT)) {
@@ -451,13 +465,17 @@ namespace smt {
             expr* rhs_expr = to_app(negated)->get_arg(1);
             SASSERT(lhs_expr->get_sort()->get_name() == rhs_expr->get_sort()->get_name());
             if(this->is_locterm(to_app(lhs_expr))) {
-                theory_var lhsVar = get_th_var(lhs_expr);
-                theory_var rhsVar = get_th_var(rhs_expr);
-                enode* lhs_node = get_enode(lhsVar);
-                enode* rhs_node = get_enode(rhsVar);
+                enode* lhs_node = this->ctx.get_enode(lhs_expr);
+                enode* rhs_node = this->ctx.get_enode(rhs_expr);
                 this->curr_distinct_locterm_pairs.insert({lhs_node->get_root(), rhs_node->get_root()});
+
+                #ifdef SLHV_DEBUG
+                std::cout << "record distinct locvars: " << mk_ismt2_pp(lhs_expr, m) << ", " <<  mk_ismt2_pp(rhs_expr, m)  << std::endl;
+                #endif
             }
-        } 
+        } else {
+            //PASS
+        }
     }
 
     
@@ -543,7 +561,10 @@ namespace smt {
         std::vector<enode_pair> result;
         for(int i = 0; i < nodes.size(); i ++ ) {
             for(int j = i + 1; j < nodes.size(); j ++) {
-                result.push_back({nodes[i], nodes[j]});
+                if(this->curr_distinct_locterm_pairs.find({nodes[i], nodes[j]}) == this->curr_distinct_locterm_pairs.end() && 
+                   this->curr_distinct_locterm_pairs.find({nodes[j], nodes[i]}) == this->curr_distinct_locterm_pairs.end() ) {
+                        result.push_back({nodes[i], nodes[j]});
+                }
             }
         }
         return result;
@@ -578,6 +599,16 @@ namespace smt {
         // enumerate all feasible assignment to assignable locvar enode pairs
         // the result is a vector of map, where each map represents a way to do the partition of locvar eq
         std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
+        #ifdef SLHV_DEBUG
+        std::cout << "unassigned pairs: " << std::endl;
+        for(enode_pair p : unassigned_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        std::cout << "distinct pairs: " << std::endl;
+        for(enode_pair p : this->curr_distinct_locterm_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        #endif
         std::vector<enode_pair> assignable_pairs;
         for(auto p : unassigned_pairs) {
             for(auto conflict : this->curr_distinct_locterm_pairs) {
@@ -725,7 +756,7 @@ namespace smt {
 
     void theory_slhv::infer_notnil_locterms(app* expr) {
         #ifdef SLHV_DEBUG
-        std::cout << "slhv infer_distinct_locterms: " << mk_ismt2_pp(expr, m) << std::endl;
+        std::cout << "slhv infer_notnil_locterms: " << mk_ismt2_pp(expr, m) << std::endl;
         #endif
         SASSERT(!expr->is_app_of(basic_family_id, OP_NOT));
         if(is_points_to(expr)) {
@@ -738,12 +769,25 @@ namespace smt {
     }
 
     void theory_slhv::infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs) {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer distinct heap terms in assignments" << std::endl;
+        #endif
         for(expr * atom : assigned_hcnstrs) {
-            this->infer_distinct_heapterms(to_app(atom));
+            app* possibly_neg = to_app(atom);
+            if(!possibly_neg->is_app_of(basic_family_id, OP_NOT)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "infer distinct heapterm of eq: " << mk_ismt2_pp(possibly_neg, this->m) << std::endl;
+                #endif
+                this->infer_distinct_heapterms(to_app(possibly_neg));
+            }
         }
     };
 
     void theory_slhv::infer_distinct_heapterms(app* atom){
+
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv infer distinct heap terms" << mk_ismt2_pp(atom, m) << std::endl;
+        #endif
         SASSERT(atom->is_app_of(basic_family_id, OP_EQ));
         app* left_var = to_app(atom->get_arg(0));
         SASSERT(this->is_hvar(left_var));
@@ -759,12 +803,14 @@ namespace smt {
                     break;
                 }
             }
-            this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root_node});
-            for(int i = 0; i < right_expr->get_num_args(); i ++) {
-                app* arg = to_app(right_expr->get_arg(i));
-                if(this->is_hvar(arg)) {
-                    enode* rhs_var_root_node = this->ctx.get_enode(arg)->get_root();
-                    this->curr_distinct_hterm_pairs.insert({left_var_root_node, rhs_var_root_node});
+            if(contain_points_to) {
+                this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root_node});
+                for(int i = 0; i < right_expr->get_num_args(); i ++) {
+                    app* arg = to_app(right_expr->get_arg(i));
+                    if(this->is_hvar(arg)) {
+                        enode* rhs_var_root_node = this->ctx.get_enode(arg)->get_root();
+                        this->curr_distinct_hterm_pairs.insert({left_var_root_node, rhs_var_root_node});
+                    }
                 }
             }
         } else if(this->is_points_to(right_expr)) {
@@ -2335,7 +2381,7 @@ namespace smt {
     app* slhv_fresh_var_maker::mk_fresh_hvar() {
         std::string name = "f_th_hvar" + std::to_string(this->curr_hvar_id);
         sort* range_sort = this->fe_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
-        app* fresh_hvar = to_app(this->fe_plug->mk_const_hvar(range_sort, 0, nullptr));
+        app* fresh_hvar = to_app(this->fe_plug->mk_const_hvar(symbol(name), range_sort, 0, nullptr));
         this->hvar_map[curr_hvar_id] = fresh_hvar;
         curr_hvar_id ++;
         return fresh_hvar;
@@ -2344,7 +2390,7 @@ namespace smt {
     app* slhv_fresh_var_maker::mk_fresh_locvar() {
         std::string name = "f_th_locvar" + std::to_string(this->curr_locvar_id);
         sort* range_sort = this->fe_plug->mk_sort(INTLOC_SORT, 0, nullptr);
-        app* fresh_locvar = to_app(this->fe_plug->mk_const_locvar(range_sort, 0, nullptr));
+        app* fresh_locvar = to_app(this->fe_plug->mk_const_locvar(symbol(name), range_sort, 0, nullptr));
         this->locvar_map[curr_locvar_id] = fresh_locvar;
         curr_locvar_id ++;
         return fresh_locvar;
