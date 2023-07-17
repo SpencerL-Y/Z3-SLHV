@@ -20,6 +20,7 @@ namespace smt
     class edge_labelled_dgraph;
     class edge_labelled_subgraph;
     class subheap_relation;
+    class locvar_eq;
     class coarse_hvar_eq;
     class theory_slhv : public theory {
 
@@ -488,6 +489,9 @@ namespace smt
         }
 
         std::vector<app*> get_leader_hvars();
+        std::map<enode*, std::vector<app*>> get_coarse_data() {
+            return this->coarse_data;
+        }
     };
 
 // edge-labelled directed graph

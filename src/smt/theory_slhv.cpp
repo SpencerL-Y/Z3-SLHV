@@ -182,22 +182,34 @@ namespace smt {
 
             for(std::map<enode*, std::set<app*>> loc_eq_data : loc_eqs_raw) {
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
+                
+                if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
+                    continue;
+                }
                 #ifdef SLHV_DEBUG
                 std::cout << "---------------" << std::endl;
                 std::cout << "current loc_eq_data: " << std::endl;
                 int i = 0;
                 for(auto p : loc_eq_data) {
-                    std::cout << "partition " << i << ":" << std::endl;
+                    std::cout << "loc partition " << i << ":" << std::endl;
                     for(app* e : p.second) {
                         std::cout << mk_ismt2_pp(e, this->m) << ", ";
                     }
                     std::cout << std::endl;
                     i += 1;
                 }
-                //TODO: check whether current locvar eq and hvar eq will introduce inconsistency
-                if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
-                    continue;
+                i = 0;
+                std::cout << "---------------" << std::endl;
+                auto coarse_hvar_eq_data = curr_hvar_eq->get_coarse_data();
+                for(auto p : coarse_hvar_eq_data) {
+                    std::cout << "hvar partition " << i << ":" << std::endl;
+                    for(app* e : p.second) {
+                        std::cout << mk_ismt2_pp(e, this->m) << ", ";
+                    }
+                    std::cout << std::endl;
+                    i += 1;
                 }
+                std::cout << "---------------" << std::endl;
                 #endif
                 edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq);
 
@@ -368,7 +380,7 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "collect pts in literal" << std::endl;
             #endif
-            this->curr_pts = slhv_util::setUnion(this->curr_pts, this->collect_points_tos(app_e));
+            this->curr_pts = slhv_util::setUnion(this->curr_pts,  this->collect_points_tos(app_e));
         }
         // if "emp" or "nil" does not appear in the literals, add and internalize them manually:
         decl_plugin* plug = this->m.get_plugin(get_id());
@@ -923,10 +935,9 @@ namespace smt {
             app* addr = to_app(pt->get_arg(0));
             if(loc_eq->get_leader_locvar(addr) == this->global_nil) {
                 return false;
-            } else {
-                return true;
-            }
+            } 
         }
+        return true;
     }
 
     std::set<hterm*> theory_slhv::construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs) {
@@ -1352,7 +1363,16 @@ namespace smt {
         for(auto pair : this->coarse_data) {
             enode* rt_node = pair.first;
             if(this->th->curr_emp_hterm_enodes.find(rt_node) != this->th->curr_emp_hterm_enodes.end()) {
-                this->coarse_data[rt_node].insert(this->coarse_data[rt_node].begin(), this->th->global_emp);
+                bool has_emp = false;
+                for(app* e : this->coarse_data[rt_node]) {
+                    if(e == this->th->global_emp) {
+                        has_emp = true;
+                        break;
+                    }
+                }
+                if(!has_emp) {
+                    this->coarse_data[rt_node].insert(this->coarse_data[rt_node].begin(), this->th->global_emp);
+                }
             }
         }
     }
@@ -1434,7 +1454,7 @@ namespace smt {
             for(app* temp_hvar : pair.second) {
                 if(this->is_emp_hvar(temp_hvar)) {
                     pair_is_emp = true;
-                    break;
+                    continue;
                 }
             }
             if(!pair_is_emp) {
@@ -1469,6 +1489,11 @@ namespace smt {
         #endif
         std::map<app*, dgraph_node*> node_map;
         std::vector<app*> leader_hvars = this->hvar_eq->get_leader_hvars();
+        #ifdef SLHV_DEBUG
+        for(app* e : leader_hvars) {
+            std::cout << "leader var: " << mk_ismt2_pp(e, this->th->get_manager()) << std::endl;
+        }
+        #endif
         for(int i = 0; i < leader_hvars.size(); i ++) {
             SASSERT(!node_map[leader_hvars[i]]);
             dgraph_node* new_node = alloc(hvar_dgraph_node, this, leader_hvars[i]);
