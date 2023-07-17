@@ -1438,7 +1438,8 @@ namespace smt {
     int coarse_hvar_eq::is_emp_hvar(app* hvar) {
         enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
         if(this->th->curr_emp_hterm_enodes.find(hvar_root_node) != this->th->curr_emp_hterm_enodes.end() || 
-           this->th->get_context().get_enode(this->th->global_emp)->get_root() == hvar_root_node) {
+           this->th->get_context().get_enode(this->th->global_emp)->get_root() == hvar_root_node || 
+           this->th->global_emp == hvar) {
             return 1;
         } else {
             return -1;
@@ -1452,7 +1453,7 @@ namespace smt {
         for(auto pair : this->coarse_data) {
             bool pair_is_emp = false;
             for(app* temp_hvar : pair.second) {
-                if(this->is_emp_hvar(temp_hvar)) {
+                if(this->is_emp_hvar(temp_hvar) == 1) {
                     pair_is_emp = true;
                     continue;
                 }
