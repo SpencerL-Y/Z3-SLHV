@@ -252,6 +252,7 @@ namespace smt {
                 }
             }
         }
+        this->collect_loc_and_heap_cnstr_in_assignments(assigned_literals);
         this->infer_distinct_locterms_in_assignments(heap_cnstr);
         this->infer_distinct_heapterms_in_assignments(heap_cnstr);
         this->infer_emp_hterms();
@@ -509,12 +510,15 @@ namespace smt {
         for(auto e : assigned_literals) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
                 expr* negated = to_app(e)->get_arg(0);
-                expr* negated_arg0 = to_app(e)->get_arg(0);
+                expr* negated_arg0 = to_app(negated)->get_arg(0);
                 if(is_heapterm(to_app(negated_arg0))) {
                     this->curr_heap_cnstr.insert(to_app(e));
                 } else if(is_locterm(to_app(negated_arg0))) {
                     this->curr_loc_cnstr.insert(to_app(e));
                 } else {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "collect cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
+                    #endif
                     SASSERT(false);
                     // this should not happen
                 }
@@ -596,9 +600,6 @@ namespace smt {
 
 
     std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs, std::map<enode*, std::set<app*>>& existing_data){
-        #ifdef SLHV_DEBUG
-        std::cout << "get fine locvar eq " << "assigned pairs size: " << assigned_pairs.size() << std::endl;
-        #endif
         auto unique_node_map = existing_data;
         std::map<enode*, std::set<app*>> result = unique_node_map;
         std::set<std::set<enode*>> enodes_partition;
@@ -609,7 +610,6 @@ namespace smt {
         }
         for(enode_pair p : assigned_pairs) {
             SASSERT(p.first != nullptr && p.second != nullptr);
-            std::cout <<  mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
             std::set<enode*> first_set, second_set;
             bool first_found = false, second_found = false;
             for(auto s : enodes_partition) {
@@ -643,7 +643,6 @@ namespace smt {
         }
 
         #ifdef SLHV_DEBUG
-        std::cout << "merged enodes computed " << std::endl;
         #endif
         for(std::set<enode*> s : enodes_partition) {
             std::set<app*> merged_app_set;
@@ -1448,7 +1447,9 @@ namespace smt {
 
     void edge_labelled_dgraph::construct_graph_from_theory() {
         // construct nodes
-        
+        #ifdef SLHV_DEBUG
+        std::cout << "construct nodes" << std::endl;
+        #endif
         std::map<app*, dgraph_node*> node_map;
         std::vector<app*> leader_hvars = this->hvar_eq->get_leader_hvars();
         for(int i = 0; i < leader_hvars.size(); i ++) {
@@ -1468,14 +1469,20 @@ namespace smt {
             dgraph_node* new_node = alloc(pt_dgraph_node, this, pair.first, pair.second);
             this->nodes.push_back(new_node);
         }
-
+        #ifdef SLHV_DEBUG
+        std::cout << "construct edges" << std::endl;
+        #endif
         // construct edges
         for(app* heap_equality : this->th->curr_heap_cnstr) {
             SASSERT(is_app_of(heap_equality, basic_family_id, OP_EQ));
+            std::cout << "heap_equality: " << mk_ismt2_pp(heap_equality, this->th->get_manager()) << std::endl;
             app* left_hvar = to_app(heap_equality->get_arg(0));
             dgraph_node* from_dgraph_node = this->get_hvar_node(left_hvar);
             app* label = to_app(heap_equality->get_arg(1));
             if(this->th->is_uplus(label)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "left hvar: " << mk_ismt2_pp(left_hvar, this->th->get_manager()) << " right label: " << mk_ismt2_pp(label, this->th->get_manager()) << std::endl;
+                #endif
                 // add edge if rhs of the equality is a uplus, since otherwise 
                 // the equivalent class of hvar has already dealed with it
                 for(int i = 0; i < label->get_num_args(); i ++) {
