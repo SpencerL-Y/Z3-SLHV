@@ -167,6 +167,7 @@ namespace smt {
             this->reset_configs();
 
             // preprocessing
+
             this->preprocessing(curr_assignments);
  
             // enumerate all possible loc eqs
@@ -192,6 +193,10 @@ namespace smt {
                     }
                     std::cout << std::endl;
                     i += 1;
+                }
+                //TODO: check whether current locvar eq and hvar eq will introduce inconsistency
+                if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
+                    continue;
                 }
                 #endif
                 edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq);
@@ -909,6 +914,18 @@ namespace smt {
         } else {
             SASSERT(false);
             // this should not happen
+        }
+    }
+
+    bool theory_slhv::check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq) {
+        for(app* pt : this->curr_pts) {
+            SASSERT(this->is_points_to(pt));
+            app* addr = to_app(pt->get_arg(0));
+            if(loc_eq->get_leader_locvar(addr) == this->global_nil) {
+                return false;
+            } else {
+                return true;
+            }
         }
     }
 

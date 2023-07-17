@@ -151,6 +151,8 @@ namespace smt
 
         void infer_distinct_heapterms(app* atom);
 
+        bool check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq);
+
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
         std::pair<std::map<dgraph_node*, subheap_relation*>, bool> check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
