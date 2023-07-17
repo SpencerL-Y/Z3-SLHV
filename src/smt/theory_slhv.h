@@ -7,6 +7,7 @@
 #include <stack>
 #include <vector>
 #include <map>
+#include <iostream>
 namespace smt
 {
     class slhv_fresh_var_maker;
@@ -19,6 +20,7 @@ namespace smt
     class edge_labelled_dgraph;
     class edge_labelled_subgraph;
     class subheap_relation;
+    class coarse_hvar_eq;
     class theory_slhv : public theory {
 
         public:
@@ -552,9 +554,10 @@ namespace smt
             std::vector<dgraph_edge*> get_edges() {
                 return this->edges;
             }
+            void print(std::ostream& out);
     };
 
-    class edge_labelled_subgraph : public    edge_labelled_dgraph {
+    class edge_labelled_subgraph : public  edge_labelled_dgraph {
         private:
             edge_labelled_dgraph* parent;
         public:
@@ -609,6 +612,9 @@ namespace smt
             void set_dfs_index(int idx) {
                 this->dfs_index = idx;
             }
+            virtual void print(std::ostream& out) {
+                out << "node print node implemented" << std::endl;
+            }
     };
 
     class hvar_dgraph_node : public dgraph_node {
@@ -628,6 +634,7 @@ namespace smt
             bool is_established() override {
                 return false;
             }
+            void print(std::ostream& out) override;
     };
 
     class pt_dgraph_node : public dgraph_node {
@@ -651,6 +658,7 @@ namespace smt
             bool is_established() override {
                 return true;
             }
+            void print(std::ostream& out) override;
     };
 
     class dgraph_edge {
@@ -673,6 +681,7 @@ namespace smt
             edge_labelled_dgraph* get_dgraph() {
                 return dgraph;
             }
+            void print(std::ostream& out);
     };
 // hterm class
     class hterm {
