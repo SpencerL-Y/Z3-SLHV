@@ -1584,6 +1584,13 @@ namespace smt {
         SASSERT(!this->is_scc_computed());
         std::set<dgraph_node*> sources = this->get_sources();
         this->tarjanSCC(sources);
+        #ifdef SLHV_DEBUG
+
+        std::cout << "tarjan over and SCC infos: " << std::endl;
+        for(dgraph_node* n : this->nodes) {
+            n->print(std::cout);
+        } 
+        #endif
         std::map<int, int> nontrivial_SCC_ids;
         for(dgraph_node* n : this->nodes) {
             if(nontrivial_SCC_ids.find(n->get_low_index()) != nontrivial_SCC_ids.end()) {
@@ -1603,11 +1610,17 @@ namespace smt {
         if(estab_reached) {
             return nullptr;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "established reachable checked" << std::endl;
+        #endif
         // compute the hvar eq after merging
         coarse_hvar_eq* new_hvar_eq = this->check_and_merge_scc_hvars(nontrivial_ids);
         if(new_hvar_eq == nullptr) {
             return nullptr;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "coarse hvar_eq computed after merging" << std::endl;
+        #endif
         // compute the nodes that can be reached from some nontrivial scc
         std::set<dgraph_node*> deleted_nodes = this->get_simplified_nodes(nontrivial_ids);
         // compute the remaining node scc ids
@@ -1615,6 +1628,14 @@ namespace smt {
         for(dgraph_node* n : deleted_nodes) {
             remained_nontrivial_ids.erase(n->get_low_index());
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "remainged nontrivial ids: " << std::endl;
+        for(int i : remained_nontrivial_ids) {
+            std::cout << i << ",";
+        }
+        std::cout << std::endl;
+        #endif
         // compute the remaining edges by deleting edges related to deleted nodes
         std::set<dgraph_edge*> remained_edges;
         for(dgraph_edge* e : this->edges) {
@@ -1626,7 +1647,7 @@ namespace smt {
 
         edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq);
         new_graph->set_simplified();
-
+        
         // create nodes for new graph
         for(dgraph_node* n : this->nodes) {
             if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
@@ -1936,7 +1957,7 @@ namespace smt {
 
     dgraph_node* edge_labelled_dgraph::get_unvisited() {
         for(dgraph_node* n : this->nodes) {
-            if(n->is_tarjan_visited()) {
+            if(!n->is_tarjan_visited()) {
                 return n;
             }
         }
@@ -2104,9 +2125,11 @@ namespace smt {
         std::vector<dgraph_edge*> edges = this->dgraph->get_edges_from_node(this);
         for(dgraph_edge* e : edges) {
             dgraph_node* curr_next_node = e->get_to();
-            int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
-            if(ret_low_index < this->low_index) {
-                this->low_index = ret_low_index;
+            if(curr_next_node->dfs_index == -1) {
+                int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
+                if(ret_low_index < this->low_index) {
+                    this->low_index = ret_low_index;
+                }
             }
         }
         return this->low_index;
@@ -2133,12 +2156,12 @@ namespace smt {
     // graph print functions
     void pt_dgraph_node::print(std::ostream& out) {
         auto pt_pair = this->get_pt_pair_label();
-        out << "(N)-(PT)-(pt " << mk_ismt2_pp(pt_pair.first, this->get_dgraph()->get_th()->get_manager()) << " " << mk_ismt2_pp(pt_pair.second, this->get_dgraph()->get_th()->get_manager()) << ")";
+        out << "(N)-(PT)-(pt " << mk_ismt2_pp(pt_pair.first, this->get_dgraph()->get_th()->get_manager()) << " " << mk_ismt2_pp(pt_pair.second, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
     }
 
     void hvar_dgraph_node::print(std::ostream& out) {
         auto hvar_label = this->get_hvar_label();
-        out << "(N)-(HVAR)-(" << mk_ismt2_pp(hvar_label, this->get_dgraph()->get_th()->get_manager()) << ")";
+        out << "(N)-(HVAR)-(" << mk_ismt2_pp(hvar_label, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
     }
 
     void dgraph_edge::print(std::ostream& out) {
