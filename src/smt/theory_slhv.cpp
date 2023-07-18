@@ -1428,7 +1428,7 @@ namespace smt {
 
     app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
         enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
-        if(this->is_emp_hvar(hvar)) {
+        if(this->is_emp_hvar(hvar) == 1) {
             return this->th->global_emp;
         } else {
             return this->coarse_data[hvar_root_node][0];
