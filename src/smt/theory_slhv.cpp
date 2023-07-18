@@ -1974,7 +1974,7 @@ namespace smt {
         }
         std::set<dgraph_node*> next_nodes = established_reachable_nodes;
         do {
-            
+            established_reachable_nodes = next_nodes;
             for(dgraph_edge* e : this->edges) {
                 if(established_reachable_nodes.find(e->get_to()) !=  established_reachable_nodes.end()) {
                     next_nodes.insert(e->get_from());
