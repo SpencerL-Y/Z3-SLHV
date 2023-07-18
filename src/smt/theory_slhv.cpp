@@ -1630,7 +1630,7 @@ namespace smt {
         }
 
         #ifdef SLHV_DEBUG
-        std::cout << "remainged nontrivial ids: " << std::endl;
+        std::cout << "remained nontrivial ids: " << std::endl;
         for(int i : remained_nontrivial_ids) {
             std::cout << i << ",";
         }
@@ -1645,8 +1645,7 @@ namespace smt {
                }
         }
 
-        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq);
-        new_graph->set_simplified();
+        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, true);
         
         // create nodes for new graph
         for(dgraph_node* n : this->nodes) {
@@ -1656,7 +1655,7 @@ namespace smt {
                     pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_pt_pair_label().first, old_node->get_pt_pair_label().second);
                     new_node->set_dfs_index(old_node->get_dfs_index());
                     new_node->set_low_index(old_node->get_low_index());
-                    new_graph->add_node(new_node);
+                    new_graph->add_nnew_graphode(new_node);
                 } else if(n->is_hvar()) {
                     hvar_dgraph_node* old_node = (hvar_dgraph_node*)n;
                     hvar_dgraph_node* new_node = alloc(hvar_dgraph_node, new_graph, old_node->get_hvar_label());
