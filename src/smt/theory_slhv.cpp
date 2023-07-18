@@ -231,7 +231,7 @@ namespace smt {
                 }
 
                 // deduce subheap relation for each node
-                std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(orig_graph, node2subgraphs);
+                std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
                 if(curr_result.second) {
                     return true;
                 }
@@ -1745,7 +1745,7 @@ namespace smt {
             std::vector<edge_labelled_subgraph*> result;
             std::vector<dgraph_node*> ns; ns.insert(ns.begin(), root);
             std::vector<dgraph_edge*> es;
-            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraphedge_labelled_subgraph, 
+            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
                 this, ns, es
             );
             result.push_back(subgraph);
