@@ -227,7 +227,7 @@ namespace smt {
                 std::set<dgraph_node*> roots = simplified_graph->get_sources();
                 std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
                 for(dgraph_node* n : roots) {
-                    orig_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
+                    simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
                 }
 
                 // deduce subheap relation for each node
@@ -1644,9 +1644,9 @@ namespace smt {
                     remained_edges.insert(e);
                }
         }
-
-        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, true);
-        
+        std::vector<dgraph_node*> ns;
+        std::vector<dgraph_edge*> es;
+        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, ns, es, true);
         // create nodes for new graph
         for(dgraph_node* n : this->nodes) {
             if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
@@ -1655,7 +1655,7 @@ namespace smt {
                     pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_pt_pair_label().first, old_node->get_pt_pair_label().second);
                     new_node->set_dfs_index(old_node->get_dfs_index());
                     new_node->set_low_index(old_node->get_low_index());
-                    new_graph->add_nnew_graphode(new_node);
+                    new_graph->add_node(new_node);
                 } else if(n->is_hvar()) {
                     hvar_dgraph_node* old_node = (hvar_dgraph_node*)n;
                     hvar_dgraph_node* new_node = alloc(hvar_dgraph_node, new_graph, old_node->get_hvar_label());
@@ -1745,7 +1745,7 @@ namespace smt {
             std::vector<edge_labelled_subgraph*> result;
             std::vector<dgraph_node*> ns; ns.insert(ns.begin(), root);
             std::vector<dgraph_edge*> es;
-            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
+            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraphedge_labelled_subgraph, 
                 this, ns, es
             );
             result.push_back(subgraph);
