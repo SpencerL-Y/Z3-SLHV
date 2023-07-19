@@ -979,11 +979,19 @@ namespace smt {
                 break;
             }
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "relation for leaf node computed" << std::endl;
+        #endif
         
         std::set<dgraph_node*> frontier_nodes;
         for(dgraph_node* n : orig_graph->get_nodes()) {
             bool abandoned = false;
+            if(visited.find(n) != visited.end()) {
+                abandoned = true;
+            }
             for(dgraph_edge* e : orig_graph->get_edges()) {
+                if(abandoned) break;
                 if(e->get_from() == n && visited.find(e->get_to()) == visited.end()) {
                     abandoned = true;
                     break;
@@ -994,6 +1002,18 @@ namespace smt {
             }
         }
         while(frontier_nodes.size() > 0) {
+            #ifdef SLHV_DEBUG
+            std::cout << "curr visited: " << std::endl;
+            for(dgraph_node* n : visited) {
+                n->print(std::cout);
+                std::cout << std::endl;
+            }
+            std::cout << "curr frontiers" << std::endl;
+            for(dgraph_node* n : frontier_nodes) {
+                n->print(std::cout);
+                std::cout << std::endl;
+            }
+            #endif
             // check and deduce subheap relation for each frontier node
             for(dgraph_node* n : frontier_nodes) {
                 std::set<edge_labelled_subgraph*> root_n_subgraphs;
@@ -1007,11 +1027,16 @@ namespace smt {
                 }
                 root2relation[n] = n_relation.first;
                 visited.insert(n);
+                frontier_nodes.erase(n);
             }
             // compute new frontier nodes
             for(dgraph_node* n : orig_graph->get_nodes()) {
                 bool abandoned = false;
+                if(visited.find(n) != visited.end()) {
+                    abandoned = true;
+                }
                 for(dgraph_edge* e : orig_graph->get_edges()) {
+                    if(abandoned) break;
                     if(e->get_from() == n && visited.find(e->get_to()) == visited.end()) {
                         abandoned = true;
                         break;
@@ -1030,10 +1055,15 @@ namespace smt {
         //TODO: equivalent pair may be redundant
         //TODO: relation_hterm may repeat
         // merge all hterms rooted node
+        #ifdef SLHV_DEBUG
+        std::cout << "check and deduce subheap relation for node " ; 
+        node->print(std::cout);
+        std::cout << std::endl;
+        #endif
         std::set<hterm*> relation_hterms;
         std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
         std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
-
+        
         // gathering existing hterms
         for(edge_labelled_dgraph* sb : rooted_node_subgraphs) {
             for(dgraph_edge* e : sb->get_edges_from_node(node)) {
@@ -1043,6 +1073,7 @@ namespace smt {
                 }
             }
         }
+        
         // generate remaining hterms
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             hterm* total_hterm = sb->obtain_graph_hterm();
@@ -1058,7 +1089,13 @@ namespace smt {
                 if(!found) {relation_hterms.insert(ht);};
             }
         }
-
+        #ifdef SLHV_DEBUG
+        std::cout << "gathering existing hterms and remaining hterms: " << std::endl;
+        for(hterm* ht : relation_hterms) {
+            ht->print(std::cout);
+            std::cout << std::endl;
+        }
+        #endif
         // RULE1
         std::set<hterm*> graph_hterms;
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
@@ -1081,6 +1118,10 @@ namespace smt {
             }
             equivalent_pairs.insert({graph_hterm, graph_hterm});
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "RULE 1 applied" << std::endl;
+        #endif
 
         // RULE2
         for(edge_labelled_subgraph* sb1 : rooted_node_subgraphs) {
@@ -1120,6 +1161,11 @@ namespace smt {
             }
         }
 
+
+        #ifdef SLHV_DEBUG
+        std::cout << "RULE 2 applied" << std::endl;
+        #endif
+
         for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
             for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
                 dgraph_node* child_node = e->get_to();
@@ -1152,7 +1198,15 @@ namespace smt {
                 }
             }
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "RULE 3&4 applied" << std::endl;
+        #endif
         subheap_relation* result_relation = alloc(subheap_relation, relation_hterms, new_subheap_pairs);
+        #ifdef SLHV_DEBUG
+        std::cout << "result relation generated" << std::endl;
+        result_relation->print(std::cout);
+        #endif
         return {result_relation, true};
     }
 
@@ -1594,6 +1648,7 @@ namespace smt {
         std::cout << "tarjan over and SCC infos: " << std::endl;
         for(dgraph_node* n : this->nodes) {
             n->print(std::cout);
+            std::cout << std::endl;
         } 
         #endif
         std::map<int, int> nontrivial_SCC_ids;
@@ -2393,6 +2448,21 @@ namespace smt {
             }
         }
         return result;
+    }
+    
+    void subheap_relation::print(std::ostream& os) {
+        os << "subheap relation hterm set: " << std::endl;
+        for(hterm* ht : this->hterm_set) {
+            ht->print(os);
+            os << std::endl;
+        }
+        os << "subheap pairs: " << std::endl;
+        for(auto p : subheap_pairs) {
+            p.first->print(os);
+            os  << " < ";
+            p.second->print(os);
+            os << std::endl;
+        }
     }
 
 

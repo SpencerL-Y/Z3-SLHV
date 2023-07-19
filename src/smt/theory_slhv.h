@@ -767,6 +767,7 @@ namespace smt
                 return this->subheap_pairs;
             }
             std::set<std::pair<hterm*, hterm*>> extract_equivalent_hterms();
+            void print(std::ostream& os);
     };
 
 // util class
