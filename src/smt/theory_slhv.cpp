@@ -1059,6 +1059,12 @@ namespace smt {
         std::cout << "check and deduce subheap relation for node " ; 
         node->print(std::cout);
         std::cout << std::endl;
+        std::cout << "rooted node subgraphs: " << std::endl;
+        for(auto g : rooted_node_subgraphs) {
+            g->print(std::cout);
+            std::cout << std::endl;
+            std::cout << "--------" << std::endl;
+        }
         #endif
         std::set<hterm*> relation_hterms;
         std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
@@ -1796,6 +1802,11 @@ namespace smt {
     std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, 
      std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraphs) {
         // enumerate all subgraphs
+        #ifdef SLHV_DEBUG
+        std::cout << "extract all rooted disjoint label complete subgraphs for node ";
+        root->print(std::cout);
+        std::cout << std::endl;
+        #endif
         // if computed
         if(node2subgraphs.find(root) != node2subgraphs.end()) {
             return node2subgraphs[root];
@@ -1809,6 +1820,11 @@ namespace smt {
                 this, ns, es
             );
             result.push_back(subgraph);
+            #ifdef SLHV_DEBUG
+            std::cout << "is leaf node" << std::endl;
+            subgraph->print(std::cout);
+            #endif
+            node2subgraphs[n] = result;
             return result;
         } else {
             std::set<dgraph_edge*> root_edges;
@@ -1853,6 +1869,7 @@ namespace smt {
                     subgraphs.push_back(sb);
                 }
             }
+            node2subgraphs[n] = subgraphs;
             return subgraphs;
         }
     }
