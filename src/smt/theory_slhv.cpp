@@ -229,7 +229,9 @@ namespace smt {
                 for(dgraph_node* n : roots) {
                     simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
                 }
-
+                #ifdef SLHV_DEBUG
+                std::cout << "subgraphs extracted" << std::endl;
+                #endif
                 // deduce subheap relation for each node
                 std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
                 if(curr_result.second) {
@@ -958,6 +960,9 @@ namespace smt {
     }
 
     std::pair<std::map<dgraph_node*, subheap_relation*>, bool>  theory_slhv::check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs){
+        #ifdef SLHV_DEBUG
+        std::cout << "check and deduce subheap relation" << std::endl;
+        #endif
         std::map<dgraph_node*, subheap_relation*> root2relation;
         SASSERT(orig_graph->get_simplified());
         std::set<dgraph_node*> visited;
@@ -1856,7 +1861,7 @@ namespace smt {
                 rep_hterm.insert({hvar_node->get_hvar_label(), nullptr});
             } else if(n->is_points_to()) {
                 pt_dgraph_node* pt_node = (pt_dgraph_node*) n;
-                SASSERT(rep_hterm.find(pt_node->get_pt_pair_label()) != rep_hterm.end());
+                SASSERT(rep_hterm.find(pt_node->get_pt_pair_label()) == rep_hterm.end());
                 rep_hterm.insert(pt_node->get_pt_pair_label());
             } else {
                 SASSERT(false);
@@ -2239,6 +2244,29 @@ namespace smt {
             curr_result = next_result;
         }
         return curr_result;
+    }
+
+    void hterm::print_app_pair(std::pair<app*, app*> p, std::ostream& os) {
+        if(p.second != nullptr) {
+            os << mk_ismt2_pp(p.first, this->loc_eq->get_th()->get_manager()) << " -> " << mk_ismt2_pp(p.second, this->loc_eq->get_th()->get_manager());
+        } else {
+            os << mk_ismt2_pp(p.first, this->loc_eq->get_th()->get_manager());
+        }
+    }
+    void hterm::print(std::ostream& os) {
+        if(this->h_atoms.size() > 1) {
+            os << "(hterm ";
+            for(auto p : this->h_atoms) {
+                this->print_app_pair(p, os);
+                os <<  ", ";
+            }
+            os << ")";
+        } else {
+            
+            os << "(hterm ";
+            this->print_app_pair(*this->h_atoms.begin(), os);
+            os << ")";
+        }
     }
 
 

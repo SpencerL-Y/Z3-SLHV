@@ -467,6 +467,9 @@ namespace smt
             bool is_nil(app* loc);
 
             std::vector<app*> get_leader_locvars();
+            theory_slhv* get_th() {
+                return this->th;
+            }
 
     };
 
@@ -491,6 +494,9 @@ namespace smt
         std::vector<app*> get_leader_hvars();
         std::map<enode*, std::vector<app*>> get_coarse_data() {
             return this->coarse_data;
+        }
+        theory_slhv* get_th() {
+            return this->th;
         }
     };
 
@@ -697,6 +703,8 @@ namespace smt
             locvar_eq* loc_eq;
 
             std::set<hterm*> concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom);
+
+            void print_app_pair(std::pair<app*, app*> p, std::ostream& os);
         public:
             hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {
                 if(h_atoms.size() == 0) {
@@ -729,6 +737,8 @@ namespace smt
                     return false;
                    }
             }
+
+            void print(std::ostream& os);
 
     };
 
