@@ -1060,7 +1060,6 @@ namespace smt {
 
 
     std::pair<subheap_relation*, bool>  theory_slhv::check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs) {
-        //TODO: equivalent pair may be redundant
         //TODO: relation_hterm may repeat
         // merge all hterms rooted node
         #ifdef SLHV_DEBUG
@@ -1208,32 +1207,85 @@ namespace smt {
                     // merge subheap pairs
                 new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, child_relation->get_subheap_pairs());
             }
-
-            for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
-                dgraph_node* child_node = e->get_to();
-                subheap_relation* child_relation = root2relation[child_node];
-
-                // RULE 3&4 DO equivalence replacement when simply merging the existing subheap relation for child node
-                std::set<std::pair<hterm*, hterm*>> child_eq_pairs = child_relation->extract_equivalent_hterms();
-                if(equivalent_pairs.size() == 0) {
-                    equivalent_pairs = child_eq_pairs;
-                } else {
-                    std::set<std::pair<hterm*, hterm*>> new_eq_pairs = this->deduce_replaced_equivalent_pairs(relation_hterms, equivalent_pairs, child_eq_pairs);
-                    for(auto p : new_eq_pairs) {
-                        new_subheap_pairs.insert(p);
-                        new_subheap_pairs.insert({p.second, p.first});
-                        if(!this->check_new_subheap_pair(p.first, p.second) || !this->check_new_subheap_pair(p.second, p.first)) {
-                            return {nullptr, false};
+        }
+        std::set<std::pair<hterm*, hterm*>> curr_iter_new_pairs;
+        do {
+            curr_iter_new_pairs.clear();
+            // RULE 5: deduce ht1 < ht2 and ht2 < ht3 -> ht1 < ht3 and collect more equivalent pairs
+            for(auto p1 : new_subheap_pairs) {
+                for(auto p2 : new_subheap_pairs) {
+                    if(p1 != p2 && p1.second == p2.first) {
+                        std::pair<hterm*, hterm*> new_pair = {p1.first, p2.second};
+                        if(!slhv_util::pairSetHasElement(new_subheap_pairs, new_pair)) {
+                            curr_iter_new_pairs.insert(new_pair);
                         }
                     }
-                    equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
-                    equivalent_pairs = slhv_util::setUnion(equivalent_pairs, child_eq_pairs);
                 }
             }
-        }
+            new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, curr_iter_new_pairs);
 
+            for(auto p1 : new_subheap_pairs) {
+                for(auto p2 : new_subheap_pairs) {
+                    if(p1.first == p2.second && p2.second == p1.first) {
+                        std::pair<hterm*, hterm*> new_pair = {p1.first, p2.second};
+                        bool equi_pair_found = false;
+                        for(auto p : equivalent_pairs) {
+                            if(p.first == new_pair.first && p.second == new_pair.second || 
+                            p.first == new_pair.second && p.second == new_pair.first) {
+                                equi_pair_found = true;
+                                break;
+                            }
+                        }
+                        if(!equi_pair_found) {
+                            equivalent_pairs.insert(new_pair);
+                        }
+                    }
+                }
+            }
+
+            // RULE 3&4 DO equivalence replacement when simply merging the existing subheap relation for child node
+            for(edge_labelled_subgraph*  sb : rooted_node_subgraphs) {
+                for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
+                    dgraph_node* child_node = e->get_to();
+                    subheap_relation* child_relation = root2relation[child_node];
+
+                    std::set<std::pair<hterm*, hterm*>> child_eq_pairs = child_relation->extract_equivalent_hterms();
+                    if(equivalent_pairs.size() == 0) {
+                        equivalent_pairs = child_eq_pairs;
+                    } else {
+                        std::set<std::pair<hterm*, hterm*>> new_eq_pairs = this->deduce_replaced_equivalent_pairs(relation_hterms, equivalent_pairs, child_eq_pairs);
+                        for(std::pair<hterm*, hterm*> p : new_eq_pairs) {
+                            if(!slhv_util::pairSetHasElement(new_subheap_pairs, p)) {
+                                curr_iter_new_pairs.insert(p);
+                            }
+                            if(!slhv_util::pairSetHasElement(new_subheap_pairs, {p.second, p.first})) {
+                                curr_iter_new_pairs.insert({p.second, p.first});
+                            }
+                            new_subheap_pairs.insert(p);
+                            new_subheap_pairs.insert({p.second, p.first});
+                            if(!this->check_new_subheap_pair(p.first, p.second) || !this->check_new_subheap_pair(p.second, p.first)) {
+                                return {nullptr, false};
+                            }
+                        }
+                        equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
+                        equivalent_pairs = slhv_util::setUnion(equivalent_pairs, child_eq_pairs);
+                    }
+                }
+            }
+            new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, curr_iter_new_pairs);
+            #ifdef SLHV_DEBUG
+            std::cout << "curr iteration new pairs: " << std::endl;
+            for(auto p : curr_iter_new_pairs) {
+                std::cout << "(";
+                p.first->print(std::cout);
+                std::cout << ", ";
+                p.second->print(std::cout);
+                std::cout << ")";
+            }
+            #endif
+        } while (curr_iter_new_pairs.size() > 0);
         #ifdef SLHV_DEBUG
-        std::cout << "---- RULE 3&4 applied subheap pairs: " << std::endl;
+        std::cout << "---- RULE 3&4&5 applied subheap pairs: " << std::endl;
         for(auto p : new_subheap_pairs) {
             p.first->print(std::cout);
             std::cout << " <= " ;

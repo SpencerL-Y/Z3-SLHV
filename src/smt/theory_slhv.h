@@ -822,6 +822,16 @@ namespace smt
         }
 
         template<typename T>
+        static bool pairSetHasElement(std::set<std::pair<T, T>> pairset, std::pair<T, T> elem) {
+            for(std::pair<T, T> p : pairset) {
+                if(p.first == elem.first && p.second == elem.second) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        template<typename T>
         static std::vector<T> vecConcat(std::vector<T> v1, std::vector<T> v2) {
             std::vector<T> result;
             for(T t1 : v1) {
