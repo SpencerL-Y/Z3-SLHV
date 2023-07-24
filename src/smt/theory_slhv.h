@@ -201,6 +201,8 @@ namespace smt
 
         void init_model(model_generator & mg) override;
 
+        // void finalize_model(model_generator & m) override;
+
 
 
         // // virtual methods of class theory

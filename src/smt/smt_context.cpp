@@ -3496,6 +3496,9 @@ namespace smt {
         if (r == l_true && get_cancel_flag()) {
             r = l_undef;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "TODO HERE: figure out how to add model for SLHV" << std::endl;
+        #endif
         if (r == l_true && gparams::get_value("model_validate") == "true") {
             recfun::util u(m);
             model_ref mdl;
@@ -3842,6 +3845,9 @@ namespace smt {
               get_guessed_literals(guessed_lits);
               tout << guessed_lits << "\n";);
         end_search();
+        #ifdef SLHV_DEBUG
+        std::cout << "search() end" << std::endl;
+        #endif
         return status;
     }
 
@@ -4006,6 +4012,9 @@ namespace smt {
                     return l_false;
                 final_check_status fcs = final_check();
                 TRACE("final_check_result", tout << "fcs: " << fcs << " last_search_failure: " << m_last_search_failure << "\n";);
+                #ifdef SLHV_DEBUG
+                std::cout << "final_check_result" << std::endl; std::cout << "fcs: " << fcs << " last_search_failure: " << m_last_search_failure << "\n";
+                #endif
                 switch (fcs) {
                 case FC_DONE:
                     log_stats();
@@ -4134,6 +4143,9 @@ namespace smt {
             m_last_search_failure = LAMBDAS;
             result = FC_GIVEUP;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "final_check() over" << std::endl;
+        #endif
         return result;
     }
 
