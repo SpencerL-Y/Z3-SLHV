@@ -155,6 +155,10 @@ namespace smt {
         ctx.get_assignments(assignments);
         // reset collected hvars, locvars and 
         this->reset_configs();
+        for(expr* e : assignments) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
+        return false;
 
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);

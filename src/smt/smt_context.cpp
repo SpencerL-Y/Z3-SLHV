@@ -1300,6 +1300,9 @@ namespace smt {
        \remark The method assign_eq adds a new entry on this queue.
     */
     bool context::propagate_eqs() {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_eqs()" << std::endl;
+        #endif
         unsigned i = 0;
         for (; i < m_eq_propagation_queue.size() && !get_cancel_flag(); i++) {
             new_eq & entry = m_eq_propagation_queue[i];
@@ -1317,6 +1320,9 @@ namespace smt {
        \brief Process equalities, theory atoms, etc.
     */
     bool context::propagate_atoms() {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_atoms()" << std::endl;
+        #endif
         SASSERT(!inconsistent());
         CTRACE("propagate_atoms", !m_atom_propagation_queue.empty(), tout << m_atom_propagation_queue << "\n";);
         for (unsigned i = 0; i < m_atom_propagation_queue.size() && !get_cancel_flag(); i++) {
@@ -1633,6 +1639,9 @@ namespace smt {
     }
 
     bool context::propagate_theories() {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_theories()" << std::endl;
+        #endif
         for (theory * t : m_theory_set) {
             t->propagate();
             if (inconsistent())
@@ -1647,6 +1656,9 @@ namespace smt {
     }
 
     void context::propagate_th_eqs() {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_th_eqs()" << std::endl;
+        #endif
         for (unsigned i = 0; i < m_th_eq_propagation_queue.size() && !inconsistent(); i++) {
             new_th_eq curr = m_th_eq_propagation_queue[i];
             theory * th = get_theory(curr.m_th_id);
@@ -1660,6 +1672,9 @@ namespace smt {
     }
 
     void context::propagate_th_diseqs() {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_th_diseqs()" << std::endl;
+        #endif
         for (unsigned i = 0; i < m_th_diseq_propagation_queue.size() && !inconsistent(); i++) {
             new_th_eq curr = m_th_diseq_propagation_queue[i];
             theory * th = get_theory(curr.m_th_id);
@@ -1900,7 +1915,7 @@ namespace smt {
 
         TRACE("decide_detail", tout << mk_pp(bool_var2expr(var), m) << "\n";);
         #ifdef SLHV_DEBUG
-        std::cout << mk_pp(bool_var2expr(var), m) << "\n";
+        std::cout << "decide_detail: "<< mk_pp(bool_var2expr(var), m) << "\n";
         #endif
         literal l(var, false);
 
@@ -3138,6 +3153,9 @@ namespace smt {
     }
 
     bool context::propagate_th_case_split(unsigned qhead) {
+        #ifdef SLHV_DEBUG
+        std::cout << "propagate_th_case_split()" << std::endl;
+        #endif
         if (m_all_th_case_split_literals.empty())
             return true;
 
@@ -3955,6 +3973,7 @@ namespace smt {
                         first_propagate = false;
                         TRACE("after_first_propagate", display(tout););
                         #ifdef SLHV_DEBUG
+                        std::cout << "after_first_propagate" << std::endl;
                         std::cout << "----------------------------------" << std::endl;
                         display(std::cout);
                         std::cout << "----------------------------------" << std::endl;
@@ -4030,6 +4049,10 @@ namespace smt {
                 return l_undef;
             }
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "bounded_search() end" << std::endl;
+        #endif 
     }
 
     bool context::resource_limits_exceeded() {
@@ -4132,11 +4155,17 @@ namespace smt {
 
         if (can_propagate()) {
             TRACE("final_check_step", tout << "can propagate: continue...\n";);
+            #ifdef SLHV_DEBUG
+            std::cout << "final_check_step " << "can propagate: continue...\n";
+            #endif
             return FC_CONTINUE;
         }
 
         SASSERT(result != FC_DONE || check_th_diseq_propagation());
         TRACE("final_check_step", tout << "RESULT final_check: " << result << "\n";);
+        #ifdef SLHV_DEBUG
+        std::cout << "final_check_step " << "RESULT final_check: " << result << "\n";;
+        #endif
         if (result == FC_GIVEUP && f != OK)
             m_last_search_failure = f;
         if (result == FC_DONE && has_lambda()) {

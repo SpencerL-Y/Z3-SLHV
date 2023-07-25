@@ -544,6 +544,9 @@ void rewriter_tpl<Config>::process_app(app * t, frame & fr) {
 template<typename Config>
 template<bool ProofGen>
 void rewriter_tpl<Config>::process_quantifier(quantifier * q, frame & fr) {
+    #ifdef SLHV_DEBUG
+    std::cout << "process quantifier rewriter" << std::endl;
+    #endif
     SASSERT(fr.m_state == PROCESS_CHILDREN);
     unsigned num_decls = q->get_num_decls();
     if (fr.m_i == 0) {
@@ -786,6 +789,9 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
         frame & fr = frame_stack().back();
         expr * t   = fr.m_curr;
         TRACE("rewriter_step", tout << "step\n" << mk_ismt2_pp(t, m()) << "\n";);
+        #ifdef SLHV_DEBUG
+        std::cout << "rewriter_step: step\n" << mk_ismt2_pp(t, m()) << "\n";
+        #endif
         m_num_steps++;
         check_max_steps();
         if (first_visit(fr) && fr.m_cache_result) {
@@ -802,6 +808,9 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
                 continue;
             }
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "curr expr kind: " << t->get_kind() << std::endl;
+        #endif
         switch (t->get_kind()) {
         case AST_APP:
             process_app<ProofGen>(to_app(t), fr);
