@@ -407,7 +407,7 @@ namespace smt {
         #endif
         if(!this->curr_hvars_contain_emp()) {
             SASSERT(slhv_plugin->global_emp != nullptr);
-            to_app(slhv_plugin->global_emp)     ;
+            to_app(slhv_plugin->global_emp);
             std::cout << "internalize term" << std::endl;
             this->internalize_term(to_app(slhv_plugin->global_emp));
             std::cout << "internalize term" << std::endl;
@@ -2760,11 +2760,15 @@ namespace smt {
         for(app* arg : hterm_args) {
             args_vec.push_back(arg);
         }
-        expr_ref e_ref(this->th->get_manager());
         sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        sort_ref_vector sorts_vec(this->th->get_manager());
+        for(int i = 0; i < num_arg; i ++) {
+            sorts_vec.push_back(e_ref_sort);
+        }
         // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
-        e_ref = this->th->get_manager().mk_app(symbol("uplus"), num_arg, args_vec.data(), e_ref_sort);
-        return to_app(e_ref.get());
+        func_decl* uplus_decl = this->slhv_decl_plug->mk_func_decl(OP_HEAP_DISJUNION, 0, nullptr, num_arg, sorts_vec.data(), e_ref_sort);
+        app* result = this->th->get_manager().mk_app(uplus_decl, args_vec.data());
+        return result;
     }
 
     app* slhv_syntax_maker::mk_points_to(app* addr_loc, app* data_loc) {

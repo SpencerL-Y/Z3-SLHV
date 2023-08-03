@@ -14,11 +14,10 @@ slhv_decl_plugin::slhv_decl_plugin() :
     global_emp(nullptr),
     global_nil(nullptr)
 {
-    // this->m_family_id = this->m_manager->mk_family_id("slhv");
-    
-            #ifdef SLHV_DEBUG
-            std::cout << "slhv_decl_plugin: family id " << this->m_family_id << std::endl;
-            #endif
+    // sort* nil_range = this->mk_sort(INTLOC_SORT, 0, nullptr);
+    // sort* emp_range = this->mk_sort(INTHEAP_SORT, 0, nullptr);
+    // this->mk_const_nil(nil_range, 0, nullptr);
+    // this->mk_const_emp(emp_range, 0, nullptr);
 }
 
 
