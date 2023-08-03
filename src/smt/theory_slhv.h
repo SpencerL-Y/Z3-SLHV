@@ -200,6 +200,21 @@ namespace smt
         }
 
         void init_model(model_generator & mg) override;
+        /**
+           \brief Return true if the theory has something to propagate
+        */
+
+        bool can_propagate() override {
+            return false;
+        }
+        
+        
+        /**
+           \brief This method is invoked to give a theory a chance to perform
+           theory propagation.
+        */
+        void propagate() override;
+        
 
         // void finalize_model(model_generator & m) override;
 
@@ -345,19 +360,7 @@ namespace smt
         //     return false;
         // }
     
-        // /**
-        //    \brief Return true if the theory has something to propagate
-        // */
-        // virtual bool can_propagate() {
-        //     return false;
-        // }
-        
-        // /**
-        //    \brief This method is invoked to give a theory a chance to perform
-        //    theory propagation.
-        // */
-        // virtual void propagate() {
-        // }
+
         
         // /**
         //    \brief This method allows a theory to contribute to
@@ -927,7 +930,9 @@ namespace smt
     class slhv_syntax_maker {
         private:
         theory_slhv* th;
+        slhv_decl_plugin* slhv_decl_plug;
         slhv_fresh_var_maker* fv_maker;
+
         public: 
         void reset_fv_maker();
         slhv_syntax_maker(theory_slhv* t);

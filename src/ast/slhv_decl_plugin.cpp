@@ -108,7 +108,7 @@ func_decl* slhv_decl_plugin::mk_const_hvar(symbol name, sort* range, unsigned ar
 
     func_decl* result_decl = m_manager->mk_const_decl(name, range, info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_const_hvar result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    std::cout << "mk_const_hvar result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 }

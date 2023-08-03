@@ -1764,6 +1764,9 @@ namespace smt {
     void context::set_conflict(const b_justification & js, literal not_l) {
         if (!inconsistent()) {
             TRACE("set_conflict", display_literal_verbose(tout << m_scope_lvl << " ", not_l); display(tout << " ", js); );
+            #ifdef SLHV_DEBUG
+            display_literal_verbose(std::cout << m_scope_lvl << " ", not_l); display(std::cout << " ", js);
+            #endif
             m_conflict = js;
             m_not_l    = not_l;
         }
@@ -3967,6 +3970,9 @@ namespace smt {
 
         while (true) {
             while (!propagate()) {
+                #ifdef SLHV_DEBUG
+                std::cout << "######## enter propagate loop" << std::endl;
+                #endif
                 TRACE_CODE({
                     static bool first_propagate = true;
                     if (first_propagate) {

@@ -146,6 +146,12 @@ namespace smt {
 
     }
 
+    void theory_slhv::propagate() {
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv propagate" << std::endl;
+        #endif
+    }
+
     bool theory_slhv::final_check() {
         #ifdef SLHV_DEBUG
         std::cout << "slhv final_check()" << std::endl;
@@ -158,7 +164,6 @@ namespace smt {
         for(expr* e : assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-        return false;
 
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
@@ -243,7 +248,8 @@ namespace smt {
                 }
             }
         }
-        return true;
+        this->set_conflict_slhv();
+        return false;
     }
 
     void theory_slhv::set_conflict_slhv() {
@@ -293,6 +299,9 @@ namespace smt {
             #endif
             std::vector<std::vector<expr*>> temp_result = this->eliminate_heap_equality_negation(last_result, e);
             last_result = temp_result;
+            #ifdef SLHV_DEBUG
+            std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+            #endif
         }
         std::vector<expr_ref_vector> final_result;
         for(std::vector<expr*> ev : last_result) {
@@ -349,7 +358,7 @@ namespace smt {
                     }
                 }
             } else {
-                std::cout << "eliminate heap equality negation: this should not   happen" << std::endl;
+                std::cout << "eliminate heap equality negation: this should not happen" << std::endl;
                 SASSERT(false);
                 return final_result;
             }
@@ -2581,6 +2590,7 @@ namespace smt {
     slhv_syntax_maker::slhv_syntax_maker(theory_slhv* th) {
         this->th = th;
         this->fv_maker = alloc(slhv_fresh_var_maker, th);
+        this->slhv_decl_plug = (slhv_decl_plugin*) this->th->get_manager().get_plugin(this->th->get_family_id());
     }
 
     void slhv_syntax_maker::reset_fv_maker() {
@@ -2674,17 +2684,24 @@ namespace smt {
     }
 
     std::vector<app*> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
+        #ifdef SLHV_DEBUG
+        std::cout << "mk_hterm_disequality" << std::endl;
+        #endif
         app* h = this->mk_fresh_hvar();
         app* h_prime = this->mk_fresh_hvar();
         app* x = this->mk_fresh_locvar();
         app* y = this->mk_fresh_locvar();
         app* z = this->mk_fresh_locvar();
         std::vector<app*> final_result;
-
         // first disjunct
         app* first_conj_eq_lhs = lhs_hterm;
         std::vector<app*> first_conj_eq_rhs_uplus_args;
         app* first_eq_rhs_pt = this->mk_points_to(x, y);
+        #ifdef SLHV_DEBUG
+        std::cout << " uplus rhs: " << mk_pp(h, this->th->get_manager()) << " " << h->get_sort()->get_name() << std::endl;
+        std::cout << " uplus rhs: " << mk_pp(first_eq_rhs_pt, this->th->get_manager()) << " " << h->get_sort()->get_name() <<std::endl;
+        first_eq_rhs_pt->get_sort();
+        #endif
         first_conj_eq_rhs_uplus_args.push_back(h);
         first_conj_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
         app* first_conj_eq_rhs = this->mk_uplus(first_conj_eq_rhs_uplus_args.size(), first_conj_eq_rhs_uplus_args);
@@ -2712,6 +2729,9 @@ namespace smt {
         final_result.push_back(first_disj);
 
         // second disjunct
+        #ifdef SLHV_DEBUG
+        std::cout << "second disjunct" << std::endl;
+        #endif
         app* x_in_ht1 = this->mk_addr_in_hterm(lhs_hterm, x);
         app* x_notin_ht2 = this->mk_addr_notin_hterm(rhs_hterm, x);
         app* second_disj = this->th->get_manager().mk_and(x_in_ht1, x_notin_ht2);
@@ -2719,6 +2739,10 @@ namespace smt {
         final_result.push_back(second_disj);
 
         // third_disjunct
+
+        #ifdef SLHV_DEBUG
+        std::cout << "third disjunct" << std::endl;
+        #endif
         app* x_in_ht2 = this->mk_addr_in_hterm(rhs_hterm, x);
         app* x_notin_ht1 = this->mk_addr_notin_hterm(lhs_hterm, x);
         app* third_disj = this->th->get_manager().mk_and(x_notin_ht1, x_in_ht2);
@@ -2737,7 +2761,8 @@ namespace smt {
             args_vec.push_back(arg);
         }
         expr_ref e_ref(this->th->get_manager());
-        sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
+        sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
         e_ref = this->th->get_manager().mk_app(symbol("uplus"), num_arg, args_vec.data(), e_ref_sort);
         return to_app(e_ref.get());
     }
@@ -2749,10 +2774,16 @@ namespace smt {
         for(app* arg : args) {
             args_vec.push_back(arg);
         }
-        sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
-        expr_ref e_ref(this->th->get_manager());
-        e_ref = this->th->get_manager().mk_app(symbol("pt"), 2, args_vec.data(), e_ref_sort);
-        return to_app(e_ref.get());
+        sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        sort_ref_vector sorts_vec(this->th->get_manager()); 
+        sorts_vec.push_back(loc_sort);
+        sorts_vec.push_back(loc_sort);
+        sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
+        func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
+        app* result = this->th->get_manager().mk_app(pt_decl, args_vec.data());
+    
+        return result;
     }
     // fresh var maker
 
@@ -2772,7 +2803,8 @@ namespace smt {
     app* slhv_fresh_var_maker::mk_fresh_hvar() {
         std::string name = "f_th_hvar" + std::to_string(this->curr_hvar_id);
         sort* range_sort = this->fe_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
-        app* fresh_hvar = to_app(this->fe_plug->mk_const_hvar(symbol(name), range_sort, 0, nullptr));
+        unsigned num_args = 0;
+        app* fresh_hvar = this->th->get_manager().mk_app(this->fe_plug->mk_const_hvar(symbol(name), range_sort, 0, nullptr), num_args, nullptr);
         this->hvar_map[curr_hvar_id] = fresh_hvar;
         curr_hvar_id ++;
         return fresh_hvar;
@@ -2781,7 +2813,8 @@ namespace smt {
     app* slhv_fresh_var_maker::mk_fresh_locvar() {
         std::string name = "f_th_locvar" + std::to_string(this->curr_locvar_id);
         sort* range_sort = this->fe_plug->mk_sort(INTLOC_SORT, 0, nullptr);
-        app* fresh_locvar = to_app(this->fe_plug->mk_const_locvar(symbol(name), range_sort, 0, nullptr));
+        unsigned num_args = 0;
+        app* fresh_locvar = this->th->get_manager().mk_app(this->fe_plug->mk_const_locvar(symbol(name), range_sort, 0, nullptr), num_args, nullptr);
         this->locvar_map[curr_locvar_id] = fresh_locvar;
         curr_locvar_id ++;
         return fresh_locvar;
