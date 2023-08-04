@@ -243,7 +243,7 @@ namespace smt {
                 #endif
                 // deduce subheap relation for each node
                 std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
-                if(curr_result.second) {
+                if(curr_result.second && this->check_status != slhv_unsat) {
                     return true;
                 }
             }
