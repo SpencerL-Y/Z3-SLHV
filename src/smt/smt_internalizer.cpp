@@ -216,9 +216,9 @@ namespace smt {
         }
     }
     void context::internalize_deep(expr* n) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_deep" << mk_ismt2_pp(n, this->m, 2)<< std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_deep" << mk_ismt2_pp(n, this->m, 2)<< std::endl;
+        // #endif
         expr * v[1] = { n };
         internalize_deep(v, 1);
     }
@@ -229,10 +229,10 @@ namespace smt {
        \remark pr is 0 if proofs are disabled.
     */
     void context::internalize_assertion(expr * n, proof * pr, unsigned generation) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize assertion: " << 
-        mk_ismt2_pp(n, this->m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize assertion: " << 
+        // mk_ismt2_pp(n, this->m, 2) << std::endl;
+        // #endif
         TRACE("internalize_assertion", tout << mk_pp(n, m) << "\n";); 
         TRACE("internalize_assertion_ll", tout << mk_ll_pp(n, m) << "\n";); 
         TRACE("generation", tout << "generation: " << m_generation << "\n";);
@@ -298,25 +298,25 @@ namespace smt {
         }
         else if (m.is_distinct(n)) {
 
-        #ifdef SLHV_DEBUG
-        std::cout << "assert is_distinct: " << to_app(n)->get_decl_kind() << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "assert is_distinct: " << to_app(n)->get_decl_kind() << std::endl;
+        // #endif
             assert_distinct(to_app(n), pr);
             mark_as_relevant(n);
         }
         else {
 
-        #ifdef SLHV_DEBUG
-        std::cout << "assert default" << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "assert default" << std::endl;
+        // #endif
             assert_default(n, pr);
         }
     }
 
     void context::assert_default(expr * n, proof * pr) {
-        #ifdef SLHV_DEBUG
-        std::cout << "assert default()" << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "assert default()" << std::endl;
+        // #endif
         internalize(n, true);
         literal l = get_literal(n);
         if (l == false_literal) {
@@ -374,9 +374,9 @@ namespace smt {
        - gate_ctx is true if the expression is in the context of a logical gate.
     */
     void context::internalize(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
         if (memory::above_high_watermark())
             throw cancel_exception();
         internalize_deep(n);
@@ -390,9 +390,9 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -415,9 +415,9 @@ namespace smt {
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
 
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));
@@ -614,9 +614,9 @@ namespace smt {
 
 
     void context::internalize_lambda(quantifier * q) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_lambda: " << mk_ismt2_pp(q, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_lambda: " << mk_ismt2_pp(q, m, 2) << std::endl;
+        // #endif
         TRACE("internalize_quantifier", tout << mk_pp(q, m) << "\n";);
         SASSERT(is_lambda(q));
         if (e_internalized(q)) 
@@ -841,20 +841,20 @@ namespace smt {
        \brief Internalize the given term into the logical context.
     */
     void context::internalize_term(app * n) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_term: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        std::cout << "family id of the term: " << n->get_family_id() << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_term: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        // std::cout << "family id of the term: " << n->get_family_id() << std::endl;
+        // #endif
         if (e_internalized(n)) {
-            #ifdef SLHV_DEBUG
-            std::cout << "e_internalized: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "e_internalized: " << mk_ismt2_pp(n, m, 2) << std::endl;
+            // #endif
             theory * th = m_theories.get_plugin(n->get_family_id());
             
             if (th != nullptr) {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalize_term theory: " << th->get_name() << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "internalize_term theory: " << th->get_name() << std::endl;
+            // #endif
                 // This code is necessary because some theories may decide
                 // not to create theory variables for a nested application.
                 // Example:
@@ -873,22 +873,22 @@ namespace smt {
         }
 
         if (m.is_term_ite(n)) {
-            #ifdef SLHV_DEBUG
-            std::cout << "is_term_ite: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "is_term_ite: " << mk_ismt2_pp(n, m, 2) << std::endl;
+            // #endif
             internalize_ite_term(n);
             return; // it is not necessary to apply sort constraint
         }
         else if (internalize_theory_term(n)) {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalized theory term: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "internalized theory term: " << mk_ismt2_pp(n, m, 2) << std::endl;
+            // #endif
             // skip
         }
         else {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalize uninterpreted: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "internalize uninterpreted: " << mk_ismt2_pp(n, m, 2) << std::endl;
+            // #endif
             internalize_uninterpreted(n);
         }
         SASSERT(e_internalized(n));
@@ -945,13 +945,13 @@ namespace smt {
         It may fail because there is no plugin or the plugin does not support it.
     */
     bool context::internalize_theory_term(app * n) {
-        #ifdef SLHV_DEBUG
-            std::cout << "internalize theory term: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //     std::cout << "internalize theory term: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
         theory * th  = m_theories.get_plugin(n->get_family_id());
-        #ifdef SLHV_DEBUG
-            std::cout << "Is theory nullptr: " << !th << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //     std::cout << "Is theory nullptr: " << !th << std::endl;
+        // #endif
         if (!th || !th->internalize_term(n))
             return false;
         return true;
@@ -1045,10 +1045,10 @@ namespace smt {
     enode * context::mk_enode(app * n, bool suppress_args, bool merge_tf, bool cgc_enabled) {
         TRACE("mk_enode_detail", tout << mk_pp(n, m) << "\nsuppress_args: " << suppress_args << ", merge_tf: " << 
               merge_tf << ", cgc_enabled: " << cgc_enabled << "\n";);
-        #ifdef SLHV_DEBUG
-std::cout << " [Node made]" <<  mk_pp(n, m) << "\n suppress_args: " << suppress_args << ", merge_tf: " << 
-              merge_tf << ", cgc_enabled: " << cgc_enabled << "\n";
-        #endif
+//         #ifdef SLHV_DEBUG
+// std::cout << " [Node made]" <<  mk_pp(n, m) << "\n suppress_args: " << suppress_args << ", merge_tf: " << 
+//               merge_tf << ", cgc_enabled: " << cgc_enabled << "\n";
+//         #endif
         SASSERT(!e_internalized(n));
         unsigned id          = n->get_id();
         unsigned generation  = m_generation;
@@ -1155,9 +1155,9 @@ std::cout << " [Node made]" <<  mk_pp(n, m) << "\n suppress_args: " << suppress_
         sort * s    = term->get_decl()->get_range();
         theory * th = m_theories.get_plugin(s->get_family_id());
         if (th) {
-            #ifdef SLHV_DEBUG
-            std::cout << "apply sort constraint in theory: " << th->get_name() << std::endl;
-            #endif
+            // #ifdef SLHV_DEBUG
+            // std::cout << "apply sort constraint in theory: " << th->get_name() << std::endl;
+            // #endif
             th->apply_sort_cnstr(e, s);
         }
     }

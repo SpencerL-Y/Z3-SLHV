@@ -10,6 +10,7 @@ namespace smt {
         std::cout << "SLHV theory plugin created" << std::endl;
         #endif
         this->syntax_maker = new slhv_syntax_maker(this);
+        this->reset_configs();
     }
 
 
@@ -150,21 +151,26 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "slhv propagate" << std::endl;
         #endif
+        if(this->check_status == slhv_unsat) {
+            this->set_conflict_slhv();
+        }
     }
 
     bool theory_slhv::final_check() {
         #ifdef SLHV_DEBUG
         std::cout << "slhv final_check()" << std::endl;
-        std::cout << "current assignment: " << std::endl;
+        std::cout << "================= current assignment ==============" << std::endl;
         #endif
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
         // reset collected hvars, locvars and 
         this->reset_configs();
+        #ifdef SLHV_DEBUG
         for(expr* e : assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-
+        std::cout << "===================== current assignment end ==================" << std::endl;  
+        #endif
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
         #ifdef SLHV_DEBUG
@@ -172,12 +178,24 @@ namespace smt {
         #endif
        
         for(expr_ref_vector curr_assignments : elim_enums) {
+            #ifdef SLHV_DEBUG
+            std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
+            for(expr* e : curr_assignments) {
+
+                std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+            } 
+            std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
+            #endif
             // reset info from previous curr_assignments
             this->reset_configs();
 
             // preprocessing
 
             this->preprocessing(curr_assignments);
+            if(this->check_status == slhv_unsat) {
+                this->check_status = slhv_unknown;
+                continue;
+            }
  
             // enumerate all possible loc eqs
             std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
@@ -244,10 +262,19 @@ namespace smt {
                 // deduce subheap relation for each node
                 std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
                 if(curr_result.second && this->check_status != slhv_unsat) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "final check SET SAT" << std::endl;
+                            #endif
+                    this->check_status = slhv_sat;
                     return true;
                 }
             }
         }
+
+                            #ifdef SLHV_DEBUG
+                            std::cout << "final SET UNSAT" << std::endl;
+                            #endif
+        this->check_status = slhv_unsat;
         this->set_conflict_slhv();
         return false;
     }
@@ -586,6 +613,7 @@ namespace smt {
         this->curr_distinct_locterm_pairs.clear();
         this->curr_emp_hterm_enodes.clear();
         this->curr_notnil_locterms_enodes.clear();
+        this->check_status = slhv_unknown;
     }
 
     // check_logic
@@ -793,7 +821,6 @@ namespace smt {
                             // UNSAT
                             // reason: infered emp hterm is a points-to
                             this->check_status = slhv_unsat;
-                            this->set_conflict_slhv();
                         }
                     }
                 }
@@ -841,7 +868,6 @@ namespace smt {
                         // reason: two identical addr in one disj_union term
                         // or one of them is equal to nil
                         this->check_status = slhv_unsat;
-                        this->set_conflict_slhv();
                     } else {
                         this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), node_addr_j->get_root()});
                         this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), nil_root});
@@ -2161,7 +2187,6 @@ namespace smt {
         for(dgraph_node* n : established_reachable_nodes) {
             if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
                 this->th->check_status = theory_slhv::slhv_unsat;
-                this->th->set_conflict_slhv();
                 return true;
             }
         }

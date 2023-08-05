@@ -388,6 +388,10 @@ namespace smt {
     */
     bool conflict_resolution::initialize_resolve(b_justification conflict, literal not_l, b_justification & js, literal & consequent) {
         TRACE("conflict_detail", m_ctx.display(tout););
+        #ifdef SLHV_DEBUG
+        std::cout << "conflict_detail " << std::endl;
+        m_ctx.display(std::cout);
+        #endif
         m_lemma.reset();
         m_lemma_atoms.reset();
         SASSERT(m_ctx.get_search_level() >= m_ctx.get_base_level());
@@ -406,7 +410,14 @@ namespace smt {
               m_ctx.display_literal_verbose(tout, consequent) << "\n";
               m_ctx.display(tout, js); tout << "\n";
           );
-
+        #ifdef SLHV_DEBUG
+            std::cout << "conflict_lvl: " << m_conflict_lvl << " scope_lvl: " << m_ctx.get_scope_level() << " base_lvl: " << m_ctx.get_base_level()
+              << " search_lvl: " << m_ctx.get_search_level() << "\n";
+              std::cout << "js.kind: " << js.get_kind() << "\n";
+              std::cout << "consequent: " << consequent << ": ";
+              m_ctx.display_literal_verbose(std::cout, consequent) << "\n";
+              m_ctx.display(std::cout, js); std::cout << "\n";
+        #endif
         // m_conflict_lvl can be smaller than m_ctx.get_search_level() when:
         // there are user level scopes created using the Z3 API, and
         // the previous levels were already inconsistent, or the inconsistency was
@@ -483,17 +494,24 @@ namespace smt {
     }
 
     bool conflict_resolution::resolve(b_justification conflict, literal not_l) {
+        #ifdef SLHV_DEBUG
+        std::cout << "resolve conflict" << std::endl;
+        #endif
         b_justification js;
         literal consequent;
 
         if (!initialize_resolve(conflict, not_l, js, consequent)) {
             return false;
         }
-
+        #ifdef SLHV_DEBUG
+        std::cout << "initialize resolve done" << std::endl;
+        #endif
         unsigned idx = skip_literals_above_conflict_level();
 
         TRACE("conflict", m_ctx.display_literal_verbose(tout, not_l); m_ctx.display(tout << " ", conflict););
-
+        #ifdef SLHV_DEBUG
+m_ctx.display_literal_verbose(std::cout, not_l); m_ctx.display(std::cout << " ", conflict);
+        #endif
         // save space for first uip
         m_lemma.push_back(null_literal);
         m_lemma_atoms.push_back(nullptr);

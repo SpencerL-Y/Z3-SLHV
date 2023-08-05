@@ -265,9 +265,9 @@ bool rewriter_tpl<Config>::constant_fold(app * t, frame & fr) {
 template<typename Config>
 template<bool ProofGen>
 void rewriter_tpl<Config>::process_app(app * t, frame & fr) {
-    #ifdef SLHV_DEBUG
-    std::cout << "process_app: " << t->get_name() << std::endl;
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << "process_app: " << t->get_name() << std::endl;
+    // #endif
     SASSERT(!frame_stack().empty());
     switch (fr.m_state) {
     case PROCESS_CHILDREN: {
@@ -316,20 +316,20 @@ void rewriter_tpl<Config>::process_app(app * t, frame & fr) {
                 SASSERT(rewrites_to(new_t, m_pr));
             }
         }
-        #ifdef SLHV_DEBUG
-        std::cout << "reduce_app: " << f->get_name() << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "reduce_app: " << f->get_name() << std::endl;
+        // #endif
         br_status st = m_cfg.reduce_app(f, new_num_args, new_args, m_r, m_pr2);       
         
-        #ifdef SLHV_DEBUG
-        std::cout << "reduce_app end: " << f->get_name() << std::endl;
-        std::cout << mk_bounded_pp(t, m()) << "\n";
-               std::cout << "st: " << st;
-               if (m_r) std::cout << " --->\n" << mk_bounded_pp(m_r, m());
-               std::cout << "\n";
-               if (m_pr2) std::cout << mk_bounded_pp(m_pr2, m()) << "\n";
-               if (new_t) std::cout << new_t << "\n";
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "reduce_app end: " << f->get_name() << std::endl;
+        // std::cout << mk_bounded_pp(t, m()) << "\n";
+        //        std::cout << "st: " << st;
+        //        if (m_r) std::cout << " --->\n" << mk_bounded_pp(m_r, m());
+        //        std::cout << "\n";
+        //        if (m_pr2) std::cout << mk_bounded_pp(m_pr2, m()) << "\n";
+        //        if (new_t) std::cout << new_t << "\n";
+        // #endif
         CTRACE("reduce_app", true || st != BR_FAILED || new_t,
                tout << mk_bounded_pp(t, m()) << "\n";
                tout << "st: " << st;

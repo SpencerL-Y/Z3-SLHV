@@ -1765,6 +1765,7 @@ namespace smt {
         if (!inconsistent()) {
             TRACE("set_conflict", display_literal_verbose(tout << m_scope_lvl << " ", not_l); display(tout << " ", js); );
             #ifdef SLHV_DEBUG
+            std::cout << "context set conflict" << std::endl;
             display_literal_verbose(std::cout << m_scope_lvl << " ", not_l); display(std::cout << " ", js);
             #endif
             m_conflict = js;
@@ -4098,6 +4099,9 @@ namespace smt {
     final_check_status context::final_check() {
         TRACE("final_check", tout << "final_check inconsistent: " << inconsistent() << "\n"; display(tout); display_normalized_enodes(tout););
         CASSERT("relevancy", check_relevancy());
+        #ifdef SLHV_DEBUG
+        std::cout << "final_check inconsistent: " << inconsistent() << "\n";
+        #endif
         
         if (m_fparams.m_model_on_final_check) {
             mk_proto_model();
@@ -4205,6 +4209,9 @@ namespace smt {
 
 
     bool context::resolve_conflict() {
+        #ifdef SLHV_DEBUG
+        std::cout << "enter resolve_conflict" << std::endl;
+        #endif
         m_stats.m_num_conflicts++;
         m_num_conflicts ++;
         m_num_conflicts_since_restart ++;
@@ -4303,6 +4310,9 @@ namespace smt {
             // to reset cached generations... I need them to rebuild the literals
             // of the new conflict clause.
             if (relevancy()) record_relevancy(num_lits, lits);
+            #ifdef SLHV_DEBUG
+            std::cout << "pop scope core" << std::endl;
+            #endif
             unsigned num_bool_vars = pop_scope_core(m_scope_lvl - new_lvl);
             SASSERT(m_scope_lvl == new_lvl);
             // the logical context may still be in conflict after
