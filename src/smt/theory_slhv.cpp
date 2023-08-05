@@ -271,9 +271,9 @@ namespace smt {
             }
         }
 
-                            #ifdef SLHV_DEBUG
-                            std::cout << "final SET UNSAT" << std::endl;
-                            #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "final SET UNSAT" << std::endl;
+        #endif
         this->check_status = slhv_unsat;
         this->set_conflict_slhv();
         return false;
