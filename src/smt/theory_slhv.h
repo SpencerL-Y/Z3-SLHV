@@ -50,6 +50,9 @@ namespace smt
 
         slhv_syntax_maker* syntax_maker;
 
+        std::vector<expr*> curr_outside_assignments;
+        std::vector<expr*> curr_inside_assignments;
+
         app* global_emp;
         app* global_nil;
 
@@ -84,7 +87,6 @@ namespace smt
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
 
-        void set_conflict_slhv();
         private:
         bool final_check();
         
@@ -214,6 +216,16 @@ namespace smt
            theory propagation.
         */
         void propagate() override;
+
+        void set_conflict_or_lemma(literal_vector const& core, bool is_out_layer_conflict);
+
+        void set_conflict_slhv(bool is_outside);
+
+        // set UNSAT core for outside CDCL framework
+        void set_conflict_outside();
+
+        // set UNSAT core and equivalence realtion for inner branch cutting
+        void set_conflict_inside();
         
 
         // void finalize_model(model_generator & m) override;
