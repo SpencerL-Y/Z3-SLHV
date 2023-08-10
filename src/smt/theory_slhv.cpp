@@ -10,6 +10,8 @@ namespace smt {
         std::cout << "SLHV theory plugin created" << std::endl;
         #endif
         this->syntax_maker = new slhv_syntax_maker(this);
+        this->global_emp = nullptr;
+        this->global_nil = nullptr;
         this->reset_configs();
     }
 
@@ -213,7 +215,7 @@ namespace smt {
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
         #ifdef SLHV_DEBUG
-        std::cout << "assignments number after elimination negations: " << elim_enums.size() << std::endl;
+        std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
         #endif
        
        // TODO implement inner CDCL framework here
@@ -428,8 +430,14 @@ namespace smt {
                 return final_result;
             }
         } else {
-            for(std::vector<expr*> v : eliminated_neg_vec) {
-                std::vector<expr*> result = v;
+            if(eliminated_neg_vec.size() != 0) {
+                for(std::vector<expr*> v : eliminated_neg_vec) {
+                    std::vector<expr*> result = v;
+                    result.push_back(curr_neg_lit);
+                    final_result.push_back(result);
+                }
+            } else {
+                std::vector<expr*> result;
                 result.push_back(curr_neg_lit);
                 final_result.push_back(result);
             }
@@ -467,31 +475,35 @@ namespace smt {
         SASSERT(plug->get_family_id() == this->get_manager().mk_family_id("slhv"));
         SASSERT(plug != nullptr);
         slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*) plug;
-        #ifdef SLHV_DEBUG
-        std::cout << "begin construct emp" << std::endl;
-        #endif
-        if(!this->curr_hvars_contain_emp()) {
-            SASSERT(slhv_plugin->global_emp != nullptr);
-            to_app(slhv_plugin->global_emp);
-            std::cout << "internalize term" << std::endl;
-            this->internalize_term(to_app(slhv_plugin->global_emp));
-            std::cout << "internalize term" << std::endl;
-            this->curr_hvars.insert(to_app(slhv_plugin->global_emp));
-            this->global_emp = to_app(slhv_plugin->global_emp);
-        } else {
-            SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
+        if(this->global_emp == nullptr) {
+            #ifdef SLHV_DEBUG
+            std::cout << "begin construct emp" << std::endl;
+            #endif
+            if(!this->curr_hvars_contain_emp()) {
+                SASSERT(slhv_plugin->global_emp != nullptr);
+                to_app(slhv_plugin->global_emp);
+                std::cout << "internalize term" << std::endl;
+                this->internalize_term(to_app(slhv_plugin->global_emp));
+                std::cout << "internalize term" << std::endl;
+                this->curr_hvars.insert(to_app(slhv_plugin->global_emp));
+                this->global_emp = to_app(slhv_plugin->global_emp);
+            } else {
+                SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
+            }
         }
-        #ifdef SLHV_DEBUG
-        std::cout << "begin construct nil" << std::endl;
-        #endif
-        if(!this->curr_locvars_contain_nil()) {
-            std::cout << "internalize term" << std::endl;
-            this->internalize_term(to_app(slhv_plugin->global_nil));
-            std::cout << "internalize term" << std::endl;
-            this->curr_locvars.insert(to_app(slhv_plugin->global_nil));
-            this->global_nil = to_app(slhv_plugin->global_nil);
-        } else {
-            SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
+        if(this->global_nil == nullptr) {
+            #ifdef SLHV_DEBUG
+            std::cout << "begin construct nil" << std::endl;
+            #endif
+            if(!this->curr_locvars_contain_nil()) {
+                std::cout << "internalize term" << std::endl;
+                this->internalize_term(to_app(slhv_plugin->global_nil));
+                std::cout << "internalize term" << std::endl;
+                this->curr_locvars.insert(to_app(slhv_plugin->global_nil));
+                this->global_nil = to_app(slhv_plugin->global_nil);
+            } else {
+                SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
+            }
         }
         #ifdef SLHV_DEBUG
         std::cout << "collect and analyze assignments end" << std::endl;

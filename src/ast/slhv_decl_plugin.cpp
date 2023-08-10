@@ -132,7 +132,7 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
 
     func_decl* result_decl = m_manager->mk_const_decl(symbol("emp"), range, info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_emp result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    std::cout << "mk_emp result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     expr* const* result_expr = nullptr;
     this->global_emp = this->m_manager->mk_app(result_decl, result_expr);
@@ -147,7 +147,7 @@ func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* con
     func_decl_info info(m_family_id, OP_NIL);
     func_decl* result_decl = m_manager->mk_const_decl(symbol("nil"), range, info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_nil result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    std::cout << "mk_nil result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     expr* const* result_expr = nullptr;
     this->global_nil = this->m_manager->mk_app(result_decl, result_expr);
