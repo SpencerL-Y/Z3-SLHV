@@ -803,6 +803,9 @@ struct th_rewriter_cfg : public default_rewriter_cfg {
                                        new_body);
             m_pinned.reset();
             TRACE("reduce_quantifier", tout << mk_ismt2_pp(old_q, m()) << "\n----->\n" << mk_ismt2_pp(q1, m()) << "\n";);
+            #ifdef SLHV_DEBUG
+            std::cout << "reduce quantifier: " << mk_ismt2_pp(old_q, m()) << "\n----->\n" << mk_ismt2_pp(q1, m()) << "\n";
+            #endif
             SASSERT(is_well_sorted(m(), q1));
             if (m().proofs_enabled() && q1 != old_q) {
                 p1 = m().mk_rewrite(old_q, q1);
