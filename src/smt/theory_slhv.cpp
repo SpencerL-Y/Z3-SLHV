@@ -481,29 +481,34 @@ namespace smt {
             #endif
             if(!this->curr_hvars_contain_emp()) {
                 SASSERT(slhv_plugin->global_emp != nullptr);
-                to_app(slhv_plugin->global_emp);
-                std::cout << "internalize term" << std::endl;
-                this->internalize_term(to_app(slhv_plugin->global_emp));
-                std::cout << "internalize term" << std::endl;
-                this->curr_hvars.insert(to_app(slhv_plugin->global_emp));
-                this->global_emp = to_app(slhv_plugin->global_emp);
+                app* ge = slhv_plugin->global_emp;
+                this->get_context().internalize(ge, false);
+                std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
+                this->curr_hvars.insert(ge);
+                this->global_emp = ge;
             } else {
                 SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
+                this->get_context().internalize(to_app(slhv_plugin->global_emp), false);
             }
+        } else {
+            this->get_context().internalize(this->global_emp, false);
         }
         if(this->global_nil == nullptr) {
             #ifdef SLHV_DEBUG
             std::cout << "begin construct nil" << std::endl;
             #endif
             if(!this->curr_locvars_contain_nil()) {
-                std::cout << "internalize term" << std::endl;
-                this->internalize_term(to_app(slhv_plugin->global_nil));
-                std::cout << "internalize term" << std::endl;
-                this->curr_locvars.insert(to_app(slhv_plugin->global_nil));
-                this->global_nil = to_app(slhv_plugin->global_nil);
+                app* gn = slhv_plugin->global_nil;
+                this->get_context().internalize(gn, false);
+                std::cout << "internalize " << mk_pp(gn, this->m) << std::endl;
+                this->curr_locvars.insert(gn);
+                this->global_nil = slhv_plugin->global_nil;
             } else {
                 SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
+                this->get_context().internalize(to_app(slhv_plugin->global_nil), false);
             }
+        } else {
+            this->get_context().internalize(this->global_nil, false);
         }
         #ifdef SLHV_DEBUG
         std::cout << "collect and analyze assignments end" << std::endl;
@@ -910,11 +915,17 @@ namespace smt {
             }
             for(int i = 0; i < disj_pts.size(); i ++) {
                 for(int j = i + 1; j < disj_pts.size(); j ++) {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "pts: " << mk_pp(disj_pts[i], this->m) << " " << mk_pp(disj_pts[j], this->m) << std::endl;
+                    #endif
                     expr* addr_i = disj_pts[i]->get_arg(0);
                     expr* addr_j = disj_pts[j]->get_arg(0);
                     enode* node_addr_i = ctx.get_enode(addr_i);
                     enode* node_addr_j = ctx.get_enode(addr_j);
                     enode* nil_root = this->ctx.get_enode(this->global_nil)->get_root();
+                    #ifdef SLHV_DEBUG
+                    std::cout << "get nil root node" << std::endl;
+                    #endif
                     if(node_addr_i->get_root() == node_addr_j->get_root() ||
                        node_addr_i->get_root() == nil_root || 
                        node_addr_j->get_root() == nil_root) {

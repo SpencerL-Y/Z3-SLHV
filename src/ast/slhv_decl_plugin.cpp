@@ -136,6 +136,7 @@ func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* con
     #endif
     expr* const* result_expr = nullptr;
     this->global_emp = this->m_manager->mk_app(result_decl, result_expr);
+    this->m_manager->inc_ref(this->global_emp);
     return result_decl;
 }
 
@@ -151,6 +152,7 @@ func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* con
     #endif
     expr* const* result_expr = nullptr;
     this->global_nil = this->m_manager->mk_app(result_decl, result_expr);
+    this->m_manager->inc_ref(this->global_nil);
     return result_decl;
 }
 
