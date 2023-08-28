@@ -2,6 +2,7 @@
 #include "ast/slhv_decl_plugin.h"
 #include "smt/smt_context.h"
 #include "smt/theory_slhv.h"
+#include <bitset>
 namespace smt {
 
     // theory-slhv --------------------------------
@@ -245,19 +246,35 @@ namespace smt {
                 continue;
             }
  
+            // [[ OLD LOGIC ********************************* 
             // enumerate all possible loc eqs
-            std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasbible_locvars_eq();
-            #ifdef  SLHV_DEBUG
-            std::cout << "feasible locvars eq num: " << loc_eqs_raw.size() << std::endl;
-            #endif
+            // std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasible_locvars_eq();
+            // #ifdef  SLHV_DEBUG
+            // std::cout << "feasible locvars eq num: " << loc_eqs_raw.size() << std::endl;
+            // #endif
+            //   ********************************* OLD LOGIC ]]
+
+            // establish coarse hvar eq 
             coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
             if(!this->check_hterm_distinct_hvar_eq_consistency(curr_hvar_eq)) {
                 continue;
             }
+            // initialize locvar eq searching
+            this->init_locvars_eq_boolvec();
+            
 
-            for(std::map<enode*, std::set<app*>> loc_eq_data : loc_eqs_raw) {
+            bool still_has_eq = true;
+            while(still_has_eq) {
+                auto search_res = this->get_locvars_eq_next();
+                still_has_eq = search_res.first;
+                std::map<enode*, std::set<app*>> loc_eq_data = search_res.second;
+                if(!still_has_eq) {
+                    break;
+                }
+
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
-                
+
+                // TODO add unsat core here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
                 }
@@ -774,7 +791,7 @@ namespace smt {
         return result;
     }
 
-    std::vector<std::map<enode*, std::set<app*>>> theory_slhv::get_feasbible_locvars_eq() {
+    std::vector<std::map<enode*, std::set<app*>>> theory_slhv::get_feasible_locvars_eq() {
         #ifdef SLHV_DEBUG
         std::cout << "slhv get_feasible_locvars_eq" << std::endl;
         #endif
@@ -801,7 +818,6 @@ namespace smt {
             }
             assignable_pairs.push_back(p);
         }
-        // TODO: should be optimized here
         std::vector<std::set<enode_pair>> all_assigned_situations;
         std::vector<std::vector<bool>> assigned_bits_situations;
         for(int i = 0; i < assignable_pairs.size(); i ++) {
@@ -848,6 +864,121 @@ namespace smt {
             result_maps.push_back(this->get_fine_locvar_eq(e, existing_loc_eq_data));
         }
         return result_maps;
+    }
+
+
+    void theory_slhv::init_locvars_eq_boolvec(){
+        this->temp_zero_enumerated = false;
+        this->temp_loceq_bits.clear();
+        this->indexed_assignable_pairs.clear();
+        #ifdef SLHV_DEBUG
+        std::cout << "init locvars eq boolvec" << std::endl;
+        #endif
+        // enumerate all feasible assignment to assignable locvar enode pairs  
+        // the result is a vector of map, where each map represents a way to do the partition of locvar eq
+        std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
+        #ifdef SLHV_DEBUG
+        std::cout << "unassigned pairs: " << std::endl;
+        for(enode_pair p : unassigned_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        std::cout << "distinct pairs: " << std::endl;
+        for(enode_pair p : this->curr_distinct_locterm_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        #endif
+        std::vector<enode_pair> assignable_pairs;
+        for(auto p : unassigned_pairs) {
+            for(auto conflict : this->curr_distinct_locterm_pairs) {
+                if(conflict.first == p.first && conflict.second == p.second ||
+                   conflict.first == p.second && conflict.second == p.first) {
+                    break;
+                } 
+            }
+            assignable_pairs.push_back(p);
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "assignable pairs: " << std::endl;
+        for(enode_pair p : assignable_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        #endif
+        for(int i = 0; i < assignable_pairs.size(); i ++) {
+            this->temp_loceq_bits.push_back(false);
+            this->indexed_assignable_pairs[i] = assignable_pairs[i];
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "init locvars eq boolvec over" << std::endl;
+        #endif
+    }
+
+    void simulation_add(std::vector<bool>& bits) {
+        bool adding_comsumed = false;
+        int curr_idx = 0;
+        while(!adding_comsumed) {
+            if(bits[curr_idx]) {
+                curr_idx ++;
+                bits[curr_idx] = false;
+            } else {
+                adding_comsumed = true;
+                bits[curr_idx] = true;
+            }
+        }
+    }
+
+    std::pair<bool, std::map<enode*, std::set<app*>>> theory_slhv::get_locvars_eq_next() {
+        #ifdef SLHV_DEBUG
+        std::cout << "get locvars eq next" << std::endl;
+        std::cout << "current bits: ";
+        for(int idx; idx < this->temp_loceq_bits.size(); idx ++) {
+            std::cout << this->temp_loceq_bits[idx];
+        }
+        std::cout << std::endl;
+        #endif
+        std::set<enode_pair> assigned_pairs;
+        if(this->temp_zero_enumerated) {
+            bool true_found = false;
+            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                if(this->temp_loceq_bits[idx]) {
+                    true_found = true;
+                    break;
+                }
+            }
+            if(!true_found) {
+                std::map<enode*, std::set<app*>> empty_result;
+                return {false, empty_result};
+            }
+            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                if(this->temp_loceq_bits[idx]) {
+                    assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                }
+            }
+        } else {
+            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                if(this->temp_loceq_bits[idx]) {
+                    assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                }
+            }
+            simulation_add(this->temp_loceq_bits);
+            this->temp_zero_enumerated = true;
+        } 
+        #ifdef SLHV_DEBUG
+        std::cout << "current assigned pairs: " << std::endl;
+        for(enode_pair p : assigned_pairs) {
+            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
+        }
+        #endif
+        std::map<enode*, std::set<app*>> existing_loc_eq_data = std::move(this->get_coarse_locvar_eq());
+        #ifdef SLHV_DEBUG
+        for(auto p : existing_loc_eq_data) {
+            std::cout << "coarse partition x: " << std::endl;
+            for(app* e : p.second) {
+                std::cout << mk_ismt2_pp(e, this->get_manager()) << ", ";
+            }
+            std::cout << std::endl;
+        }
+        #endif
+        return {true, this->get_fine_locvar_eq(assigned_pairs, existing_loc_eq_data)};
     }
 
 

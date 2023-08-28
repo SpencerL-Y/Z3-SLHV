@@ -8,6 +8,7 @@
 #include <vector>
 #include <map>
 #include <iostream>
+#include <bitset>
 namespace smt
 {
     class slhv_fresh_var_maker;
@@ -52,6 +53,10 @@ namespace smt
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
+
+        std::vector<bool> temp_loceq_bits;
+        bool temp_zero_enumerated;
+        std::map<int, enode_pair> indexed_assignable_pairs;
 
         app* global_emp;
         app* global_nil;
@@ -135,7 +140,13 @@ namespace smt
 
         std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs, std::map<enode*, std::set<app*>>& existing_data);
 
-        std::vector<std::map<enode*, std::set<app*>>>  get_feasbible_locvars_eq(); 
+        std::vector<std::map<enode*, std::set<app*>>>  get_feasible_locvars_eq(); 
+
+        void init_locvars_eq_boolvec();
+
+        std::pair<bool, std::map<enode*, std::set<app*>>> get_locvars_eq_next();
+
+
 
         bool check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq);
 
