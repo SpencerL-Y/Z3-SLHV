@@ -2569,12 +2569,13 @@ namespace smt {
     }
 
     void edge_labelled_dgraph::print(std::ostream& out) {
+        out << "-------" << std::endl;
         out << "dgraph nodes: " << std::endl;
         for(dgraph_node* n : this->nodes) {
             n->print(std::cout);
             out << std::endl;
         }
-        out << "dgraph edges" << std::endl;
+        out << "dgraph edges:" << std::endl;
         for(dgraph_edge* e : this->edges) {
             e->print(std::cout);
         }

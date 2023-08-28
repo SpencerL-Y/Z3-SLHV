@@ -798,6 +798,23 @@ namespace smt
             void print(std::ostream& os);
     };
 
+    class eqheap_relation {
+        private:
+            std::set<hterm*> hterm_set;
+            std::set<std::pair<hterm*, hterm*>> eqheap_pairs;
+        public:
+            eqheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), eqheap_pairs(pairs) {
+                for(hterm* h : hterm_set) {
+                    eqheap_pairs.insert({h, h});
+                }
+            }
+
+            bool is_equal_heap(hterm* first, hterm* second);
+            std::set<std::pair<hterm*, hterm*>> get_eqheap_pairs();
+
+            void print(std::ostream& os);
+    };
+
 // util class
     class slhv_util {
         public:

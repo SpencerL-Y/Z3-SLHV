@@ -1,6 +1,14 @@
-(declare-const x1 Int)
-(declare-const x2 Int)
+(set-logic SLHV)
 
-(assert (or (= x1 (+ x2 4))  (= x2 (+ x1 4))))
-(assert (distinct x1 (+ x2 4)))
+(declare-hvar emp IntHeap)
+(declare-hvar h IntHeap)
+(declare-hvar hp IntHeap)
+(declare-locvar nil IntLoc)
+(declare-locvar x IntLoc)
+(declare-locvar y IntLoc)
+(declare-const i Int)
+(declare-const j Int)
+
+
+(assert (and (= hp (uplus h (pt x x) (pt x y))) (> i j) (> j 0)))
 (check-sat)
