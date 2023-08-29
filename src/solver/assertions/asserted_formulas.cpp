@@ -169,7 +169,7 @@ void asserted_formulas::set_eliminate_and(bool flag) {
 
 void asserted_formulas::assert_expr(expr * e, proof * _in_pr) {
     #ifdef  SLHV_DEBUG
-    std::cout << "assert_expr" << std::endl;
+    std::cout << "assert_expr: " << mk_pp(e, this->m) << std::endl;
     #endif
     force_push();
     proof_ref  in_pr(_in_pr, m), pr(_in_pr, m);

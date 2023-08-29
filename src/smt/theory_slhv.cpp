@@ -1,7 +1,10 @@
 #include "ast/ast_ll_pp.h"
 #include "ast/slhv_decl_plugin.h"
+#include "ast/reg_decl_plugins.h"
 #include "smt/smt_context.h"
 #include "smt/theory_slhv.h"
+#include "smt/smt_solver.h"
+#include "util/params.h"
 #include <bitset>
 namespace smt {
 
@@ -274,9 +277,27 @@ namespace smt {
             for(expr* e : curr_assignments) {
                 this->curr_inside_assignments.push_back(e);
             }
+            // TODO elaborate the unsat core for CDCL outside
             // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
             // TODO: add numeral constraint solving 
-
+            // ast_manager* numeral_m = alloc(ast_manager);
+            // reg_decl_plugins(*numeral_m);
+            solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+            for(expr* e: numeral_cnstr_assignments) {
+                numeral_solver->assert_expr(e);
+            }
+            lbool result =  numeral_solver->check_sat();
+            #ifdef SLHV_DEBUG
+            std::cout << "XXXXXXXXXXXXXXXXX numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
+            if(result == l_true) {
+                std::cout << "SAT" << std::endl;
+            } else if(result == l_false) {
+                std::cout << "UNSAT" << std::endl;
+            } else {
+                std::cout << "UNDEF" << std::endl;
+            }
+            std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
+            #endif
             // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
             // preprocessing
             this->preprocessing(heap_cnstr_assignments);
