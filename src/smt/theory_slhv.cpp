@@ -198,6 +198,28 @@ namespace smt {
     }
 
 
+    bool theory_slhv::is_arith_formula(app* l) {
+        #ifdef SLHV_DEBUG
+        std::cout << "l app op: " << l->get_decl_kind() << std::endl;
+        std::cout << "l family id: " << l->get_family_id() << std::endl;
+        #endif
+        if(l->get_family_id() == arith_family_id) {
+            return true;
+        }
+        if(l->get_num_args() > 0) {
+            bool result = false;
+            for(int i = 0; i < l->get_num_args(); i ++) {
+                bool curr_result = this->is_arith_formula(to_app(l->get_arg(i)));
+                result = result || curr_result;
+                if(result) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+
     bool theory_slhv::final_check() {
         // reset all theory attribute for new final check
         #ifdef SLHV_DEBUG
@@ -218,13 +240,27 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
         #endif
+
        
        // TODO implement inner CDCL framework here
         for(expr_ref_vector curr_assignments : elim_enums) {
+            expr_ref_vector heap_cnstr_assignments(m);
+            expr_ref_vector numeral_cnstr_assignments(m);
+            for(expr* e : curr_assignments) {
+                if(this->is_arith_formula(to_app(e))) {
+                    numeral_cnstr_assignments.push_back(e);
+                } else {
+                    heap_cnstr_assignments.push_back(e);
+                }
+            }
             #ifdef SLHV_DEBUG
             std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
-            for(expr* e : curr_assignments) {
-
+            std::cout << "heap constraints ========== " << std::endl;
+            for(expr* e : heap_cnstr_assignments) {
+                std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+            } 
+            std::cout << "numeral constraints ========== " << std::endl;
+            for(expr* e : numeral_cnstr_assignments) {
                 std::cout << mk_ismt2_pp(e, this->m) << std::endl;
             } 
             std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
@@ -238,9 +274,12 @@ namespace smt {
             for(expr* e : curr_assignments) {
                 this->curr_inside_assignments.push_back(e);
             }
-            // preprocessing
+            // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
+            // TODO: add numeral constraint solving 
 
-            this->preprocessing(curr_assignments);
+            // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
+            // preprocessing
+            this->preprocessing(heap_cnstr_assignments);
             if(this->check_status == slhv_unsat) {
                 this->check_status = slhv_unknown;
                 continue;
@@ -274,7 +313,7 @@ namespace smt {
 
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
 
-                // TODO add unsat core here
+                // TODO: implement CDCL framework here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
                 }
@@ -378,14 +417,25 @@ namespace smt {
     std::vector<expr_ref_vector> theory_slhv::eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals) {
         std::vector<std::vector<expr*>> last_result;
         for(auto e : assigned_literals) {
-            #ifdef SLHV_DEBUG
-            std::cout << " eliminate heap negation for " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-            #endif
-            std::vector<std::vector<expr*>> temp_result = this->eliminate_heap_equality_negation(last_result, e);
-            last_result = temp_result;
-            #ifdef SLHV_DEBUG
-            std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-            #endif
+            std::vector<std::vector<expr*>> temp_result;
+            if(this->is_arith_formula(to_app(e))) {
+                for(std::vector<expr*> r : last_result) {
+                    std::vector<expr*> nr = r;
+                    nr.push_back(e);
+                    temp_result.push_back(nr);
+                }
+                last_result = temp_result;
+            } else {
+                #ifdef SLHV_DEBUG
+                std::cout << " eliminate heap negation for " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+                #endif
+                temp_result = this->eliminate_heap_equality_negation(last_result, e);
+                last_result = temp_result;
+                #ifdef SLHV_DEBUG
+                std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+                #endif
+            }
+            
         }
         std::vector<expr_ref_vector> final_result;
         for(std::vector<expr*> ev : last_result) {

@@ -92,6 +92,8 @@ namespace smt
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
 
+        bool is_arith_formula(app* l);
+
         private:
         bool final_check();
         

@@ -89,7 +89,8 @@ bool smt_logics::logic_has_arith(symbol const & s) {
         logic_is_all(s) ||
         s == "QF_FD" ||
         s == "HORN" ||
-        s == "QF_FPLRA";
+        s == "QF_FPLRA" ||
+        s == "SLHV";
 }
 
 bool smt_logics::logic_has_bv(symbol const & s) {

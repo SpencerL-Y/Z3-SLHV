@@ -212,7 +212,6 @@ namespace smt {
                 setup_LRA();
             else if (m_logic == "SLHV") {
                 setup_SLHV();
-                setup_QF_LIA(st);
             }
             else 
                 setup_unknown(st);
