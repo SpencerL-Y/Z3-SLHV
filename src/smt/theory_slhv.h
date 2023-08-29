@@ -233,12 +233,15 @@ namespace smt
         void set_conflict_or_lemma(literal_vector const& core, bool is_out_layer_conflict);
 
         void set_conflict_slhv(bool is_outside);
+        void set_conflict_slhv(bool is_outside, std::vector<expr*> unsat_core);
 
         // set UNSAT core for outside CDCL framework
         void set_conflict_outside();
+        void set_conflict_outside(std::vector<expr*> outside_unsat_core);
 
         // set UNSAT core and equivalence realtion for inner branch cutting
         void set_conflict_inside();
+        void set_conflict_inside(std::vector<expr*> inner_unsat_core);
         
 
         // void finalize_model(model_generator & m) override;

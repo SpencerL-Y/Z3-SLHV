@@ -187,8 +187,43 @@ namespace smt {
         );
     }
 
+
+    void theory_slhv::set_conflict_outside(std::vector<expr*> outside_unsat_core) {
+        literal_vector unsat_core;
+        for(expr* e : outside_unsat_core) {
+            literal expr_lit = this->ctx.get_literal(e);
+            unsat_core.push_back(expr_lit);
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "conflict unsat core literals ====== " << std::endl;
+        for(literal l : unsat_core) {
+            std::cout  << l << std::endl;
+        }
+        std::cout << "conflict unsat core exprs ====== " << std::endl;
+        for(expr* e : this->curr_outside_assignments) {
+            std::cout << mk_pp(e, this->m) << std::endl;
+        }
+        #endif
+        ctx.set_conflict(
+            ctx.mk_justification(
+            ext_theory_conflict_justification(
+                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+            ))
+        );
+    }
+
     void theory_slhv::set_conflict_inside() {
+        #ifdef SLHV_DEBUG
+        std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
+        #endif
         // TODO use eliminated assignment to set conflict unsat core
+    }
+
+    void theory_slhv::set_conflict_inside(std::vector<expr*> inside_unsat_core) {
+        
+        #ifdef SLHV_DEBUG
+        std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
+        #endif
     }
 
 
@@ -198,6 +233,11 @@ namespace smt {
         } else {
             this->set_conflict_inside();
         }
+    }
+
+
+    void theory_slhv::set_conflict_slhv(bool is_outside, std::vector<expr*> unsat_core) {
+
     }
 
 
@@ -238,6 +278,12 @@ namespace smt {
         }
         std::cout << "===================== current assignment end ==================" << std::endl;  
         #endif
+        std::vector<expr*> heap_cnstr_core;
+        for(expr* e : assignments) {
+            if(!this->is_arith_formula(to_app(e))) {
+                heap_cnstr_core.push_back(e);
+            }
+        }
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
         #ifdef SLHV_DEBUG
@@ -279,9 +325,6 @@ namespace smt {
             }
             // TODO elaborate the unsat core for CDCL outside
             // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
-            // TODO: add numeral constraint solving 
-            // ast_manager* numeral_m = alloc(ast_manager);
-            // reg_decl_plugins(*numeral_m);
             solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
             for(expr* e: numeral_cnstr_assignments) {
                 numeral_solver->assert_expr(e);
@@ -298,6 +341,21 @@ namespace smt {
             }
             std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
             #endif
+            std::vector<expr*> numeral_cnstr_core;
+            for(expr* e : numeral_cnstr_assignments) {
+                numeral_cnstr_core.push_back(e);
+            }
+            if(result == l_false) {
+                // this->set_conflict_slhv(true, numeral_cnstr_core);
+                this->set_conflict_slhv(true);
+            } else if(result == l_true){
+
+            } else {
+                #ifdef SLHV_DEBUG
+                std::cout << "ERROR: this should not happen" << std::endl;
+                #endif
+                SASSERT(false);
+            }
             // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
             // preprocessing
             this->preprocessing(heap_cnstr_assignments);
@@ -389,7 +447,7 @@ namespace smt {
                 // the subheap deduction find a feasible subheap relation for satisfiability
                 if(curr_result.second && this->check_status != slhv_unsat) {
                             #ifdef SLHV_DEBUG
-                            std::cout << "XXXXXXXXXXXXXXXXXXXX final check SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+                            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
                             #endif
                     this->check_status = slhv_sat;
                     return true;
@@ -398,9 +456,10 @@ namespace smt {
         }
 
         #ifdef SLHV_DEBUG
-        std::cout << "XXXXXXXXXXXXXXXXXXXX final SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
         #endif
         this->check_status = slhv_unsat;
+        // this->set_conflict_slhv(true, heap_cnstr_core);
         this->set_conflict_slhv(true);
         return false;
     }
