@@ -242,10 +242,6 @@ namespace smt {
 
 
     bool theory_slhv::is_arith_formula(app* l) {
-        #ifdef SLHV_DEBUG
-        std::cout << "l app op: " << l->get_decl_kind() << std::endl;
-        std::cout << "l family id: " << l->get_family_id() << std::endl;
-        #endif
         if(l->get_family_id() == arith_family_id) {
             return true;
         }
