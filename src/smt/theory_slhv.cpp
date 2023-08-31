@@ -1267,7 +1267,7 @@ namespace smt {
         #endif
         SASSERT(atom->is_app_of(basic_family_id, OP_EQ));
         app* left_var = to_app(atom->get_arg(0));
-        SASSERT(this->is_hvar(left_var));
+        SASSERT(this->is_hvar(left_var) || this->is_emp(left_var));
         app* right_expr = to_app(atom->get_arg(1));
         if(this->is_uplus(right_expr)) {
             enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
