@@ -343,7 +343,9 @@ namespace smt {
             }
             if(result == l_false) {
                 // this->set_conflict_slhv(true, numeral_cnstr_core);
+                this->check_status = slhv_unsat;
                 this->set_conflict_slhv(true);
+                return false;
             } else if(result == l_true){
 
             } else {
@@ -1039,6 +1041,9 @@ namespace smt {
     }
 
     void simulation_add(std::vector<bool>& bits) {
+        if(bits.size() == 0) {
+            return;
+        }
         bool adding_comsumed = false;
         int curr_idx = 0;
         while(!adding_comsumed) {
@@ -1062,32 +1067,34 @@ namespace smt {
         std::cout << std::endl;
         #endif
         std::set<enode_pair> assigned_pairs;
-        if(this->temp_zero_enumerated) {
-            bool true_found = false;
-            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                if(this->temp_loceq_bits[idx]) {
-                    true_found = true;
-                    break;
+        if(this->temp_loceq_bits.size() > 0) {
+            if(this->temp_zero_enumerated) {
+                bool true_found = false;
+                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                    if(this->temp_loceq_bits[idx]) {
+                        true_found = true;
+                        break;
+                    }
                 }
-            }
-            if(!true_found) {
-                std::map<enode*, std::set<app*>> empty_result;
-                return {false, empty_result};
-            }
-            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                if(this->temp_loceq_bits[idx]) {
-                    assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                if(!true_found) {
+                    std::map<enode*, std::set<app*>> empty_result;
+                    return {false, empty_result};
                 }
-            }
-        } else {
-            for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                if(this->temp_loceq_bits[idx]) {
-                    assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                    if(this->temp_loceq_bits[idx]) {
+                        assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                    }
                 }
-            }
-            simulation_add(this->temp_loceq_bits);
-            this->temp_zero_enumerated = true;
-        } 
+            } else {
+                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
+                    if(this->temp_loceq_bits[idx]) {
+                        assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                    }
+                }
+                simulation_add(this->temp_loceq_bits);
+                this->temp_zero_enumerated = true;
+            } 
+        }
         #ifdef SLHV_DEBUG
         std::cout << "current assigned pairs: " << std::endl;
         for(enode_pair p : assigned_pairs) {

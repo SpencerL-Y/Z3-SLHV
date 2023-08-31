@@ -826,6 +826,9 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
             UNREACHABLE();
             break;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "curr expr kind over: " << t->get_kind() << std::endl;
+        #endif
     }
     result = result_stack().back();
     result_stack().pop_back();
@@ -836,7 +839,10 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
         if (result_pr.get() == nullptr)
             result_pr = m().mk_reflexivity(m_root);
         SASSERT(result_pr_stack().empty());
-    }
+    }    
+    #ifdef SLHV_DEBUG
+    std::cout << "rewriter_tpl: resume_core end" << std::endl;
+    #endif
 }
 
 template<typename Config>
