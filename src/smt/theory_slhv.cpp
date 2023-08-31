@@ -497,8 +497,14 @@ namespace smt {
         for(auto e : assigned_literals) {
             std::vector<std::vector<expr*>> temp_result;
             if(this->is_arith_formula(to_app(e))) {
-                for(std::vector<expr*> r : last_result) {
-                    std::vector<expr*> nr = r;
+                if(last_result.size() > 0) {
+                    for(std::vector<expr*> r : last_result) {
+                        std::vector<expr*> nr = r;
+                        nr.push_back(e);
+                        temp_result.push_back(nr);
+                    }
+                } else {
+                    std::vector<expr*> nr;
                     nr.push_back(e);
                     temp_result.push_back(nr);
                 }
@@ -513,7 +519,6 @@ namespace smt {
                 std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
                 #endif
             }
-            
         }
         std::vector<expr_ref_vector> final_result;
         for(std::vector<expr*> ev : last_result) {
