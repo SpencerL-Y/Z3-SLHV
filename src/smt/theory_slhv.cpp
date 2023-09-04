@@ -1333,6 +1333,31 @@ namespace smt {
         return result;
     }
 
+
+    std::pair<equiheap_relation*, bool> theory_slhv::check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs) {
+        // RULE1: graph hterm self equal
+        std::set<hterm*> graph_hterms;
+        std::set<std::pair<hterm*, hterm*>> hterm_pairs;
+        for(std::pair<dgraph_node*, std::vector<edge_labelled_subgraph*>> ngs : all_subgraphs) {
+            for(edge_labelled_subgraph* g : ngs.second) {
+                hterm* ght = g->obtain_graph_hterm();
+                graph_hterms.insert(ght);
+            }
+        }
+        // RULE2: equal hterms between graphs
+        for(dgraph_node* n : orig_graph->get_nodes()) {
+            std::vector<edge_labelled_subgraph*> node_subgraphs = all_subgraphs[n];
+            edge_labelled_subgraph* first_subgraph = node_subgraphs[0];
+            hterm* first_subgraph_hterm = first_subgraph->obtain_graph_hterm();
+            for(int i = 1; i < node_subgraphs.size(); i ++) {
+                hterm_pairs.insert({first_subgraph_hterm, node_subgraphs[i]->obtain_graph_hterm()});
+            } 
+        }
+        // STOPPED HERE: TODO: add inference rule RULE3 RULE4
+        equiheap_relation* rel = alloc(equiheap_relation);
+        return {rel, rel->get_is_feasible()};
+    }
+
     std::pair<std::map<dgraph_node*, subheap_relation*>, bool>  theory_slhv::check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs){
         #ifdef SLHV_DEBUG
         std::cout << "check and deduce subheap relation" << std::endl;
@@ -2839,6 +2864,90 @@ namespace smt {
         hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
         return result;
     }
+    // equiheap relation
+    void equiheap_relation::add_hterm(hterm* ht) {
+        SASSERT(ht->get_loc_eq() == this->loc_eq && ht->get_h_eq() == this->h_eq);
+        for(hterm* t : this->hterm_set) {
+            if(*ht == *t) {
+                break;
+            }
+        }
+        this->hterm_set.insert(ht);
+    }
+
+    void equiheap_relation::add_pair(hterm* ht1, hterm* ht2) {
+        for(auto p : this->equiv_pairs) {
+            if(*p.first == *ht1 && *p.second == *ht2 || 
+               *p.second == *ht1 && *p.first == *ht2) {
+                break;
+            }
+        }
+        this->equiv_pairs.insert({ht1, ht2});
+    }
+
+
+    bool equiheap_relation::construct_equiv_class() {
+        for(auto p : this->equiv_pairs) {
+            SASSERT(this->hterm_set.find(p.first) != this->hterm_set.end());
+            SASSERT(this->hterm_set.find(p.second) != this->hterm_set.end());
+        }
+        for(hterm* t : this->hterm_set) {
+            std::set<hterm*> singleton{t};
+            this->equiv_class[t] = singleton;
+        }
+        for(auto p : this->equiv_pairs) {
+            std::set<hterm*> all_equal_hterms = slhv_util::setUnion(this->equiv_class[p.first], this->equiv_class[p.second]);
+            for(hterm* t : all_equal_hterms) {
+                this->equiv_class[t] = all_equal_hterms;
+            }
+        }
+        return this->check_inconsistency();
+    }
+
+    bool equiheap_relation::check_inconsistency() {
+        SASSERT(this->loc_eq != nullptr && this->h_eq != nullptr);
+        std::set<std::set<hterm*>> distinct_hterm_eq_set;
+        for(auto record : this->equiv_class) {
+            if(distinct_hterm_eq_set.find(record.second) == distinct_hterm_eq_set.end()) {
+                distinct_hterm_eq_set.insert(record.second);
+            }
+        }
+        for(std::set<hterm*> hterm_eq : distinct_hterm_eq_set) {
+            for(hterm* ht1 : hterm_eq) {
+                for(hterm* ht2 : hterm_eq) {
+                    // CRITICAL: need to prove that this is correct regarding the satisfiability
+                    if(ht1->get_all_atom_hterms().size() == 1 && ht2->get_all_atom_hterms().size() == 1) {
+                        std::set<std::pair<app*, app*>> ht1_app_pairs = (*ht1->get_all_atom_hterms().begin())->get_h_atoms();
+                        std::set<std::pair<app*, app*>> ht2_app_pairs = (*ht2->get_all_atom_hterms().begin())->get_h_atoms();
+                        // Situation 1: established equal to empty
+                        if((*ht1->get_all_atom_hterms().begin())->is_established() && 
+                           (*ht2->get_all_atom_hterms().begin())->is_emp()) {
+                            return false;
+                        }
+                        // Situation 2: established equal established but with different address or same address with different data
+                        if((*ht1->get_all_atom_hterms().begin())->is_established() &&
+                           (*ht2->get_all_atom_hterms().begin())->is_established()) {
+                            std::pair<app*, app*> ht1_app = *ht1_app_pairs.begin();
+                            std::pair<app*, app*> ht2_app = *ht2_app_pairs.begin();
+                            app* ht1_addr = to_app(ht1_app.second->get_arg(0));
+                            app* ht1_data = to_app(ht1_app.second->get_arg(1));
+                            app* ht2_addr = to_app(ht2_app.second->get_arg(0));
+                            app* ht2_data = to_app(ht2_app.second->get_arg(1));
+                            if(this->loc_eq->get_leader_locvar(ht1_addr) != this->loc_eq->get_leader_locvar(ht2_addr)) {
+                                return false;
+                            } else {
+                                if(this->loc_eq->get_leader_locvar(ht1_data) != this->loc_eq->get_leader_locvar(ht2_data)) {
+                                    return false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return true;
+    }
+
     // subheap relation
     void subheap_relation::add_pair(hterm* ht_smaller, hterm* ht_larger) {
         for(auto smaller_ht : ht_smaller->get_h_atoms()) {

@@ -20,6 +20,7 @@ namespace smt
     class hterm;
     class edge_labelled_dgraph;
     class edge_labelled_subgraph;
+    class equiheap_relation;
     class subheap_relation;
     class locvar_eq;
     class coarse_hvar_eq;
@@ -170,6 +171,8 @@ namespace smt
         bool check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq);
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
+
+        std::pair<equiheap_relation*, bool> check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
 
         std::pair<std::map<dgraph_node*, subheap_relation*>, bool> check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
 
@@ -731,6 +734,7 @@ namespace smt
 // hterm class
     class hterm {
         private:
+            // the first app is for hvar and the second for points-to, cannot co-exist
             std::set<std::pair<app*,app*>> h_atoms;
             coarse_hvar_eq* h_eq;
             locvar_eq* loc_eq;
@@ -774,6 +778,68 @@ namespace smt
             void print(std::ostream& os);
 
     };
+// hterm equivalence relation
+    class equiheap_relation {
+        private: 
+            std::set<hterm*> hterm_set;
+            std::set<std::pair<hterm*, hterm*>> equiv_pairs;
+            std::map<hterm*, std::set<hterm*>> equiv_class;
+            bool is_feasible;
+
+            locvar_eq* loc_eq;
+            coarse_hvar_eq* h_eq;
+
+            bool check_inconsistency();
+        public:
+            equiheap_relation(std::set<hterm*> hterms, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hterms), equiv_pairs(pairs) {
+                this->is_feasible = true;
+                loc_eq = nullptr;
+                h_eq = nullptr;
+                // if the hterms fed are graph hterms, then RULE 1
+                for(hterm* ht : hterm_set) {
+                    if(loc_eq == nullptr && h_eq == nullptr) {
+                        this->loc_eq = ht->get_loc_eq();
+                        this->h_eq = ht->get_h_eq();
+                    } else {
+                        SASSERT(this->loc_eq == ht->get_loc_eq() && this->h_eq == ht->get_h_eq());
+                    }
+                    bool found = false;
+                    for(std::pair<hterm*, hterm*> p : this->equiv_pairs) {
+                        SASSERT(this->hterm_set.find(p.first) != this->hterm_set.end() &&
+                                this->hterm_set.find(p.second) != this->hterm_set.end());
+                        if(*p.first == *ht && *p.second == *ht) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if(!found) {
+                        equiv_pairs.insert({ht, ht});
+                    }
+                }
+                is_feasible = this->construct_equiv_class();
+
+            }
+            equiheap_relation() {}
+            void add_hterm(hterm* ht);
+            void add_pair(hterm* ht1, hterm* ht2);
+
+            bool is_equal_heap(hterm* ht1, hterm* ht2);
+            bool get_is_feasible() {
+                return this->is_feasible;
+            }
+
+            bool construct_equiv_class();
+
+            std::set<hterm*> get_hterm_set() {
+                return this->hterm_set;
+            }
+
+            std::set<std::pair<hterm*, hterm*>> get_equiv_pairs() {
+                return this->equiv_pairs;
+            }
+
+            void print(std::ostream& os);
+    };
 
 // hterm inclusion relation
     class subheap_relation {
@@ -781,10 +847,24 @@ namespace smt
             std::set<hterm*> hterm_set;
             std::set<std::pair<hterm*, hterm*>> subheap_pairs;
             // first <= second
+            locvar_eq* loc_eq;
+            coarse_hvar_eq* h_eq;
         public:
-            subheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), subheap_pairs(pairs) {}
+            subheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), subheap_pairs(pairs) {
+                this->loc_eq = nullptr;
+                this->h_eq = nullptr;
+                for(hterm* ht : this->hterm_set) {
+                    if(this->loc_eq == nullptr && this->h_eq == nullptr) {
+                        this->loc_eq = ht->get_loc_eq();
+                        this->h_eq = ht->get_h_eq();
+                    } else {
+                        SASSERT(this->loc_eq == ht->get_loc_eq() && this->h_eq == ht->get_h_eq());
+                    }
+                }
+            }
             subheap_relation() {}
             void add_hterm(hterm* ht) {
+                SASSERT(ht->get_h_eq() == this->h_eq && ht->get_loc_eq() == this->loc_eq);
                 this->hterm_set.insert(ht);
             }
             void add_pair(hterm* ht_smaller, hterm* ht_larger);
@@ -800,23 +880,6 @@ namespace smt
                 return this->subheap_pairs;
             }
             std::set<std::pair<hterm*, hterm*>> extract_equivalent_hterms();
-            void print(std::ostream& os);
-    };
-
-    class eqheap_relation {
-        private:
-            std::set<hterm*> hterm_set;
-            std::set<std::pair<hterm*, hterm*>> eqheap_pairs;
-        public:
-            eqheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), eqheap_pairs(pairs) {
-                for(hterm* h : hterm_set) {
-                    eqheap_pairs.insert({h, h});
-                }
-            }
-
-            bool is_equal_heap(hterm* first, hterm* second);
-            std::set<std::pair<hterm*, hterm*>> get_eqheap_pairs();
-
             void print(std::ostream& os);
     };
 
