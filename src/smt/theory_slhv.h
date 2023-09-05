@@ -756,6 +756,7 @@ namespace smt
                 return h_atoms;
             }
             hterm* substract_hterm(hterm* substracted);
+            hterm* replace_subhterm(hterm* orig_subhterm, hterm* replaced_subhterm);
             coarse_hvar_eq* get_h_eq() {
                 return this->h_eq;
             }

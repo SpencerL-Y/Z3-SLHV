@@ -1342,6 +1342,7 @@ namespace smt {
             for(edge_labelled_subgraph* g : ngs.second) {
                 hterm* ght = g->obtain_graph_hterm();
                 graph_hterms.insert(ght);
+                hterm_pairs.insert({ght, ght});
             }
         }
         // RULE2: equal hterms between graphs
@@ -1353,8 +1354,68 @@ namespace smt {
                 hterm_pairs.insert({first_subgraph_hterm, node_subgraphs[i]->obtain_graph_hterm()});
             } 
         }
-        // STOPPED HERE: TODO: add inference rule RULE3 RULE4
-        equiheap_relation* rel = alloc(equiheap_relation);
+
+        equiheap_relation* rel = alloc(equiheap_relation, graph_hterms, hterm_pairs);
+        if(!rel->get_is_feasible()) {
+            return {rel, false};
+        }
+
+        // TODO: extend the pairs here
+        // RULE 3 and RULE 4
+        std::set<std::pair<hterm*, hterm*>> new_deduced_hterm_pairs;
+        do {    
+            //RULE 3
+            std::set<std::pair<hterm*, hterm*>> temp_new_pairs;
+            for(std::pair<hterm*, hterm*> p1 : hterm_pairs) {
+                for(std::pair<hterm*, hterm*> p2 : hterm_pairs) {
+                    if(p1 != p2) {
+                        if(p2.first->is_sub_hterm_of(p1.second)) {
+                            hterm* first = p1.first;
+                            hterm* second = p1.second->replace_subhterm(p2.first, p2.second);
+                            temp_new_pairs.insert({first, second});
+                        } 
+                        if(p2.second->is_sub_hterm_of(p1.second)) {
+                            hterm* first = p1.first;
+                            hterm* second = p1.second->replace_subhterm(p2.second, p2.first);
+                            temp_new_pairs.insert({first, second});
+                        }
+                        if(p2.first->is_sub_hterm_of(p1.first)) {
+                            hterm* first = p1.second;
+                            hterm* second = p1.first->replace_subhterm(p2.first, p2.second);
+                            temp_new_pairs.insert({first, second});
+                        }
+                        if(p2.second->is_sub_hterm_of(p1.first)) {
+                            hterm* first = p1.second;
+                            hterm* second = p1.first->replace_subhterm(p2.second, p2.first);
+                            temp_new_pairs.insert({first, second});
+                        }
+                    }
+                }
+            }
+            for(hterm* temp_p : temp_new_pairs) {
+                bool found = false;
+                for(hterm* ep : hterm_pairs) {
+                    if(*temp_p == *ep) {
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found) {
+                    new_deduced_hterm_pairs.insert(temp_p);
+                }
+            }
+
+            // RULE4
+            for(std::pair<hterm*, hterm*> p1 : hterm_pairs) {
+                for(std::pair<hterm*, hterm*> p2 : hterm_pairs) {
+                    if(p1 != p2) {
+
+                    }
+                }
+            }
+
+        } while(new_deduced_hterm_pairs.size() > 0);
+        
         return {rel, rel->get_is_feasible()};
     }
 
@@ -2864,6 +2925,18 @@ namespace smt {
         hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
         return result;
     }
+
+
+    hterm* hterm::replace_subhterm(hterm* orig_subhterm, hterm* replaced_subhterm) {
+        SASSERT(orig_subhterm->is_sub_hterm_of(this));
+        SASSERT(this->h_eq == orig_subhterm->get_h_eq() && this->h_eq == replaced_subhterm->get_h_eq());
+        std::set<std::pair<app*, app*>> h_atom_replaced = slhv_util::setUnion(
+            slhv_util::setSubstract(this->h_atoms, orig_subhterm->get_h_atoms()),
+            replaced_subhterm->get_h_atoms()
+        );
+        hterm* result = alloc(hterm, h_atom_replaced, this->h_eq, this->loc_eq);
+        return result;
+    }
     // equiheap relation
     void equiheap_relation::add_hterm(hterm* ht) {
         SASSERT(ht->get_loc_eq() == this->loc_eq && ht->get_h_eq() == this->h_eq);
@@ -2901,7 +2974,9 @@ namespace smt {
                 this->equiv_class[t] = all_equal_hterms;
             }
         }
-        return this->check_inconsistency();
+        
+        bool is_consistent = this->check_inconsistency();
+        return is_consistent;
     }
 
     bool equiheap_relation::check_inconsistency() {
