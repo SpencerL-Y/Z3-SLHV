@@ -839,6 +839,10 @@ namespace smt
                 return this->equiv_pairs;
             }
 
+            std::map<hterm*, std::set<hterm*>> get_equiv_class() {
+                return this->equiv_class;
+            }
+
             void print(std::ostream& os);
     };
 

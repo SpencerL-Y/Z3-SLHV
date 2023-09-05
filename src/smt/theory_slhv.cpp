@@ -1336,6 +1336,7 @@ namespace smt {
 
     std::pair<equiheap_relation*, bool> theory_slhv::check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs) {
         // RULE1: graph hterm self equal
+        std::set<hterm*> all_hterms;
         std::set<hterm*> graph_hterms;
         std::set<std::pair<hterm*, hterm*>> hterm_pairs;
         for(std::pair<dgraph_node*, std::vector<edge_labelled_subgraph*>> ngs : all_subgraphs) {
@@ -1361,41 +1362,61 @@ namespace smt {
         }
 
         // TODO: extend the pairs here
+        std::set<std::pair<hterm*, hterm*>> all_pairs;
+        std::set<std::set<hterm*>> distinct_equiv_set;
+        for(auto record : rel->get_equiv_class()) {
+            if(distinct_equiv_set.find(record.second) == distinct_equiv_set.end()) {
+                distinct_equiv_set.insert(record.second);
+            }
+        }
+        for(std::set<hterm*> s : distinct_equiv_set) {
+            for(hterm* ht1 : s) {
+                for(hterm* ht2 : s) {
+                    all_pairs.insert({ht1, ht2});
+                }
+            }
+        }
+        all_hterms = graph_hterms;
         // RULE 3 and RULE 4
         std::set<std::pair<hterm*, hterm*>> new_deduced_hterm_pairs;
         do {    
             //RULE 3
+            new_deduced_hterm_pairs.clear();
             std::set<std::pair<hterm*, hterm*>> temp_new_pairs;
-            for(std::pair<hterm*, hterm*> p1 : hterm_pairs) {
-                for(std::pair<hterm*, hterm*> p2 : hterm_pairs) {
+            for(std::pair<hterm*, hterm*> p1 : all_pairs) {
+                for(std::pair<hterm*, hterm*> p2 : all_pairs) {
                     if(p1 != p2) {
                         if(p2.first->is_sub_hterm_of(p1.second)) {
                             hterm* first = p1.first;
                             hterm* second = p1.second->replace_subhterm(p2.first, p2.second);
+                            all_hterms.insert(second);
                             temp_new_pairs.insert({first, second});
                         } 
                         if(p2.second->is_sub_hterm_of(p1.second)) {
                             hterm* first = p1.first;
                             hterm* second = p1.second->replace_subhterm(p2.second, p2.first);
+                            all_hterms.insert(second);
                             temp_new_pairs.insert({first, second});
                         }
                         if(p2.first->is_sub_hterm_of(p1.first)) {
                             hterm* first = p1.second;
                             hterm* second = p1.first->replace_subhterm(p2.first, p2.second);
+                            all_hterms.insert(second);
                             temp_new_pairs.insert({first, second});
                         }
                         if(p2.second->is_sub_hterm_of(p1.first)) {
                             hterm* first = p1.second;
                             hterm* second = p1.first->replace_subhterm(p2.second, p2.first);
+                            all_hterms.insert(second);
                             temp_new_pairs.insert({first, second});
                         }
                     }
                 }
             }
-            for(hterm* temp_p : temp_new_pairs) {
+            for(auto temp_p : temp_new_pairs) {
                 bool found = false;
-                for(hterm* ep : hterm_pairs) {
-                    if(*temp_p == *ep) {
+                for(auto ep : all_pairs) {
+                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
                         found = true;
                         break;
                     }
@@ -1404,16 +1425,54 @@ namespace smt {
                     new_deduced_hterm_pairs.insert(temp_p);
                 }
             }
+            temp_new_pairs.clear();
 
             // RULE4
-            for(std::pair<hterm*, hterm*> p1 : hterm_pairs) {
-                for(std::pair<hterm*, hterm*> p2 : hterm_pairs) {
+            for(std::pair<hterm*, hterm*> p1 : all_pairs) {
+                for(std::pair<hterm*, hterm*> p2 : all_pairs) {
                     if(p1 != p2) {
-
+                        if(p2.first->is_sub_hterm_of(p1.first) && p2.second->is_sub_hterm_of(p1.second)) {
+                            hterm* left = p1.first->substract_hterm(p2.first);
+                            hterm* right = p1.second->substract_hterm(p2.second);
+                            all_hterms.insert(left);
+                            all_hterms.insert(right);
+                            temp_new_pairs.insert({left, right});
+                        }
+                        if(p2.second->is_sub_hterm_of(p1.first) && p2.first->is_sub_hterm_of(p1.second)) {
+                            hterm* left = p1.first->substract_hterm(p2.second);
+                            hterm* right = p1.second->substract_hterm(p2.first);
+                            all_hterms.insert(left);
+                            all_hterms.insert(right);
+                            temp_new_pairs.insert({left, right});
+                        }
                     }
                 }
             }
 
+            
+            for(auto temp_p : temp_new_pairs) {
+                bool found = false;
+                for(auto ep : all_pairs) {
+                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
+                        found = true;
+                        break;
+                    }
+                }
+                for(auto ep : new_deduced_hterm_pairs) {
+                    if(found) {
+                        break;
+                    }
+                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found) {
+                    new_deduced_hterm_pairs.insert(temp_p);
+                }
+            }
+            temp_new_pairs.clear();
+            all_pairs = slhv_util::setUnion(all_pairs, new_deduced_hterm_pairs);
         } while(new_deduced_hterm_pairs.size() > 0);
         
         return {rel, rel->get_is_feasible()};
