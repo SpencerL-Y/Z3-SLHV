@@ -11,3 +11,6 @@
 
 (assert (exists ((hp IntHeap)) (and (= hp (uplus h (pt x x) (pt x y))) )))
 (check-sat)
+
+
+// STILL BUGGY

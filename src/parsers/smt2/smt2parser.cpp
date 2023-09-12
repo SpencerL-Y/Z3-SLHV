@@ -2701,7 +2701,7 @@ namespace smt2 {
 
         std::string m_assert_expr;
 
-        void parse_assert() {
+        void ++parse_assert() {
 #ifdef SLHV_DEBUG
     std::cout << "parse_assert" << std::endl;
 #endif
