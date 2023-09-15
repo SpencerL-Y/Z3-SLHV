@@ -630,6 +630,9 @@ std::ostream& pdatatype_decl::display(std::ostream & out) const {
 
 bool pdatatype_decl::commit(pdecl_manager& m) {
     TRACE("datatype", tout << m_name << "\n";);
+    #ifdef SLHV_DEBUG
+    std::cout << "commit datatype: " << m_name << std::endl;
+    #endif
     sort_ref_vector ps(m.m());
     for (unsigned i = 0; i < m_num_params; ++i) {
         ps.push_back(m.m().mk_uninterpreted_sort(symbol(i), 0, nullptr));

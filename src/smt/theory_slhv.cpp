@@ -86,10 +86,10 @@ namespace smt {
             SASSERT(term->get_num_args() == 2);
             enode* arg0_node = ctx.get_enode(term->get_arg(0));
             enode* arg1_node = ctx.get_enode(term->get_arg(1));
+            SASSERT(arg1_node != nullptr);
 
             theory_var arg0_var = arg0_node->get_th_var(get_id());
-            theory_var arg1_var = arg1_node->get_th_var(get_id());
-            SASSERT(arg0_var != -1 && arg1_var != -1);
+            SASSERT(arg0_var != -1 );
             SASSERT(get_th_var(term) != -1);
             #ifdef SLHV_DEBUG
             std::cout << "term name: " << term->get_name() << " is_points_to: " << is_points_to(term) << " num args: " << term->get_num_args() << std::endl;
@@ -280,6 +280,9 @@ namespace smt {
                 heap_cnstr_core.push_back(e);
             }
         }
+
+        
+        
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
         #ifdef SLHV_DEBUG
@@ -717,6 +720,27 @@ namespace smt {
             collected_points_tos = slhv_util::setUnion(collected_points_tos, this->collect_points_tos(to_app(expression->get_arg(i))));
         }
         return collected_points_tos;
+    }
+
+    void theory_slhv::analyze_pt_record_field(app* pt) {
+        SASSERT(this->is_points_to(pt));
+        app* record = to_app(pt->get_arg(1));
+        SASSERT(record->get_name() == "Pt_R");
+        app* pt_r = to_app(record->get_arg(1));
+        int field_num = pt_r->get_num_args();
+        int loc_num = 0, data_num = 0;
+        for(int i = 0; i < field_num; i ++) {
+            app* curr_arg = to_app(pt_r->get_arg(i));
+            if(this->is_locterm(curr_arg)) {
+                loc_num += 1;
+            } else if(this->is_dataterm(curr_arg)) {
+                data_num += 1;
+            } else {
+                SASSERT(false);
+            }
+        }
+        this->pt_locfield_num = loc_num;
+        this->pt_datafield_num = data_num;
     }
 
     void theory_slhv::record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
@@ -3202,6 +3226,10 @@ namespace smt {
         this->fv_maker->reset();
     }
 
+    app* slhv_syntax_maker::mk_fresh_datavar() {
+        return this->fv_maker->mk_fresh_datavar();
+    }
+
     app* slhv_syntax_maker::mk_fresh_hvar() {
         return this->fv_maker->mk_fresh_hvar();
     }
@@ -3405,6 +3433,7 @@ namespace smt {
     void slhv_fresh_var_maker::reset() {
         this->curr_locvar_id = 0;
         this->curr_hvar_id = 0;
+        this->curr_datavar_id = 0;
         locvar_map.clear();
         hvar_map.clear();
     }
@@ -3427,5 +3456,17 @@ namespace smt {
         this->locvar_map[curr_locvar_id] = fresh_locvar;
         curr_locvar_id ++;
         return fresh_locvar;
+    }
+
+    app* slhv_fresh_var_maker::mk_fresh_datavar() {
+        std::string name = "f_th_datavar" + std::to_string(this->curr_datavar_id);
+        family_id arith_family_id = this->th->get_manager().mk_family_id("arith");
+        sort* range_sort = this->th->get_manager().mk_sort(arith_family_id, INT_SORT);
+        unsigned num_args = 0;
+        arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
+        app* fresh_datavar = this->th->get_manager().mk_app(
+            symbol(name), 0, nullptr, range_sort
+        );
+        return fresh_datavar;
     }
 }

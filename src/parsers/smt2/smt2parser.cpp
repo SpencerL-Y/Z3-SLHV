@@ -840,9 +840,15 @@ namespace smt2 {
 
         // [ '(' identifier accessors ')' ]+
         void parse_constructor_decls(pconstructor_decl_ref_buffer & ct_decls) {
+            #ifdef SLHV_DEBUG
+            std::cout << "parse_constructor_decls" << std::endl;
+            #endif
             while (!curr_is_rparen()) {
                 if (curr_is_identifier()) {
                     symbol ct_name = curr_id();
+                    #ifdef SLHV_DEBUG
+                    std::cout << "ct_name: " << ct_name << std::endl;
+                    #endif
                     std::string r_str = "is-";
                     r_str += curr_id().str();
                     symbol r_name(r_str);
@@ -854,6 +860,9 @@ namespace smt2 {
                     check_lparen_next("invalid datatype declaration, '(' or ')' expected");
                     check_identifier("invalid constructor declaration, symbol (constructor name) expected");
                     symbol ct_name = curr_id();
+                    #ifdef SLHV_DEBUG
+                    std::cout << "ct_name: " << ct_name << std::endl;
+                    #endif
                     std::string r_str = "is-";
                     r_str += curr_id().str();
                     symbol r_name(r_str);
@@ -959,6 +968,9 @@ namespace smt2 {
             unsigned line = m_scanner.get_line();
             unsigned pos  = m_scanner.get_pos();
             symbol dt_name = curr_id();
+            #ifdef SLHV_DEBUG
+            std::cout << "dt_name: " << dt_name << std::endl;
+            #endif
             next();
 
             m_dt_name2idx.reset();
@@ -971,10 +983,36 @@ namespace smt2 {
             parse_datatype_dec(&dt_name, new_ct_decls);
             d = pm().mk_pdatatype_decl(m_sort_id2param_idx.size(), dt_name, new_ct_decls.size(), new_ct_decls.data());
             
+            #ifdef SLHV_DEBUG
+            std::cout << "display datatype: " << std::endl;
+            d->display(std::cout);
+            #endif
+        
             check_missing(d, line, pos);
             check_duplicate(d, line, pos);
 
             d->commit(pm());
+            ptr_vector<datatype::constructor> consvec = pm().get_dt_plugin()->get_constructors(symbol("Pt_R"));
+            std::cout << "constructor size: " << consvec.size() << std::endl;
+            datatype::constructor* c = consvec.back();
+            ptr_vector<datatype::accessor> accs = c->accessors();
+            int locnum = 0, datanum = 0;
+            for(auto a : accs) {
+                std::cout << "acc name: " << a->name() << std::endl;
+                std::cout << "acc sort: " << a->range()->get_name() << std::endl;
+                if(a->range()->get_name() == "IntLoc") {
+                    locnum += 1;
+                } else if(a->range()->get_name() == "Int") {
+                    datanum += 1;
+                } else {
+                    // unsupported pt field type
+                    SASSERT(false);
+                }
+            }
+
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) this->m().get_plugin(this->m().mk_family_id("slhv"));
+            plug->set_pt_record(locnum, datanum);
+
             check_rparen("invalid end of datatype declaration, ')' expected");
             m_ctx.print_success();
             next();
@@ -2701,7 +2739,7 @@ namespace smt2 {
 
         std::string m_assert_expr;
 
-        void ++parse_assert() {
+        void parse_assert() {
 #ifdef SLHV_DEBUG
     std::cout << "parse_assert" << std::endl;
 #endif

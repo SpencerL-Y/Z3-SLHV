@@ -371,9 +371,13 @@ namespace datatype {
         ptr_vector<constructor> plugin::get_constructors(symbol const& s) const {
             ptr_vector<constructor> result;
             for (auto [k, d] : m_defs) 
-                for (auto* c : *d)
+                for (auto* c : *d) {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "name: " << c->name() << std::endl;
+                    #endif
                     if (c->name() == s)
                         result.push_back(c);
+                }
             return result;
         }
 
@@ -549,6 +553,14 @@ namespace datatype {
             for (unsigned i = 0; i < num_datatypes; ++i) {
                 def* d = nullptr;
                 TRACE("datatype", tout << "declaring " << datatypes[i]->name() << "\n";);
+                #ifdef SLHV_DEBUG
+                std::cout << "datatype declaring " << datatypes[i]->name() << std::endl;
+                std::cout << "datatype name " << datatypes[i]->sort_size() << std::endl;
+                for(sort* s : datatypes[i]->params()) {
+                    std::cout << s->get_name() << " ";
+                }
+                std::cout <<  std::endl;
+                #endif
                 if (m_defs.find(datatypes[i]->name(), d)) {
                     TRACE("datatype", tout << "delete previous version for " << datatypes[i]->name() << "\n";);
                     u().reset();

@@ -34,7 +34,14 @@ class slhv_decl_plugin : public decl_plugin {
 
     app* global_emp;
     app* global_nil;
+
+    bool pt_record_initialized;
+    int pt_record_length;
+    int pt_locnum;
+    int pt_datanum;
     slhv_decl_plugin();
+
+    void set_pt_record(int ln, int dn);
 
     decl_plugin * mk_fresh() override {
         return alloc(slhv_decl_plugin);

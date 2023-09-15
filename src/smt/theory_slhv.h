@@ -62,6 +62,9 @@ namespace smt
         app* global_emp;
         app* global_nil;
 
+        int pt_locfield_num;
+        int pt_datafield_num;
+
         // check_context for a construction based on locvar_eq and negation choice
 
         bool is_uplus(app const* n) const {
@@ -91,6 +94,10 @@ namespace smt
 
         bool is_locterm(app const* n) const {
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
+        }
+
+        bool is_dataterm(app const* n) const {
+            return n->get_sort() == this->get_manager().mk_sort(arith_family_id, INT_SORT);
         }
 
         bool is_arith_formula(app* l);
@@ -128,6 +135,8 @@ namespace smt
         std::set<app*> collect_disj_unions(app* expression);
 
         std::set<app*> collect_points_tos(app* expression);
+
+        void analyze_pt_record_field(app* pt);
         
 
         void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
@@ -1028,14 +1037,17 @@ namespace smt
         theory_slhv* th;
         int curr_locvar_id;
         int curr_hvar_id;
+        int curr_datavar_id;
         std::map<int, app*> locvar_map;
         std::map<int, app*> hvar_map;
+        std::map<int, app*> datavar_map;
         slhv_decl_plugin* fe_plug;
     public:
         slhv_fresh_var_maker(theory_slhv* t);
 
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
+        app* mk_fresh_datavar();
 
         void reset();
     };
@@ -1049,6 +1061,7 @@ namespace smt
         public: 
         void reset_fv_maker();
         slhv_syntax_maker(theory_slhv* t);
+        app* mk_fresh_datavar();
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
         app* mk_read_formula(app* from_hvar, app* read_addr, app* read_data);
