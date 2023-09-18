@@ -32,6 +32,7 @@ void slhv_decl_plugin::set_pt_record(int ln, int dn) {
     this->pt_record_length = ln + dn;
     this->pt_locnum = ln;
     this->pt_datanum = dn;
+    this->pt_record_initialized = true;
 }
 
 
@@ -42,9 +43,7 @@ sort* slhv_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter 
     } else if(k == INTLOC_SORT) {
         return m_manager->mk_sort(symbol(INTLOC_SORT_STR),
         sort_info(m_family_id, INTLOC_SORT));
-    } else if(k == INTDATA_SORT) {
-        return m_manager->mk_sort(symbol(INTDATA_SORT_STR), sort_info(m_family_id, INTDATA_SORT));
-    }
+    } 
     else {
         m_manager->raise_exception("invalid sort in slhv");
         return nullptr;
@@ -113,6 +112,7 @@ func_decl* slhv_decl_plugin::mk_points_to(unsigned arity, sort * const* domain) 
     return result_decl;
 
 }
+
 
 func_decl* slhv_decl_plugin::mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
@@ -185,6 +185,11 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_points_to" << std::endl; 
     #endif 
         return this->mk_points_to(arity, domain);
+    case OP_POINTS_TO_NEW:
+        #ifdef SLHV_DEBUG
+        std::cout << "mk_func_decl in slhv plugin op_points_to_new" << std::endl;
+        #endif
+        return this->Pt_R_decl != nullptr ? this->Pt_R_decl : this->m_ctx->find_func_decl(symbol("Pt_R"));
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;

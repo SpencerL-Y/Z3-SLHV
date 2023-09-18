@@ -281,8 +281,17 @@ namespace smt {
             }
         }
 
+        // use the datatype to initialize pt field info
+        this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
+        SASSERT(this->slhv_plug->pt_record_initialized);
+        this->pt_datafield_num = this->slhv_plug->pt_datanum;
+        this->pt_locfield_num = this->slhv_plug->pt_locnum;
+        #ifdef SLHV_DEBUG
+        std::cout << "final check pt datafield num: " << this->pt_datafield_num << std::endl;
+        std::cout << "final check pt locfield num: " << this->pt_locfield_num << std::endl;
+        #endif
         
-        
+        // TODO: change all encoding based on pt record info 
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
         #ifdef SLHV_DEBUG
@@ -3256,6 +3265,65 @@ namespace smt {
         return result;
     }
 
+    app* slhv_syntax_maker::mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item) {
+        bool is_read_loc = false;
+        if(read_field + 1 - this->th->pt_locfield_num >= 0) {
+            is_read_loc = true;
+        }
+        int read_index = is_read_loc ? read_field : read_field - this->th->pt_locfield_num;
+        if(is_read_loc) {
+            app* fresh_hvar = this->mk_fresh_hvar();
+            app* eq_lhs = from_hvar;
+            std::vector<app*> locvars_vec;
+            std::vector<app*> datavars_vec;
+            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+                if(i == read_index) {
+                    locvars_vec.push_back(read_item);
+                } else {
+                    locvars_vec.push_back(this->mk_fresh_locvar());
+                }
+            }
+            for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+                datavars_vec.push_back(this->mk_fresh_datavar());
+            }
+            app* rhs_record = this->mk_record(locvars_vec, datavars_vec);
+            app* rhs_points_to = this->mk_points_to_new(read_addr, rhs_record);
+            std::vector<app*> rhs_uplus_args;
+            rhs_uplus_args.push_back(fresh_hvar);
+            rhs_uplus_args.push_back(rhs_points_to);
+            app* eq_rhs = this->mk_uplus(2, rhs_uplus_args);
+            app_ref result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
+
+            this->th->get_context().internalize(result, false);
+            return result;
+        } else {
+            app* fresh_hvar = this->mk_fresh_hvar();
+            app* eq_lhs = from_hvar;
+            std::vector<app*> locvars_vec;
+            std::vector<app*> datavars_vec;
+            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+                locvars_vec.push_back(this->mk_fresh_locvar());
+            }
+            for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+                if(i == read_index) {
+                    datavars_vec.push_back(read_item);
+                } else {
+                    datavars_vec.push_back(this->mk_fresh_datavar());
+                }
+            }
+            app* rhs_record = this->mk_record(locvars_vec, datavars_vec);
+            app* rhs_points_to = this->mk_points_to_new(read_addr, rhs_record);
+            std::vector<app*> rhs_uplus_args;
+            rhs_uplus_args.push_back(fresh_hvar);
+            rhs_uplus_args.push_back(rhs_points_to);
+            app* eq_rhs = this->mk_uplus(2, rhs_uplus_args);
+            app_ref result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
+
+            this->th->get_context().internalize(result, false);
+            return result;
+        }
+    }
+
     app* slhv_syntax_maker::mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data) {
         
         app* fresh_hvar = this->mk_fresh_hvar();
@@ -3286,6 +3354,38 @@ namespace smt {
         return final_result;
     }
 
+    app* slhv_syntax_maker::mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item) {
+        bool is_write_loc = false;
+        if(write_field + 1 - this->th->pt_locfield_num >= 0) {
+            is_write_loc = true;
+        }
+        int write_index = is_write_loc ? write_field : write_field - this->th->pt_locfield_num;
+        if(is_write_loc) {
+            app* fresh_hvar = this->mk_fresh_hvar();
+            std::vector<app*> first_locvars_vec;
+            std::vector<app*> first_datavars_vec;
+            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+                first_locvars_vec.push_back(this->mk_fresh_locvar);
+            }
+            for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+                first_datavars_vec.push_back(this->mk_fresh_datavar());
+            }
+            app* first_eq_lhs = orig_hvar;
+            
+            app* first_eq_rhs_record = this->mk_record(first_locvars_vec, first_datavars_vec);
+
+            app* first_eq_rhs_pt = this->mk_points_to_new(write_addr, first_eq_rhs_record);
+            std::vector<app*> first_eq_rhs_uplus_args;
+            first_eq_rhs_uplus_args.push_back(fresh_hvar);
+            first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
+            app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
+
+            app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_lhs, first_eq_rhs), this->th->get_manager());
+        } else {
+
+        }
+    }
+
     app* slhv_syntax_maker::mk_addr_in_hterm(app* hterm, app* addr) {
         app* fresh_unrelated_h = this->mk_fresh_hvar();
         app* addr_data_fresh_l = this->mk_fresh_locvar();
@@ -3301,6 +3401,29 @@ namespace smt {
         return final_result;
     }
 
+    app* slhv_syntax_maker::mk_addr_in_hterm_new(app* hterm, app* addr) {
+        app* fresh_unrelated_h = this->mk_fresh_hvar;
+        std::vector<app*> record_fresh_locvars;
+        std::vector<app*> record_fresh_datavars;
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            record_fresh_locvars.push_back(this->mk_fresh_locvar());
+        }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            record_fresh_datavars.push_back(this->mk_fresh_datavar());
+        }
+        app* addr_pt_record = this->mk_record(record_fresh_locvars, record_fresh_datavars);
+
+        app* rhs_pt = this->mk_points_to_new(addr, addr_pt_record);
+        std::vector<app*> rhs_uplus_args;
+        rhs_uplus_args.push_back(fresh_unrelated_h);
+        rhs_uplus_args.push_back(rhs_pt);
+        app* eq_lhs = hterm;
+        app* eq_rhs_uplus = this->mk_uplus(2, rhs_uplus_args);
+        app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
+        this->th->get_context().internalize(final_result, false);
+        return final_result;
+    }
+
     app* slhv_syntax_maker::mk_addr_notin_hterm(app* hterm, app* addr) {
         app* fresh_whole_h = this->mk_fresh_hvar();
         app* fresh_data = this->mk_fresh_locvar();
@@ -3311,6 +3434,28 @@ namespace smt {
         uplus_args.push_back(rhs_points_to);
         app* eq_rhs = this->mk_uplus(2, uplus_args);
 
+        app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
+        this->th->get_context().internalize(final_result, false);
+        return final_result;
+    }
+
+    app* slhv_syntax_maker::mk_addr_notin_hterm_new(app* hterm, app* addr) {
+        app* fresh_whole_h = this->mk_fresh_hvar();
+        std::vector<app*> record_fresh_datavars;
+        std::vector<app*> record_fresh_locvars;
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            record_fresh_locvars.push_back(this->mk_fresh_locvar());
+        }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            record_fresh_datavars.push_back(this->mk_fresh_datavar());
+        }
+        app* rhs_record = this->mk_record(record_fresh_locvars, record_fresh_datavars);
+        app* rhs_points_to = this->mk_points_to_new(addr, rhs_record);
+        app* eq_lhs = fresh_whole_h;
+        std::vector<app*> uplus_args;
+        uplus_args.push_back(hterm);
+        uplus_args.push_back(rhs_points_to);
+        app* eq_rhs = this->mk_uplus(2, uplus_args);
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
         return final_result;
@@ -3422,8 +3567,51 @@ namespace smt {
     
         return result;
     }
-    // fresh var maker
 
+
+    app* slhv_syntax_maker::mk_points_to_new(app* addr_loc, app* record_loc) {
+        SASSERT(this->th->is_locterm(addr_loc));
+        SASSERT(this->th->is_recordterm(record_loc));
+        std::vector<app*> args = {addr_loc, record_loc};
+        expr_ref_vector args_vec(this->th->get_manager());
+        for(app* arg : args) {
+            args_vec.push_back(arg);
+        }
+        sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        sort* record_sort = this->slhv_decl_plug->Pt_R_decl->get_range();
+        sort_ref_vector sorts_vec(this->th->get_manager()); 
+        sorts_vec.push_back(loc_sort);
+        sorts_vec.push_back(record_sort);
+        sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
+        app* result = this->th->get_manager().mk_app(pt_decl, args_vec);
+        return result;
+    }
+
+    app* slhv_syntax_maker::mk_record(std::vector<app*> locvars, std::vector<app*> datavars) {
+        SASSERT(locvars.size() == this->th->pt_locfield_num);
+        SASSERT(datavars.size() == this->th->pt_datafield_num);
+        std::vector<app*> args;
+        sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        sort* data_sort = this->th->get_manager().mk_sort(arith_family_id, INT_SORT);
+        sort_ref_vector field_sorts(this->th->get_manager());
+        for(app* loc : locvars) {
+            args.push_back(loc);
+            field_sorts.append(loc_sort);
+        }
+        for(app* data : datavars) {
+            args.push_back(data);
+            field_sorts.append(data_sort);
+        }
+        expr_ref_vector args_vec(this->th->get_manager());
+        for(app* arg : args) {
+            args_vec.push_back(arg);
+        }
+        func_decl* record_decl = this->slhv_decl_plug->Pt_R_decl;
+        app* result = this->th->get_manager().mk_app(record_decl, args_vec);
+        return result;
+    }
+ 
     slhv_fresh_var_maker::slhv_fresh_var_maker(theory_slhv* t) {
         this->th = t;
         slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*)this->th->get_manager().get_plugin(this->th->get_id());

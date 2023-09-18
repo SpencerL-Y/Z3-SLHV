@@ -59,6 +59,8 @@ namespace smt
         bool temp_zero_enumerated;
         std::map<int, enode_pair> indexed_assignable_pairs;
 
+        slhv_decl_plugin* slhv_plug;
+
         app* global_emp;
         app* global_nil;
 
@@ -98,6 +100,10 @@ namespace smt
 
         bool is_dataterm(app const* n) const {
             return n->get_sort() == this->get_manager().mk_sort(arith_family_id, INT_SORT);
+        }
+
+        bool is_recordterm(app const* n) const {
+            return n->get_sort() == this->slhv_plug->Pt_R_decl->get_range();
         }
 
         bool is_arith_formula(app* l);
@@ -1061,7 +1067,6 @@ namespace smt
         public: 
         void reset_fv_maker();
         slhv_syntax_maker(theory_slhv* t);
-        app* mk_fresh_datavar();
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
         app* mk_read_formula(app* from_hvar, app* read_addr, app* read_data);
@@ -1072,6 +1077,18 @@ namespace smt
 
         app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
+
+        // logic with records:
+
+        app* mk_points_to_new(app* addr_loc, app* record_loc); // DONE
+        app* mk_record(std::vector<app*> locvars, std::vector<app*> datavars);// DONE
+
+        app* mk_fresh_datavar(); // DONE
+        app* mk_hterm_disequality_new(app* lhs, app* rhs);
+        app* mk_addr_in_hterm_new(app* hterm, app* addr); // DONE
+        app* mk_addr_notin_hterm_new(app *hterm, app* addr);// DONE
+        app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); // DONE
+        app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item);
          
     };
 

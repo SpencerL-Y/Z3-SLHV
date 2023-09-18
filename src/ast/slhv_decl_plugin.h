@@ -1,20 +1,20 @@
 
 #pragma once
 #include "ast/ast.h"
+#include "cmd_context/cmd_context.h"
 
 #define INTHEAP_SORT_STR "IntHeap"
 #define INTLOC_SORT_STR "IntLoc"
-#define INTDATA_SORT_STR "IntData"
 // SLHV
 enum slhv_sort_kind {
     INTHEAP_SORT,
-    INTLOC_SORT,
-    INTDATA_SORT
+    INTLOC_SORT
 };
 
 enum slhv_op_kind {
     OP_HEAP_DISJUNION,
     OP_POINTS_TO,
+    OP_POINTS_TO_NEW,
     OP_LIST_SEGMENT,
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
@@ -31,6 +31,8 @@ class slhv_decl_plugin : public decl_plugin {
     symbol curr_hvar_name;
 
     public:
+    cmd_context* m_ctx;
+    func_decl* Pt_R_decl;
 
     app* global_emp;
     app* global_nil;
@@ -40,6 +42,10 @@ class slhv_decl_plugin : public decl_plugin {
     int pt_locnum;
     int pt_datanum;
     slhv_decl_plugin();
+
+    void set_m_ctx(cmd_context* m) {
+        this->m_ctx = m;
+    }
 
     void set_pt_record(int ln, int dn);
 
