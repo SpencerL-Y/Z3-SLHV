@@ -554,7 +554,8 @@ namespace smt {
                 app* right_expr = to_app(equality->get_arg(1));
                 if(this->is_heapterm(left_expr) && this->is_heapterm(right_expr)) {
                     SASSERT(this->is_hvar(left_expr));
-                    std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
+                    // std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
+                    std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_new(left_expr, right_expr);
                     if(eliminated_neg_vec.size() != 0) {
                         for(std::vector<expr*> ev : eliminated_neg_vec) {
                             for(app* disj : three_disjuncts_after_elim) {
@@ -3605,7 +3606,23 @@ namespace smt {
         app_ref ht1_eq(this->th->get_context().mk_eq_atom(ht1_eq_lhs, ht1_eq_rhs), this->th->get_manager());
         app_ref ht2_eq(this->th->get_context().mk_eq_atom(ht2_eq_lhs, ht2_eq_rhs), this->th->get_manager());
 
-        app* first_disj = this->th->get_manager().mk_and(ht1_eq, ht2_eq);
+        app* one_field_distinct = this->th->get_manager().mk_false();
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            expr_ref_vector vec(this->th->get_manager());
+            vec.push_back(to_expr(ht1_pt_locvars[i]));
+            vec.push_back(to_expr(ht2_pt_locvars[i]));
+            app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
+            one_field_distinct = this->th->get_manager().mk_or(one_field_distinct, e);
+        }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            expr_ref_vector vec(this->th->get_manager());
+            vec.push_back(to_expr(ht1_pt_datavars[i]));
+            vec.push_back(to_expr(ht2_pt_datavars[i]));
+            app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
+            one_field_distinct = this->th->get_manager().mk_or(one_field_distinct, e);
+        }
+
+        app* first_disj = this->th->get_manager().mk_and(ht1_eq, ht2_eq, one_field_distinct);
         this->th->get_context().internalize(first_disj, false);
         final_result.push_back(first_disj);
         // second disjunct
@@ -3718,6 +3735,7 @@ namespace smt {
         this->th = t;
         slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*)this->th->get_manager().get_plugin(this->th->get_id());
         this->fe_plug = slhv_plugin;
+        this->reset();
     }
 
     void slhv_fresh_var_maker::reset() {
@@ -3757,6 +3775,7 @@ namespace smt {
         app* fresh_datavar = this->th->get_manager().mk_app(
             symbol(name), 0, nullptr, range_sort
         );
+        curr_datavar_id ++;
         return fresh_datavar;
     }
 }
