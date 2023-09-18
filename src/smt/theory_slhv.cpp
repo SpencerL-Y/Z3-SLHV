@@ -3552,14 +3552,83 @@ namespace smt {
         return final_result;
     }
 
-    app* slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
+    std::vector<app*> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
+        std::vector<app*> final_result;
+
+        #ifdef SLHV_DEBUG
+        std::cout << "mk hterm disequality new" << std::endl;
+        #endif
         // first disjunction
+        app* h = this->mk_fresh_hvar();
+        app* hp = this->mk_fresh_hvar();
+        app* x = this->mk_fresh_locvar();
 
+        std::vector<app*> ht1_pt_locvars;
+        std::vector<app*> ht1_pt_datavars;
+        std::vector<app*> ht2_pt_locvars;
+        std::vector<app*> ht2_pt_datavars;
 
-        // second disjunction
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            ht1_pt_locvars.push_back(this->mk_fresh_locvar());
+        }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            ht1_pt_datavars.push_back(this->mk_fresh_datavar());
+        }
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            ht2_pt_locvars.push_back(this->mk_fresh_locvar());
+        }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            ht2_pt_datavars.push_back(this->mk_fresh_datavar());
+        }
 
+        app* ht1_eq_lhs = lhs;
+        app* ht2_eq_lhs = rhs;
 
-        // third disjunction
+        app* ht1_eq_rhs_record = this->mk_record(ht1_pt_locvars, ht1_pt_datavars);
+        app* ht2_eq_rhs_record = this->mk_record(ht2_pt_locvars, ht2_pt_datavars);
+
+        app* ht1_eq_rhs_pt = this->mk_points_to_new(x, ht1_eq_rhs_record);
+        app* ht2_eq_rhs_pt = this->mk_points_to_new(x, ht2_eq_rhs_record);
+
+        std::vector<app*> ht1_eq_rhs_uplus_args;
+        std::vector<app*> ht2_eq_rhs_uplus_args;
+
+        ht1_eq_rhs_uplus_args.push_back(h);
+        ht1_eq_rhs_uplus_args.push_back(ht1_eq_rhs_pt);
+
+        ht2_eq_rhs_uplus_args.push_back(hp);
+        ht2_eq_rhs_uplus_args.push_back(ht2_eq_rhs_pt);
+
+        app* ht1_eq_rhs = this->mk_uplus(2, ht1_eq_rhs_uplus_args);
+        app* ht2_eq_rhs = this->mk_uplus(2, ht2_eq_rhs_uplus_args);
+
+        app_ref ht1_eq(this->th->get_context().mk_eq_atom(ht1_eq_lhs, ht1_eq_rhs), this->th->get_manager());
+        app_ref ht2_eq(this->th->get_context().mk_eq_atom(ht2_eq_lhs, ht2_eq_rhs), this->th->get_manager());
+
+        app* first_disj = this->th->get_manager().mk_and(ht1_eq, ht2_eq);
+        this->th->get_context().internalize(first_disj, false);
+        final_result.push_back(first_disj);
+        // second disjunct
+        #ifdef SLHV_DEBUG
+        std::cout << "second disjunct" << std::endl;
+        #endif
+        app* x_in_ht1 = this->mk_addr_in_hterm(lhs, x);
+        app* x_notin_ht2 = this->mk_addr_notin_hterm(rhs, x);
+        app* second_disj = this->th->get_manager().mk_and(x_in_ht1, x_notin_ht2);
+        this->th->get_context().internalize(second_disj, false);
+        final_result.push_back(second_disj);
+
+        // third_disjunct
+
+        #ifdef SLHV_DEBUG
+        std::cout << "third disjunct" << std::endl;
+        #endif
+        app* x_in_ht2 = this->mk_addr_in_hterm(rhs, x);
+        app* x_notin_ht1 = this->mk_addr_notin_hterm(lhs, x);
+        app* third_disj = this->th->get_manager().mk_and(x_notin_ht1, x_in_ht2);
+        this->th->get_context().internalize(third_disj, false);
+        final_result.push_back(third_disj);
+        return final_result;
     }
 
     app* slhv_syntax_maker::mk_uplus(int num_arg, std::vector<app*> hterm_args) {
