@@ -3360,30 +3360,53 @@ namespace smt {
             is_write_loc = true;
         }
         int write_index = is_write_loc ? write_field : write_field - this->th->pt_locfield_num;
-        if(is_write_loc) {
-            app* fresh_hvar = this->mk_fresh_hvar();
-            std::vector<app*> first_locvars_vec;
-            std::vector<app*> first_datavars_vec;
-            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
-                first_locvars_vec.push_back(this->mk_fresh_locvar);
-            }
-            for(int i = 0; i < this->th->pt_datafield_num; i ++) {
-                first_datavars_vec.push_back(this->mk_fresh_datavar());
-            }
-            app* first_eq_lhs = orig_hvar;
             
-            app* first_eq_rhs_record = this->mk_record(first_locvars_vec, first_datavars_vec);
-
-            app* first_eq_rhs_pt = this->mk_points_to_new(write_addr, first_eq_rhs_record);
-            std::vector<app*> first_eq_rhs_uplus_args;
-            first_eq_rhs_uplus_args.push_back(fresh_hvar);
-            first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
-            app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
-
-            app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_lhs, first_eq_rhs), this->th->get_manager());
-        } else {
-
+        app* fresh_hvar = this->mk_fresh_hvar();
+        std::vector<app*> first_locvars_vec;
+        std::vector<app*> first_datavars_vec;
+        for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            first_locvars_vec.push_back(this->mk_fresh_locvar());
         }
+        for(int i = 0; i < this->th->pt_datafield_num; i ++) {
+            first_datavars_vec.push_back(this->mk_fresh_datavar());
+        }
+
+        app* first_eq_lhs = orig_hvar;
+        
+        app* first_eq_rhs_record = this->mk_record(first_locvars_vec, first_datavars_vec);
+
+        app* first_eq_rhs_pt = this->mk_points_to_new(write_addr, first_eq_rhs_record);
+        std::vector<app*> first_eq_rhs_uplus_args;
+        first_eq_rhs_uplus_args.push_back(fresh_hvar);
+        first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
+        app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
+
+        app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_lhs, first_eq_rhs), this->th->get_manager());
+
+        app* second_eq_lhs = writed_hvar;
+        std::vector<app*> second_locvars_vec = first_locvars_vec;
+        std::vector<app*> second_datavars_vec = first_datavars_vec;
+
+        if(is_write_loc) {
+            second_locvars_vec[write_index] = write_item;
+        } else {
+            second_datavars_vec[write_index] = write_item;
+        }
+
+        app* second_eq_rhs_record = this->mk_record(second_locvars_vec, second_datavars_vec);
+
+        app* second_eq_rhs_pt = this->mk_points_to_new(write_addr, second_eq_rhs_record);
+
+        std::vector<app*> second_eq_rhs_uplus_args;
+        second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
+        second_eq_rhs_uplus_args.push_back(fresh_hvar);
+        app* second_eq_rhs = this->mk_uplus(2, second_eq_rhs_uplus_args);
+
+        app_ref second_eq(this->th->get_context().mk_eq_atom(second_eq_lhs, second_eq_rhs), this->th->get_manager());
+        app* final_result = this->th->get_manager().mk_and(first_eq, second_eq);
+        this->th->get_context().internalize(final_result, false);
+        return final_result;
+        
     }
 
     app* slhv_syntax_maker::mk_addr_in_hterm(app* hterm, app* addr) {
@@ -3402,7 +3425,7 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_addr_in_hterm_new(app* hterm, app* addr) {
-        app* fresh_unrelated_h = this->mk_fresh_hvar;
+        app* fresh_unrelated_h = this->mk_fresh_hvar();
         std::vector<app*> record_fresh_locvars;
         std::vector<app*> record_fresh_datavars;
         for(int i = 0; i < this->th->pt_locfield_num; i ++) {
@@ -3529,6 +3552,16 @@ namespace smt {
         return final_result;
     }
 
+    app* slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
+        // first disjunction
+
+
+        // second disjunction
+
+
+        // third disjunction
+    }
+
     app* slhv_syntax_maker::mk_uplus(int num_arg, std::vector<app*> hterm_args) {
         SASSERT(num_arg == hterm_args.size());
         for(app* t : hterm_args) {
@@ -3597,11 +3630,11 @@ namespace smt {
         sort_ref_vector field_sorts(this->th->get_manager());
         for(app* loc : locvars) {
             args.push_back(loc);
-            field_sorts.append(loc_sort);
+            field_sorts.push_back(loc_sort);
         }
         for(app* data : datavars) {
             args.push_back(data);
-            field_sorts.append(data_sort);
+            field_sorts.push_back(data_sort);
         }
         expr_ref_vector args_vec(this->th->get_manager());
         for(app* arg : args) {

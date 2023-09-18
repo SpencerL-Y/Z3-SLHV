@@ -1088,7 +1088,7 @@ namespace smt
         app* mk_addr_in_hterm_new(app* hterm, app* addr); // DONE
         app* mk_addr_notin_hterm_new(app *hterm, app* addr);// DONE
         app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); // DONE
-        app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item);
+        app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item); // DONE
          
     };
 
