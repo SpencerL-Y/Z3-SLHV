@@ -359,7 +359,7 @@ namespace smt {
                 this->set_conflict_slhv(true);
                 return false;
             } else if(result == l_true){
-
+                
             } else {
                 #ifdef SLHV_DEBUG
                 std::cout << "ERROR: this should not happen" << std::endl;
@@ -554,20 +554,24 @@ namespace smt {
                 app* right_expr = to_app(equality->get_arg(1));
                 if(this->is_heapterm(left_expr) && this->is_heapterm(right_expr)) {
                     SASSERT(this->is_hvar(left_expr));
-                    // std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
-                    std::vector<app*> three_disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_new(left_expr, right_expr);
+                    // std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
+                    std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_new(left_expr, right_expr);
                     if(eliminated_neg_vec.size() != 0) {
                         for(std::vector<expr*> ev : eliminated_neg_vec) {
-                            for(app* disj : three_disjuncts_after_elim) {
+                            for(std::vector<app*> disj : disjuncts_after_elim) {
                                 std::vector<expr*> result = ev;
-                                result.push_back(disj);
+                                for(app* l : disj) {
+                                    result.push_back(to_expr(l));
+                                }
                                 final_result.push_back(result);
                             }
                         }
                     } else {
-                        for(app* disj : three_disjuncts_after_elim) {
-                            std::vector<expr* > result;
-                            result.push_back(disj);
+                        for(std::vector<app*> disj : disjuncts_after_elim) {
+                            std::vector<expr*> result;
+                            for(app* l : disj) {
+                                result.push_back(to_expr(l));
+                            }
                             final_result.push_back(result);
                         }
                     }
@@ -610,7 +614,7 @@ namespace smt {
 
     void theory_slhv::collect_and_analyze_assignments(expr_ref_vector assigned_literals) {
         #ifdef SLHV_DEBUG
-        std::cout << "slhv collect and analze assignments" << std::endl;
+        std::cout << "slhv collect and analyze assignments" << std::endl;
         #endif
         for(auto e : assigned_literals) {
             #ifdef SLHV_DEBUG
@@ -768,6 +772,9 @@ namespace smt {
 
     void theory_slhv::record_distinct_locterms(app* atom) {
         // record all locterm enode that are distinct 
+        #ifdef SLHV_DEBUG
+        std::cout << "record distinct locvars: "<< mk_ismt2_pp(atom, m) << std::endl; 
+        #endif
         if(atom->is_app_of(basic_family_id, OP_DISTINCT)) {
             expr* lhs_expr = atom->get_arg(0);
             expr* rhs_expr = atom->get_arg(1);
@@ -3485,18 +3492,27 @@ namespace smt {
         return final_result;
     }
 
-    std::vector<app*> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
+   std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
         #ifdef SLHV_DEBUG
         std::cout << "mk_hterm_disequality" << std::endl;
         #endif
         app* h = this->mk_fresh_hvar();
         app* h_prime = this->mk_fresh_hvar();
+        app* ht1_hvar = this->mk_fresh_hvar();
+        app* ht2_hvar = this->mk_fresh_hvar();
         app* x = this->mk_fresh_locvar();
         app* y = this->mk_fresh_locvar();
         app* z = this->mk_fresh_locvar();
-        std::vector<app*> final_result;
+        std::vector<std::vector<app*>> final_result;
+
+        app* ht1_to_hvar_eq = this->th->get_manager().mk_eq(ht1_hvar, lhs_hterm);
+        app* ht2_to_hvar_eq = this->th->get_manager().mk_eq(ht2_hvar, rhs_hterm);
+        this->th->get_context().internalize(ht1_to_hvar_eq, false);
+        this->th->get_context().internalize(ht2_to_hvar_eq, false);
+
+
         // first disjunct
-        app* first_conj_eq_lhs = lhs_hterm;
+        app* first_conj_eq_lhs = ht1_hvar;
         std::vector<app*> first_conj_eq_rhs_uplus_args;
         app* first_eq_rhs_pt = this->mk_points_to(x, y);
         #ifdef SLHV_DEBUG
@@ -3510,7 +3526,7 @@ namespace smt {
         app_ref first_conj_eq(this->th->get_context().mk_eq_atom(first_conj_eq_lhs, first_conj_eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(first_conj_eq, false);
         
-        app* second_conj_eq_lhs = rhs_hterm;
+        app* second_conj_eq_lhs = ht2_hvar;
         app* second_conj_eq_rhs_pt = this->mk_points_to(x, z);
         std::vector<app*> second_conj_eq_rhs_uplus_args;
         second_conj_eq_rhs_uplus_args.push_back(h_prime);
@@ -3526,18 +3542,28 @@ namespace smt {
         this->th->get_context().internalize(third_conj_diseq, false);
 
 
-        app* first_disj = this->th->get_manager().mk_and(first_conj_eq, second_conj_eq, third_conj_diseq);
-        this->th->get_context().internalize(first_disj, false);
+        std::vector<app*> first_disj;
+        first_disj.push_back(first_conj_eq);
+        first_disj.push_back(second_conj_eq);
+        first_disj.push_back(third_conj_diseq);
+        first_disj.push_back(ht1_to_hvar_eq);
+        first_disj.push_back(ht2_to_hvar_eq);
+        
         final_result.push_back(first_disj);
 
         // second disjunct
         #ifdef SLHV_DEBUG
         std::cout << "second disjunct" << std::endl;
         #endif
-        app* x_in_ht1 = this->mk_addr_in_hterm(lhs_hterm, x);
-        app* x_notin_ht2 = this->mk_addr_notin_hterm(rhs_hterm, x);
-        app* second_disj = this->th->get_manager().mk_and(x_in_ht1, x_notin_ht2);
-        this->th->get_context().internalize(second_disj, false);
+        app* x_in_ht1 = this->mk_addr_in_hterm(ht1_hvar, x);
+        app* x_notin_ht2 = this->mk_addr_notin_hterm(ht2_hvar, x);
+        std::vector<app*> second_disj;
+        second_disj.push_back(x_in_ht1);
+        second_disj.push_back(x_notin_ht2);
+        second_disj.push_back(ht1_to_hvar_eq);
+        second_disj.push_back(ht2_to_hvar_eq);
+        this->th->get_context().internalize(x_in_ht1, false);
+        this->th->get_context().internalize(x_notin_ht2, false);
         final_result.push_back(second_disj);
 
         // third_disjunct
@@ -3545,21 +3571,34 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "third disjunct" << std::endl;
         #endif
-        app* x_in_ht2 = this->mk_addr_in_hterm(rhs_hterm, x);
-        app* x_notin_ht1 = this->mk_addr_notin_hterm(lhs_hterm, x);
-        app* third_disj = this->th->get_manager().mk_and(x_notin_ht1, x_in_ht2);
-        this->th->get_context().internalize(third_disj, false);
+        app* x_in_ht2 = this->mk_addr_in_hterm(ht2_hvar, x);
+        app* x_notin_ht1 = this->mk_addr_notin_hterm(ht1_hvar, x);
+        std::vector<app*> third_disj;
+        third_disj.push_back(x_in_ht2);
+        third_disj.push_back(x_notin_ht1);
+        third_disj.push_back(ht1_to_hvar_eq);
+        third_disj.push_back(ht2_to_hvar_eq);
+        this->th->get_context().internalize(x_in_ht2, false);
+        this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
         return final_result;
     }
 
-    std::vector<app*> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
-        std::vector<app*> final_result;
+    std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
+        std::vector<std::vector<app*>> final_result;
 
         #ifdef SLHV_DEBUG
         std::cout << "mk hterm disequality new" << std::endl;
         #endif
-        // first disjunction
+
+        app* ht1_hvar = this->mk_fresh_hvar();
+        app* ht2_hvar = this->mk_fresh_hvar();
+
+        app* ht1_to_hvar_eq = this->th->get_manager().mk_eq(ht1_hvar, lhs);
+        app* ht2_to_hvar_eq = this->th->get_manager().mk_eq(ht2_hvar, rhs);
+        this->th->get_context().internalize(ht1_to_hvar_eq, false);
+        this->th->get_context().internalize(ht2_to_hvar_eq, false);
+        // first disjunction batch
         app* h = this->mk_fresh_hvar();
         app* hp = this->mk_fresh_hvar();
         app* x = this->mk_fresh_locvar();
@@ -3582,8 +3621,8 @@ namespace smt {
             ht2_pt_datavars.push_back(this->mk_fresh_datavar());
         }
 
-        app* ht1_eq_lhs = lhs;
-        app* ht2_eq_lhs = rhs;
+        app* ht1_eq_lhs = ht1_hvar;
+        app* ht2_eq_lhs = ht2_hvar;
 
         app* ht1_eq_rhs_record = this->mk_record(ht1_pt_locvars, ht1_pt_datavars);
         app* ht2_eq_rhs_record = this->mk_record(ht2_pt_locvars, ht2_pt_datavars);
@@ -3606,33 +3645,45 @@ namespace smt {
         app_ref ht1_eq(this->th->get_context().mk_eq_atom(ht1_eq_lhs, ht1_eq_rhs), this->th->get_manager());
         app_ref ht2_eq(this->th->get_context().mk_eq_atom(ht2_eq_lhs, ht2_eq_rhs), this->th->get_manager());
 
-        app* one_field_distinct = this->th->get_manager().mk_false();
+        std::vector<expr*> one_field_distinct;
         for(int i = 0; i < this->th->pt_locfield_num; i ++) {
             expr_ref_vector vec(this->th->get_manager());
             vec.push_back(to_expr(ht1_pt_locvars[i]));
             vec.push_back(to_expr(ht2_pt_locvars[i]));
             app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
-            one_field_distinct = this->th->get_manager().mk_or(one_field_distinct, e);
+            one_field_distinct.push_back(e);
         }
         for(int i = 0; i < this->th->pt_datafield_num; i ++) {
             expr_ref_vector vec(this->th->get_manager());
             vec.push_back(to_expr(ht1_pt_datavars[i]));
             vec.push_back(to_expr(ht2_pt_datavars[i]));
             app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
-            one_field_distinct = this->th->get_manager().mk_or(one_field_distinct, e);
+            one_field_distinct.push_back(e);
         }
-
-        app* first_disj = this->th->get_manager().mk_and(ht1_eq, ht2_eq, one_field_distinct);
-        this->th->get_context().internalize(first_disj, false);
-        final_result.push_back(first_disj);
+        for(expr* e : one_field_distinct) {
+            std::vector<app*> first_disj;
+            first_disj.push_back(ht1_eq);
+            first_disj.push_back(ht2_eq);
+            first_disj.push_back(to_app(e));
+            first_disj.push_back(ht1_to_hvar_eq);
+            first_disj.push_back(ht2_to_hvar_eq);
+            this->th->get_context().internalize(ht1_eq, false);
+            this->th->get_context().internalize(ht2_eq, false);
+            final_result.push_back(first_disj);
+        } 
         // second disjunct
         #ifdef SLHV_DEBUG
         std::cout << "second disjunct" << std::endl;
         #endif
-        app* x_in_ht1 = this->mk_addr_in_hterm(lhs, x);
-        app* x_notin_ht2 = this->mk_addr_notin_hterm(rhs, x);
-        app* second_disj = this->th->get_manager().mk_and(x_in_ht1, x_notin_ht2);
-        this->th->get_context().internalize(second_disj, false);
+        app* x_in_ht1 = this->mk_addr_in_hterm(ht1_hvar, x);
+        app* x_notin_ht2 = this->mk_addr_notin_hterm(ht2_hvar, x);
+        std::vector<app*> second_disj;
+        second_disj.push_back(x_in_ht1);
+        second_disj.push_back(x_notin_ht2);
+        second_disj.push_back(ht1_to_hvar_eq);
+        second_disj.push_back(ht2_to_hvar_eq);
+        this->th->get_context().internalize(x_in_ht1, false);
+        this->th->get_context().internalize(x_notin_ht2, false);
         final_result.push_back(second_disj);
 
         // third_disjunct
@@ -3640,10 +3691,15 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "third disjunct" << std::endl;
         #endif
-        app* x_in_ht2 = this->mk_addr_in_hterm(rhs, x);
-        app* x_notin_ht1 = this->mk_addr_notin_hterm(lhs, x);
-        app* third_disj = this->th->get_manager().mk_and(x_notin_ht1, x_in_ht2);
-        this->th->get_context().internalize(third_disj, false);
+        app* x_in_ht2 = this->mk_addr_in_hterm(ht2_hvar, x);
+        app* x_notin_ht1 = this->mk_addr_notin_hterm(ht1_hvar, x);
+        std::vector<app*> third_disj;
+        third_disj.push_back(x_in_ht2);
+        third_disj.push_back(x_notin_ht1);
+        third_disj.push_back(ht1_to_hvar_eq);
+        third_disj.push_back(ht2_to_hvar_eq);
+        this->th->get_context().internalize(x_in_ht2, false);
+        this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
         return final_result;
     }

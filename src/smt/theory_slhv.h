@@ -1073,7 +1073,7 @@ namespace smt
         app* mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data);
         app* mk_addr_in_hterm(app* hterm, app* addr);
         app* mk_addr_notin_hterm(app* hterm, app* addr);
-        std::vector<app*> mk_hterm_disequality(app* lhs, app* rhs);
+        std::vector<std::vector<app*>> mk_hterm_disequality(app* lhs, app* rhs);
 
         app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
@@ -1084,7 +1084,7 @@ namespace smt
         app* mk_record(std::vector<app*> locvars, std::vector<app*> datavars);// DONE
 
         app* mk_fresh_datavar(); // DONE
-        std::vector<app*> mk_hterm_disequality_new(app* lhs, app* rhs); // DONE
+        std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); // DONE
         app* mk_addr_in_hterm_new(app* hterm, app* addr); // DONE
         app* mk_addr_notin_hterm_new(app *hterm, app* addr);// DONE
         app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); // DONE
