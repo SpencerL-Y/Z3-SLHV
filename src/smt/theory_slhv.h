@@ -44,6 +44,7 @@ namespace smt
 
         std::set<app *> curr_loc_cnstr;
         std::set<app *> curr_heap_cnstr;
+        std::set<app* > curr_data_cnstr;
 
         std::set<enode_pair> curr_distinct_locterm_pairs;
         std::set<enode*> curr_emp_hterm_enodes;
@@ -131,7 +132,7 @@ namespace smt
         std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
 
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
-        void collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals);
+        void collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals);
 
         
 

@@ -298,8 +298,8 @@ namespace smt {
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
         #endif
 
-       
-       // TODO implement inner CDCL framework here
+        
+        // TODO implement inner CDCL framework here
         for(expr_ref_vector curr_assignments : elim_enums) {
             expr_ref_vector heap_cnstr_assignments(m);
             expr_ref_vector numeral_cnstr_assignments(m);
@@ -339,7 +339,7 @@ namespace smt {
             }
             lbool result =  numeral_solver->check_sat();
             #ifdef SLHV_DEBUG
-            std::cout << "XXXXXXXXXXXXXXXXX numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
+            std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
             if(result == l_true) {
                 std::cout << "SAT" << std::endl;
             } else if(result == l_false) {
@@ -494,7 +494,7 @@ namespace smt {
                 }
             }
         }
-        this->collect_loc_and_heap_cnstr_in_assignments(assigned_literals);
+        this->collect_loc_heap_and_data_cnstr_in_assignments(assigned_literals);
         this->infer_distinct_locterms_in_assignments(heap_cnstr);
         this->infer_distinct_heapterms_in_assignments(heap_cnstr);
         this->infer_emp_hterms();
@@ -758,7 +758,7 @@ namespace smt {
     }
 
     void theory_slhv::record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
-
+        // refcord in literals all distinct locterms where constraints are explicitly given
         #ifdef SLHV_DEBUG
         std::cout << "record distinct locterms in assignments" << std::endl;
         #endif
@@ -771,7 +771,7 @@ namespace smt {
     }
 
     void theory_slhv::record_distinct_locterms(app* atom) {
-        // record all locterm enode that are distinct 
+        // record all locterm enode that are explicitly distinct
         #ifdef SLHV_DEBUG
         std::cout << "record distinct locvars: "<< mk_ismt2_pp(atom, m) << std::endl; 
         #endif
@@ -810,7 +810,7 @@ namespace smt {
     }
 
     
-    void theory_slhv::collect_loc_and_heap_cnstr_in_assignments(expr_ref_vector assigned_literals){
+    void theory_slhv::collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals){
         // collect all constrainst imposed on heap and loc
         for(auto e : assigned_literals) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
@@ -822,9 +822,9 @@ namespace smt {
                     this->curr_loc_cnstr.insert(to_app(e));
                 } else {
                     #ifdef SLHV_DEBUG
-                    std::cout << "collect cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
+                    std::cout << "collect data cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
                     #endif
-                    SASSERT(false);
+                    this->curr_data_cnstr.insert(to_app(e));
                     // this should not happen
                 }
             } else {
@@ -836,8 +836,11 @@ namespace smt {
                     } else if(is_locterm(to_app(arg))) {
                         this->curr_loc_cnstr.insert(to_app(e));
                     } else {
-                        SASSERT(false);
-                        // this should not happen
+
+                    #ifdef SLHV_DEBUG
+                    std::cout << "collect data cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
+                    #endif
+                        this->curr_data_cnstr.insert(to_app(e));
                     }
                 }
             }
@@ -855,6 +858,7 @@ namespace smt {
         this->curr_distinct_locterm_pairs.clear();
         this->curr_loc_cnstr.clear();
         this->curr_heap_cnstr.clear();
+        this->curr_data_cnstr.clear();
 
         this->curr_distinct_locterm_pairs.clear();
         this->curr_emp_hterm_enodes.clear();
@@ -3504,7 +3508,7 @@ namespace smt {
         app* y = this->mk_fresh_locvar();
         app* z = this->mk_fresh_locvar();
         std::vector<std::vector<app*>> final_result;
-
+        // the order of arugments of equality should not be changed
         app* ht1_to_hvar_eq = this->th->get_manager().mk_eq(ht1_hvar, lhs_hterm);
         app* ht2_to_hvar_eq = this->th->get_manager().mk_eq(ht2_hvar, rhs_hterm);
         this->th->get_context().internalize(ht1_to_hvar_eq, false);
