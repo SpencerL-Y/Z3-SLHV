@@ -366,6 +366,7 @@ namespace smt {
                 #endif
                 SASSERT(false);
             }
+
             // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
             // preprocessing
             this->preprocessing(heap_cnstr_assignments);
@@ -390,7 +391,6 @@ namespace smt {
             // initialize locvar eq searching
             this->init_locvars_eq_boolvec();
             
-
             bool still_has_eq = true;
             while(still_has_eq) {
                 auto search_res = this->get_locvars_eq_next();
@@ -402,6 +402,9 @@ namespace smt {
 
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
 
+                // TODO: add data constraint enumeration  here
+
+                std::vector<app*> data_constraints =  extract_influential_data_constraints(curr_loc_eq loc_eq);
                 // TODO: implement CDCL framework here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
@@ -625,8 +628,9 @@ namespace smt {
             std::cout << "collect vars in literal" << std::endl;
             #endif
             auto collected_vars = this->collect_vars(app_e);
-            this->curr_locvars = slhv_util::setUnion(this->curr_locvars, collected_vars.first);
-            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, collected_vars.second);
+            this->curr_locvars = slhv_util::setUnion(this->curr_locvars, std::get<0>(collected_vars));
+            this->curr_hvars = slhv_util::setUnion(this->curr_hvars, std::get<1>(collected_vars));
+            this->curr_datavars = slhv_util::setUnion(this->curr_datavars, std::get<2>(collected_vars));
             #ifdef SLHV_DEBUG
             std::cout << "collect disj unions in literal" << std::endl;
             #endif
@@ -682,33 +686,43 @@ namespace smt {
         #endif
     }
 
-    std::pair<std::set<app* >, std::set<app *>> 
+    std::tuple<std::set<app* >, std::set<app *>, std::set<app *>>
     theory_slhv::collect_vars(app* expression) {
         // collect all locvars and hvars appeared recursively.
         std::set<app*> collected_locvars;
         std::set<app*> collected_hvars;
+        std::set<app*> collected_datavars;
         
         if(is_hvar(expression) ) {
             collected_hvars.insert(expression);
-            return {collected_locvars, collected_hvars};
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if (is_emp(expression)){
             collected_hvars.insert(expression);
             this->global_emp = expression;
-            return {collected_locvars, collected_hvars};
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if(is_locvar(expression)) {
             collected_locvars.insert(expression);
-            return {collected_locvars, collected_hvars};
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if(is_nil(expression)) {
             collected_locvars.insert(expression);
             this->global_nil = expression;
-            return {collected_locvars, collected_hvars};
-        } else {
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
+        } else if(is_datavar(expression)) {
+
+            #ifdef SLHV_DEBUG
+            std::cout << "collect data var: " << mk_ismt2_pp(expression, this->m) << std::endl;
+            #endif
+            collected_datavars.insert(expression);
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
+        } 
+        else {
             for(int i = 0; i < expression->get_num_args(); i ++) {
                 auto temp_result_pair = this->collect_vars(to_app(expression->get_arg(i)));
-                collected_locvars = slhv_util::setUnion(collected_locvars, temp_result_pair.first);
-                collected_hvars = slhv_util::setUnion(collected_hvars, temp_result_pair.second);
+                collected_locvars = slhv_util::setUnion(collected_locvars, std::get<0>(temp_result_pair));
+                collected_hvars = slhv_util::setUnion(collected_hvars, std::get<1>(temp_result_pair));
+                collected_datavars = slhv_util::setUnion(collected_datavars, std::get<2>(temp_result_pair));
             }
-            return {collected_locvars, collected_hvars};
+            return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         }
     }
 
@@ -1163,6 +1177,42 @@ namespace smt {
         #endif
         return {true, this->get_fine_locvar_eq(assigned_pairs, existing_loc_eq_data)};
     }
+
+
+    std::vector<app*> theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
+        std::vector<app*> final_result;
+        if(this->pt_datafield_num == 0) {
+            // points-to does not contain any data field
+            return final_result;
+        }
+
+        std::map<app*, std::vector<app*>> addr2pts;
+        std::set<app*> addr_appeared;
+        for(app* pt : this->curr_pts) {
+            SASSERT(this->is_points_to(pt));
+            app* addr = pt->get_arg(0);
+            SASSERT(this->is_locvar(addr));
+            app* addr_leader_var = loc_eq->get_leader_locvar(addr);
+            addr_appeared.insert(addr_leader_var);
+            if(addr2pts.find(addr_leader_var) != addr2pts.end()) {
+                addr2pts[addr_leader_var].push_back(pt);
+            } else {
+                std::vector<app*> new_pt_vec;
+                new_pt_vec.push_back(pt);
+                addr2pts[addr_leader_var] = new_pt_vec;
+            }
+        }
+
+        for(app* leader_var : addr_appeared) {
+            std::vector<app*> addr_pts = addr2pts[leader_var];
+        }
+    }
+
+
+    bool theory_slhv::is_points_to_loc_inequal(app* pt, locvar_eq* loc_eq) {
+
+    }
+
 
 
     bool theory_slhv::check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq) {

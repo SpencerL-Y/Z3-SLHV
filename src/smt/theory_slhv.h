@@ -9,6 +9,7 @@
 #include <map>
 #include <iostream>
 #include <bitset>
+#include <tuple>
 namespace smt
 {
     class slhv_fresh_var_maker;
@@ -39,6 +40,7 @@ namespace smt
 
         std::set<app *> curr_locvars;
         std::set<app *> curr_hvars;
+        std::set<app *> curr_datavars;
         std::set<app *> curr_disj_unions;
         std::set<app *> curr_pts;
 
@@ -81,6 +83,15 @@ namespace smt
         } 
         bool is_locvar(app const* n) const {
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
+        }
+
+        bool is_datavar(app const* n) const {
+            // TODO: maybe buggy here
+            if(n->get_num_args() == 0 && n->get_sort() == this->m.mk_sort(arith_family_id, INT_SORT)) {
+                return true;
+            } else {
+                return false;
+            }
         }
 
         bool is_emp(app const* n) const {
@@ -136,7 +147,7 @@ namespace smt
 
         
 
-        std::pair<std::set<app* >, std::set<app *>> 
+        std::tuple<std::set<app* >, std::set<app *>, std::set<app *>> 
         collect_vars(app* expression);
 
         std::set<app*> collect_disj_unions(app* expression);
@@ -165,7 +176,9 @@ namespace smt
 
         std::pair<bool, std::map<enode*, std::set<app*>>> get_locvars_eq_next();
 
+        std::vector<app*> extract_influential_data_constraints(locvar_eq* loc_eq);
 
+        bool is_points_to_loc_inequal(app* pt, locvar_eq* loc_eq);
 
         bool check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq);
 
