@@ -25,6 +25,7 @@ namespace smt
     class subheap_relation;
     class locvar_eq;
     class coarse_hvar_eq;
+    class assignable_dataterm_pair;
     class theory_slhv : public theory {
 
         public:
@@ -58,9 +59,19 @@ namespace smt
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
 
+        // enumeration of loc eq
         std::vector<bool> temp_loceq_bits;
-        bool temp_zero_enumerated;
-        std::map<int, enode_pair> indexed_assignable_pairs;
+        bool temp_loc_zero_enumerated;
+        std::map<int, enode_pair> indexed_assignable_loc_pairs;
+
+
+        // enumeration of data constraint
+        std::vector<bool> temp_data_cnstr_bits;
+        bool temp_data_zero_enumerated;
+        std::map<int, enode_pair> indexed_assignable_data_pairs;
+        std::map<enode_pair, std::set<assignable_dataterm_pair*>> temp_data_term_pair2set;
+
+
 
         slhv_decl_plugin* slhv_plug;
 
@@ -174,11 +185,13 @@ namespace smt
 
         void init_locvars_eq_boolvec();
 
+        void init_dataterm_boolvec(locvar_eq* loc_eq);
+
         std::pair<bool, std::map<enode*, std::set<app*>>> get_locvars_eq_next();
 
-        std::vector<app*> extract_influential_data_constraints(locvar_eq* loc_eq);
+        std::vector<assignable_dataterm_pair*> extract_influential_data_constraints(locvar_eq* loc_eq);
 
-        bool is_points_to_loc_inequal(app* pt, locvar_eq* loc_eq);
+        bool is_points_to_loc_inequal(app* pt1, app*pt2, locvar_eq* loc_eq);
 
         bool check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq);
 
@@ -563,6 +576,40 @@ namespace smt
         theory_slhv* get_th() {
             return this->th;
         }
+    };
+
+    class pt_eq {
+        private:
+            theory_slhv* th;
+            locvar_eq* loc_eq;
+            std::map<enode*, std::vector<app*>> fine_data;
+        public:
+            pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<enode*,  std::vector<app*>>& fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
+            bool is_in_same_class(app* pt1, app* pt2);
+
+    };
+
+
+    class assignable_dataterm_pair {
+        private:
+            theory_slhv* th;
+            std::set<app*> pair;
+
+        public:
+            assignable_dataterm_pair(app* t1, app* t2);
+            std::set<app*> get_pair() {
+                return this->pair;
+            }
+            theory_slhv* get_th(){
+                return this->th;
+            }   
+            app* get_first() {
+                return *this->pair.begin();
+            }
+            app* get_last() {
+                return *this->pair.end();
+            }
+            bool contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq);
     };
 
 // edge-labelled directed graph

@@ -404,7 +404,11 @@ namespace smt {
 
                 // TODO: add data constraint enumeration  here
 
-                std::vector<app*> data_constraints =  extract_influential_data_constraints(curr_loc_eq loc_eq);
+                this->init_dataterm_boolvec(curr_loc_eq);
+                std::vector<assignable_dataterm_pair*> data_constraints =  extract_influential_data_constraints(curr_loc_eq);
+
+                
+
                 // TODO: implement CDCL framework here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
@@ -1060,9 +1064,9 @@ namespace smt {
 
 
     void theory_slhv::init_locvars_eq_boolvec(){
-        this->temp_zero_enumerated = false;
+        this->temp_loc_zero_enumerated = false;
         this->temp_loceq_bits.clear();
-        this->indexed_assignable_pairs.clear();
+        this->indexed_assignable_loc_pairs.clear();
         #ifdef SLHV_DEBUG
         std::cout << "init locvars eq boolvec" << std::endl;
         #endif
@@ -1097,11 +1101,58 @@ namespace smt {
         #endif
         for(int i = 0; i < assignable_pairs.size(); i ++) {
             this->temp_loceq_bits.push_back(false);
-            this->indexed_assignable_pairs[i] = assignable_pairs[i];
+            this->indexed_assignable_loc_pairs[i] = assignable_pairs[i];
         }
         #ifdef SLHV_DEBUG
         std::cout << "init locvars eq boolvec over" << std::endl;
         #endif
+    }
+
+
+    void theory_slhv::init_dataterm_boolvec(locvar_eq* loc_eq) {
+        this->temp_data_zero_enumerated = false;
+        this->temp_loceq_bits.clear();
+        this->indexed_assignable_data_pairs.clear();
+        this->temp_data_term_pair2set.clear();
+        #ifdef SLHV_DEBUG
+        std::cout << "initialize dataterm  constraint boolvector" << std::endl;
+        #endif
+
+        std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
+
+        #ifdef SLHV_DEBUG
+        std::cout << "assignable dataterm constraints: " << std::endl;
+        for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
+            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->m) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->m) << std::endl;
+        }
+        #endif
+        int index = 0;
+        std::vector<enode_pair> all_assignable_enode_pairs;
+        for(assignable_dataterm_pair* p : all_assignable_app_eq_pairs) {
+            bool pair_exists = false;
+            std::vector<enode*> computed_enode;
+            
+            computed_enode.push_back(this->get_context().get_enode(p->get_first())->get_root());
+            computed_enode.push_back(this->get_context().get_enode(p->get_last())->get_root());
+            
+            for(auto ex_p : all_assignable_enode_pairs) {
+                if(ex_p.first == computed_enode[0] && ex_p.second == computed_enode[1] || 
+                   ex_p.first == computed_enode[1] && ex_p.second == computed_enode[0]) {
+                    pair_exists = true;
+                    break;    
+                } 
+            }
+            if(!pair_exists){
+                enode_pair curr_pair = {computed_enode[0], computed_enode[1]};
+                all_assignable_enode_pairs.push_back(curr_pair);
+                std::set<assignable_dataterm_pair*> new_app_pair_set;
+                new_app_pair_set.insert(p);
+                this->temp_data_term_pair2set[curr_pair] = new_app_pair_set;
+            } else {
+                enode_pair curr_pair = {computed_enode[0], computed_enode[1]};
+                this->temp_data_term_pair2set[curr_pair].insert(p);
+            }
+        }
     }
 
     void simulation_add(std::vector<bool>& bits) {
@@ -1132,7 +1183,7 @@ namespace smt {
         #endif
         std::set<enode_pair> assigned_pairs;
         if(this->temp_loceq_bits.size() > 0) {
-            if(this->temp_zero_enumerated) {
+            if(this->temp_loc_zero_enumerated) {
                 bool true_found = false;
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
@@ -1146,17 +1197,17 @@ namespace smt {
                 }
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
-                        assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                        assigned_pairs.insert(this->indexed_assignable_loc_pairs[idx]);
                     }
                 }
             } else {
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
-                        assigned_pairs.insert(this->indexed_assignable_pairs[idx]);
+                        assigned_pairs.insert(this->indexed_assignable_loc_pairs[idx]);
                     }
                 }
                 simulation_add(this->temp_loceq_bits);
-                this->temp_zero_enumerated = true;
+                this->temp_loc_zero_enumerated = true;
             } 
         }
         #ifdef SLHV_DEBUG
@@ -1179,18 +1230,18 @@ namespace smt {
     }
 
 
-    std::vector<app*> theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
-        std::vector<app*> final_result;
+    std::vector<assignable_dataterm_pair*>  theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
+        std::vector<assignable_dataterm_pair*> final_result;
         if(this->pt_datafield_num == 0) {
             // points-to does not contain any data field
             return final_result;
-        }
+        } 
 
         std::map<app*, std::vector<app*>> addr2pts;
         std::set<app*> addr_appeared;
         for(app* pt : this->curr_pts) {
             SASSERT(this->is_points_to(pt));
-            app* addr = pt->get_arg(0);
+            app* addr = to_app(pt->get_arg(0));
             SASSERT(this->is_locvar(addr));
             app* addr_leader_var = loc_eq->get_leader_locvar(addr);
             addr_appeared.insert(addr_leader_var);
@@ -1205,12 +1256,48 @@ namespace smt {
 
         for(app* leader_var : addr_appeared) {
             std::vector<app*> addr_pts = addr2pts[leader_var];
+            for(app* pt1 : addr_pts) {
+                for(app* pt2 : addr_pts) {
+                    if(this->get_context().get_enode(pt1)->get_root() != this->get_context().get_enode(pt2)->get_root()) {
+                        app* pt1_record = to_app(pt1->get_arg(1));
+                        app* pt2_record = to_app(pt2->get_arg(1));
+                        if(this->is_points_to_loc_inequal(pt1, pt2, loc_eq)) {
+                            continue;
+                        } 
+                        for(int i = this->pt_locfield_num; i < this->pt_locfield_num + this->pt_datafield_num; i ++) {
+                            app* pt1_temp_data = to_app(pt1_record->get_arg(i));
+                            app* pt2_temp_data = to_app(pt2_record->get_arg(i));
+                            enode* pt1_temp_data_node = this->get_context().get_enode(pt1_temp_data)->get_root();
+                            enode* pt2_temp_data_node = this->get_context().get_enode(pt2_temp_data)->get_root();
+                            if(!(pt1_temp_data_node == pt2_temp_data_node)) {
+                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data);
+                                final_result.push_back(dtp);
+                            }
+                        }
+                    }
+                }
+            }
         }
+        return final_result;
     }
 
 
-    bool theory_slhv::is_points_to_loc_inequal(app* pt, locvar_eq* loc_eq) {
-
+    bool theory_slhv::is_points_to_loc_inequal(app* pt1, app*pt2, locvar_eq* loc_eq) {
+        app* pt1_record = to_app(pt1->get_arg(1));
+        app* pt2_record = to_app(pt2->get_arg(1));
+        bool is_loc_distinct = false;
+        for(int i = 0; i < this->pt_locfield_num; i ++) {
+            app* pt1_temp_loc = to_app(pt1_record->get_arg(i));
+            app* pt2_temp_loc = to_app(pt2_record->get_arg(i));
+            SASSERT(this->is_locvar(pt1_temp_loc) && this->is_locvar(pt2_temp_loc));
+            if(!loc_eq->is_in_same_class(pt1_temp_loc, pt2_temp_loc)) {
+                is_loc_distinct = true;
+            }
+            if(is_loc_distinct) {
+                return is_loc_distinct;
+            } 
+        }
+        return false;
     }
 
 
@@ -2230,6 +2317,49 @@ namespace smt {
             }
         }
         return result;
+    }
+
+    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2) {
+        SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
+        SASSERT(t1 != t2);
+        this->pair.insert(t1);
+        this->pair.insert(t2);
+        SASSERT(this->pair.size() == 2);
+    }
+
+    bool assignable_dataterm_pair::contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq) {
+        SASSERT(this->th->is_points_to(pt1) && this->th->is_points_to(pt2));
+        app* addr_var1 = to_app(pt1->get_arg(0));
+        app* addr_var2 = to_app(pt2->get_arg(0));
+        app* pt_record1 = to_app(pt1->get_arg(1));
+        app* pt_record2 = to_app(pt2->get_arg(1));
+        SASSERT(this->th->is_locvar(addr_var1) && this->th->is_locvar(addr_var2));
+        if(!loc_eq->is_in_same_class(addr_var1, addr_var2)) {
+            return  false;
+        } else {
+            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+                app* temp_loc1 = to_app(pt_record1->get_arg(i));
+                app* temp_loc2 = to_app(pt_record2->get_arg(i));
+                SASSERT(this->th->is_locvar(temp_loc1) && this->th->is_locvar(temp_loc2));
+                if(!loc_eq->is_in_same_class(temp_loc1, temp_loc2)) {
+                    return false;
+                } 
+            }
+            for(int i = this->th->pt_locfield_num; i < this->th->pt_locfield_num + this->th->pt_datafield_num; i ++) {
+                app* temp_data1 = to_app(pt_record1->get_arg(i));
+                app* temp_data2 = to_app(pt_record2->get_arg(i));
+                if(temp_data1 == temp_data2) {
+                    continue;
+                } else {
+                    if(this->pair.find(temp_data1) != this->pair.end() &&
+                       this->pair.find(temp_data2) != this->pair.end()) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
     }
 
 
