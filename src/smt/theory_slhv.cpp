@@ -1153,6 +1153,14 @@ namespace smt {
                 this->temp_data_term_pair2set[curr_pair].insert(p);
             }
         }
+
+        for(int i = 0; i < all_assignable_enode_pairs.size(); i ++) {
+            this->indexed_assignable_data_pairs[i] = all_assignable_enode_pairs[i];
+        }
+
+        for(int i = 0; i < this->indexed_assignable_data_pairs.size(); i++) {
+            this->temp_data_cnstr_bits.push_back(false);
+        }
     }
 
     void simulation_add(std::vector<bool>& bits) {
