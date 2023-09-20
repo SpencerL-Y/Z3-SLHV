@@ -187,7 +187,10 @@ namespace smt
 
         void init_dataterm_boolvec(locvar_eq* loc_eq);
 
-        std::pair<bool, std::map<enode*, std::set<app*>>> get_locvars_eq_next();
+        std::pair<bool, std::map<enode*, std::set<app*>>> get_locvar_eq_next();
+
+        // TODO: implement pt_eq computation
+        std::pair<bool, pt_eq*> get_pt_eq_next();
 
         std::vector<assignable_dataterm_pair*> extract_influential_data_constraints(locvar_eq* loc_eq);
 

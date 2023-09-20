@@ -393,7 +393,7 @@ namespace smt {
             
             bool still_has_eq = true;
             while(still_has_eq) {
-                auto search_res = this->get_locvars_eq_next();
+                auto search_res = this->get_locvar_eq_next();
                 still_has_eq = search_res.first;
                 std::map<enode*, std::set<app*>> loc_eq_data = search_res.second;
                 if(!still_has_eq) {
@@ -1180,7 +1180,7 @@ namespace smt {
         }
     }
 
-    std::pair<bool, std::map<enode*, std::set<app*>>> theory_slhv::get_locvars_eq_next() {
+    std::pair<bool, std::map<enode*, std::set<app*>>> theory_slhv::get_locvar_eq_next() {
         #ifdef SLHV_DEBUG
         std::cout << "get locvars eq next" << std::endl;
         std::cout << "current bits: ";
@@ -1192,6 +1192,7 @@ namespace smt {
         std::set<enode_pair> assigned_pairs;
         if(this->temp_loceq_bits.size() > 0) {
             if(this->temp_loc_zero_enumerated) {
+                // meaning that the search comes with a unsat
                 bool true_found = false;
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
