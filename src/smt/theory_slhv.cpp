@@ -402,17 +402,19 @@ namespace smt {
 
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
 
-                // TODO: add data constraint enumeration  here
-
-                this->init_dataterm_boolvec(curr_loc_eq);
-                std::vector<assignable_dataterm_pair*> data_constraints =  extract_influential_data_constraints(curr_loc_eq);
-
                 
 
                 // TODO: implement CDCL framework here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
                 }
+
+                // TODO: add data constraint enumeration  here
+
+                this->init_dataterm_boolvec(curr_loc_eq);
+                std::vector<assignable_dataterm_pair*> data_constraints =  extract_influential_data_constraints(curr_loc_eq); 
+
+                
                 #ifdef SLHV_DEBUG
                 std::cout << "---------------" << std::endl;
                 std::cout << "current loc_eq_data: " << std::endl;
@@ -1169,7 +1171,7 @@ namespace smt {
         }
         bool adding_comsumed = false;
         int curr_idx = 0;
-        while(!adding_comsumed) {
+        while(!adding_comsumed && curr_idx < bits.size()) {
             if(bits[curr_idx]) {
                 curr_idx ++;
                 bits[curr_idx] = false;
@@ -1192,7 +1194,6 @@ namespace smt {
         std::set<enode_pair> assigned_pairs;
         if(this->temp_loceq_bits.size() > 0) {
             if(this->temp_loc_zero_enumerated) {
-                // meaning that the search comes with a unsat
                 bool true_found = false;
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
@@ -1209,6 +1210,7 @@ namespace smt {
                         assigned_pairs.insert(this->indexed_assignable_loc_pairs[idx]);
                     }
                 }
+                simulation_add(this->temp_loceq_bits);
             } else {
                 for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
                     if(this->temp_loceq_bits[idx]) {
@@ -1238,6 +1240,127 @@ namespace smt {
         return {true, this->get_fine_locvar_eq(assigned_pairs, existing_loc_eq_data)};
     }
 
+
+    std::pair<bool, pt_eq*> theory_slhv::get_pt_eq_next(locvar_eq* loc_eq) {
+        #ifdef SLHV_DEBUG
+        std::cout << "get pt eq next" << std::endl;
+        std::cout << "current bits: ";
+        for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++) {
+            std::cout << this->temp_data_cnstr_bits[idx];
+        }
+        std::cout << std::endl;
+        #endif
+        pt_eq* curr_pt_eq = nullptr;
+        auto coarse_data_result = this->construct_pt_coarse_eq(loc_eq);
+        
+        
+        
+        if(this->temp_data_zero_enumerated) {
+            bool has_true = false;
+            for(bool b : this->temp_data_cnstr_bits) {
+                if(b) {
+                    has_true = true;
+                    break;
+                }
+            }
+            if(!has_true) {
+                return {false, curr_pt_eq};
+            } 
+            std::set<assignable_dataterm_pair*> neq_pairs;
+            for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++ ) {
+                if(this->temp_data_cnstr_bits[idx]) {
+                    enode_pair ep = this->indexed_assignable_data_pairs[idx];
+                    for(assignable_dataterm_pair* adp : this->temp_data_term_pair2set[ep]) {
+                        neq_pairs.insert(adp);
+                    }
+                }
+            }
+            curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
+            simulation_add(this->temp_data_cnstr_bits);
+            return {true, curr_pt_eq};
+        } else {
+            std::set<assignable_dataterm_pair*> neq_pairs;
+            for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++ ) {
+                if(this->temp_data_cnstr_bits[idx]) {
+                    enode_pair ep = this->indexed_assignable_data_pairs[idx];
+                    for(assignable_dataterm_pair* adp : this->temp_data_term_pair2set[ep]) {
+                        neq_pairs.insert(adp);
+                    }
+                }
+            }
+            
+            curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
+            return {true, curr_pt_eq};
+        }
+    }
+
+
+    std::set<std::set<app*>> theory_slhv::construct_pt_coarse_eq(locvar_eq* loc_eq) {
+        std::set<std::set<app*>> pt_enode_loc_partition;
+        for(app* pt : this->curr_pts) {
+            std::set<app*> pt_set;
+            for(app* pt1 : this->curr_pts) {
+                if(this->get_context().get_enode(pt)->get_root() == this->get_context().get_enode(pt1)->get_root()) {
+                    if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
+                        pt_set.insert(pt1);
+                    } else {
+                        #ifdef SLHV_DEBUG
+                        std::cout << "This should not happen" << std::endl;
+                        #endif
+                        SASSERT(false);
+                    }
+                }
+            } 
+        }
+        return pt_enode_loc_partition;
+    }
+
+    std::map<app*, std::vector<app*>> theory_slhv::refine_pt_coarse_eq
+    (std::set<std::set<app*>> pt_coarse_eq, 
+    std::set<assignable_dataterm_pair*> neq_pairs, locvar_eq* loc_eq) {
+        std::map<app*, std::vector<app*>> final_result;
+        for(std::set<app*> pts : pt_coarse_eq) {
+            std::map<app*, std::set<app*>> refined_pts;
+            for(app* cpt : pts) {
+                std::set<app*> init_set;
+                init_set.insert(cpt);
+                refined_pts[cpt] = init_set;
+                for(app* the_other_pt : pts) {
+                    bool inequal_found = false;
+                    if(the_other_pt != cpt) {
+                        for(assignable_dataterm_pair* ne_p : neq_pairs) {
+                            if(ne_p->contain_data_constraint(cpt, the_other_pt, loc_eq)) {
+                                inequal_found = true;
+                                break;
+                            }
+                        }
+                        if(!inequal_found) {
+                            refined_pts[cpt].insert(the_other_pt);
+                        }
+                    }
+                }
+            }
+            for(app* cpt : pts) {
+                for(app* rep_pt : refined_pts[cpt]) {
+                    if(rep_pt != cpt) {
+                        refined_pts[rep_pt] = refined_pts[cpt];
+                    }
+                }
+            }
+            for(app* cpt : pts) {
+                if(final_result.find(cpt) == final_result.end()) {
+                    std::vector<app*> fresh_vec;
+                    for(app* item : refined_pts[cpt]) {
+                        fresh_vec.push_back(item);
+                    }
+                    for(app* item : refined_pts[cpt]) {
+                        final_result[item] = fresh_vec;
+                    }
+                }
+            }
+        }
+        return final_result;
+    }
 
     std::vector<assignable_dataterm_pair*>  theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
         std::vector<assignable_dataterm_pair*> final_result;

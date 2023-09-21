@@ -25,6 +25,7 @@ namespace smt
     class subheap_relation;
     class locvar_eq;
     class coarse_hvar_eq;
+    class pt_eq;
     class assignable_dataterm_pair;
     class theory_slhv : public theory {
 
@@ -190,9 +191,13 @@ namespace smt
         std::pair<bool, std::map<enode*, std::set<app*>>> get_locvar_eq_next();
 
         // TODO: implement pt_eq computation
-        std::pair<bool, pt_eq*> get_pt_eq_next();
+        std::pair<bool, pt_eq*> get_pt_eq_next(locvar_eq* loc_eq);
+
+        std::set<std::set<app*>> construct_pt_coarse_eq(locvar_eq* loc_eq);
 
         std::vector<assignable_dataterm_pair*> extract_influential_data_constraints(locvar_eq* loc_eq);
+
+        std::map<app*, std::vector<app*>> refine_pt_coarse_eq(std::set<std::set<app*>> pt_coarse_eq, std::set<assignable_dataterm_pair*> neq_pairs, locvar_eq* loc_eq);
 
         bool is_points_to_loc_inequal(app* pt1, app*pt2, locvar_eq* loc_eq);
 
@@ -585,9 +590,9 @@ namespace smt
         private:
             theory_slhv* th;
             locvar_eq* loc_eq;
-            std::map<enode*, std::vector<app*>> fine_data;
+            std::map<app*, std::vector<app*>> fine_data;
         public:
-            pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<enode*,  std::vector<app*>>& fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
+            pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<app*,  std::vector<app*>> fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
             bool is_in_same_class(app* pt1, app* pt2);
 
     };
