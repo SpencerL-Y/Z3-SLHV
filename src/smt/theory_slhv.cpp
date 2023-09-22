@@ -391,12 +391,12 @@ namespace smt {
             // initialize locvar eq searching
             this->init_locvars_eq_boolvec();
             
-            bool still_has_eq = true;
-            while(still_has_eq) {
-                auto search_res = this->get_locvar_eq_next();
-                still_has_eq = search_res.first;
-                std::map<enode*, std::set<app*>> loc_eq_data = search_res.second;
-                if(!still_has_eq) {
+            bool still_has_loc_eq = true;
+            while(still_has_loc_eq) {
+                auto loc_search_result = this->get_locvar_eq_next();
+                still_has_loc_eq = loc_search_result.first;
+                std::map<enode*, std::set<app*>> loc_eq_data = loc_search_result.second;
+                if(!still_has_loc_eq) {
                     break;
                 }
 
@@ -408,68 +408,78 @@ namespace smt {
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
                     continue;
                 }
-
+                #ifdef SLHV_DEBUG
+                    std::cout << "---------------" << std::endl;
+                    std::cout << "current loc_eq_data: " << std::endl;
+                    int i = 0;
+                    for(auto p : loc_eq_data) {
+                        std::cout << "loc partition " << i << ":" << std::endl;
+                        for(app* e : p.second) {
+                            std::cout << mk_ismt2_pp(e, this->m) << ", ";
+                        }
+                        std::cout << std::endl;
+                        i += 1;
+                    }
+                    i = 0;
+                    std::cout << "---------------" << std::endl;
+                    auto coarse_hvar_eq_data = curr_hvar_eq->get_coarse_data();
+                    for(auto p : coarse_hvar_eq_data) {
+                        std::cout << "hvar partition " << i << ":" << std::endl;
+                        for(app* e : p.second) {
+                            std::cout << mk_ismt2_pp(e, this->m) << ", ";
+                        }
+                        std::cout << std::endl;
+                        i += 1;
+                    }
+                    std::cout << "---------------" << std::endl;
+                #endif
                 // TODO: add data constraint enumeration  here
 
                 this->init_dataterm_boolvec(curr_loc_eq);
                 std::vector<assignable_dataterm_pair*> data_constraints =  extract_influential_data_constraints(curr_loc_eq); 
 
-                
-                #ifdef SLHV_DEBUG
-                std::cout << "---------------" << std::endl;
-                std::cout << "current loc_eq_data: " << std::endl;
-                int i = 0;
-                for(auto p : loc_eq_data) {
-                    std::cout << "loc partition " << i << ":" << std::endl;
-                    for(app* e : p.second) {
-                        std::cout << mk_ismt2_pp(e, this->m) << ", ";
+                bool still_has_pt_eq = true;
+                while(still_has_pt_eq) {
+                    auto pt_search_result = this->get_pt_eq_next(curr_loc_eq);
+                    still_has_pt_eq = pt_search_result.first;
+                    pt_eq* curr_pt_eq = pt_search_result.second;
+                    if(!still_has_pt_eq) {
+                        break;
                     }
-                    std::cout << std::endl;
-                    i += 1;
-                }
-                i = 0;
-                std::cout << "---------------" << std::endl;
-                auto coarse_hvar_eq_data = curr_hvar_eq->get_coarse_data();
-                for(auto p : coarse_hvar_eq_data) {
-                    std::cout << "hvar partition " << i << ":" << std::endl;
-                    for(app* e : p.second) {
-                        std::cout << mk_ismt2_pp(e, this->m) << ", ";
-                    }
-                    std::cout << std::endl;
-                    i += 1;
-                }
-                std::cout << "---------------" << std::endl;
-                #endif
-                edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq);
 
-                #ifdef SLHV_DEBUG   
-                    std::cout << "original graph: " << std::endl;
-                    orig_graph->print(std::cout);
-                #endif
-                edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
-                #ifdef SLHV_DEBUG   
-                    std::cout << "simplified graph: " << std::endl;
-                    simplified_graph->print(std::cout);
-                #endif
-                // infer hterm inclusion
-                // first compute the node2subgraphs mapping
-                std::set<dgraph_node*> roots = simplified_graph->get_sources();
-                std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
-                for(dgraph_node* n : roots) {
-                    simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
-                }
-                #ifdef SLHV_DEBUG
-                std::cout << "subgraphs extracted" << std::endl;
-                #endif
-                // deduce subheap relation for each node
-                std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
-                // the subheap deduction find a feasible subheap relation for satisfiability
-                if(curr_result.second && this->check_status != slhv_unsat) {
-                            #ifdef SLHV_DEBUG
-                            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-                            #endif
-                    this->check_status = slhv_sat;
-                    return true;
+                    
+                    edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq, curr_pt_eq);
+
+                    #ifdef SLHV_DEBUG   
+                        std::cout << "original graph: " << std::endl;
+                        orig_graph->print(std::cout);
+                    #endif
+                    edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
+                    #ifdef SLHV_DEBUG   
+                        std::cout << "simplified graph: " << std::endl;
+                        simplified_graph->print(std::cout);
+                    #endif
+                    // infer hterm inclusion
+                    // first compute the node2subgraphs mapping
+                    std::set<dgraph_node*> roots = simplified_graph->get_sources();
+                    std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
+                    for(dgraph_node* n : roots) {
+                        simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
+                    }
+                    #ifdef SLHV_DEBUG
+                    std::cout << "subgraphs extracted" << std::endl;
+                    #endif
+                    // deduce subheap relation for each node
+                    std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
+                    // the subheap deduction find a feasible subheap relation for satisfiability
+                    if(curr_result.second && this->check_status != slhv_unsat) {
+                                #ifdef SLHV_DEBUG
+                                std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+                                #endif
+                        this->check_status = slhv_sat;
+                        return true;
+                    }
+
                 }
             }
         }
@@ -1252,9 +1262,17 @@ namespace smt {
         #endif
         pt_eq* curr_pt_eq = nullptr;
         auto coarse_data_result = this->construct_pt_coarse_eq(loc_eq);
-        
-        
-        
+        #ifdef SLHV_DEBUG
+
+        std::cout << "coarse pt data result:" << std::endl;
+        for(std::set<app*> s : coarse_data_result) {
+            std::cout << "-------------" << std::endl;
+            for(app* pt : s) {
+                std::cout << mk_ismt2_pp(pt, this->m) << std::endl;
+            }
+        }
+        std::cout << "-------------" << std::endl;
+        #endif
         if(this->temp_data_zero_enumerated) {
             bool has_true = false;
             for(bool b : this->temp_data_cnstr_bits) {
@@ -1296,23 +1314,29 @@ namespace smt {
 
 
     std::set<std::set<app*>> theory_slhv::construct_pt_coarse_eq(locvar_eq* loc_eq) {
-        std::set<std::set<app*>> pt_enode_loc_partition;
+        std::set<std::set<app*>> pt_loc_partition;
+        std::map<app*, bool> pt_documented;
+        for(app* pt : this->curr_pts) {
+            pt_documented[pt] = false;
+        }
+
         for(app* pt : this->curr_pts) {
             std::set<app*> pt_set;
+            pt_set.insert(pt);
+            pt_documented[pt] = true;
             for(app* pt1 : this->curr_pts) {
-                if(this->get_context().get_enode(pt)->get_root() == this->get_context().get_enode(pt1)->get_root()) {
-                    if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
-                        pt_set.insert(pt1);
-                    } else {
-                        #ifdef SLHV_DEBUG
-                        std::cout << "This should not happen" << std::endl;
-                        #endif
-                        SASSERT(false);
-                    }
+                if(pt_documented[pt1]) {
+                    break;
                 }
+                if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
+                    SASSERT(pt_documented[pt1]);
+                    pt_set.insert(pt1);
+                    pt_documented[pt1] = true;
+                } 
             } 
+            pt_loc_partition.insert(pt_set);
         }
-        return pt_enode_loc_partition;
+        return pt_loc_partition;
     }
 
     std::map<app*, std::vector<app*>> theory_slhv::refine_pt_coarse_eq
@@ -2451,6 +2475,23 @@ namespace smt {
         return result;
     }
 
+    bool pt_eq::is_in_same_class(app* pt1, app* pt2) {
+        SASSERT(this->fine_data.find(pt1) != this->fine_data.end());
+        SASSERT(this->fine_data.find(pt2) != this->fine_data.end());
+        std::vector<app*> pt1_part = this->fine_data[pt1];
+        for(app* pt : pt1_part) {
+            if(pt == pt1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    app* pt_eq::get_representative_pt(app* pt) {
+        SASSERT(this->fine_data.find(pt) != this->fine_data.end());
+        return this->fine_data[pt][0];
+    }
+
     assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2) {
         SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
         SASSERT(t1 != t2);
@@ -2495,22 +2536,26 @@ namespace smt {
     }
 
 
-    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h) {
+    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq) {
         this->th = t;
         this->loc_eq = l;
         this->hvar_eq = h;
+        this->pt_term_eq = pteq;
         this->construct_graph_from_theory();
         this->simplified = false;
     }
 
-    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified) {
+    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified) {
         this->th = t;
         this->loc_eq = l;
         this->hvar_eq = h;
+        this->pt_term_eq = pteq;
         this->edges = es;
         this->nodes = ns;
         this->simplified = simplified;
     }
+
+
 
     void edge_labelled_dgraph::construct_graph_from_theory() {
         // construct nodes
@@ -2530,14 +2575,28 @@ namespace smt {
             node_map[leader_hvars[i]] = new_node;
             this->nodes.push_back(new_node);
         }
-        std::set<std::pair<app*, app*>> addr_data_pairs;
+
+        std::set<std::pair<app*, app*>> addr_record_pairs;
+        
+        std::set<app*> leader_points_to;
+
+        for(app* pt : this->th->curr_pts) {
+            app* leader_pt = this->pt_term_eq->get_representative_pt(pt);
+            leader_points_to.insert(leader_pt);
+            #ifdef SLHV_DEBUG
+            std::cout << "leader points to: " << mk_ismt2_pp(leader_pt, this->th->get_manager()) << std::endl;
+            #endif
+        }
+
+
         
         for(app* pt : this->th->curr_pts) {
             app* addr_loc_leader = this->loc_eq->get_leader_locvar(to_app(pt->get_arg(0)));
-            app* data_loc_leader = this->loc_eq->get_leader_locvar(to_app(pt->get_arg(1)));
-            addr_data_pairs.insert({addr_loc_leader, data_loc_leader});
+            app* data_record_leader = to_app(this->pt_term_eq->get_representative_pt(pt)->get_arg(1));
+            addr_record_pairs.insert({addr_loc_leader, data_record_leader});
         }
-        for(auto pair : addr_data_pairs) {
+
+        for(auto pair : addr_record_pairs) {
             dgraph_node* new_node = alloc(pt_dgraph_node, this, pair.first, pair.second);
             this->nodes.push_back(new_node);
         }
@@ -2550,7 +2609,7 @@ namespace smt {
             std::cout << "heap_equality: " << mk_ismt2_pp(heap_equality, this->th->get_manager()) << std::endl;
             app* left_hvar = to_app(heap_equality->get_arg(0));
             dgraph_node* from_dgraph_node = this->get_hvar_node(left_hvar);
-            app* label = to_app(heap_equality->get_arg(1));
+            app* label =  to_app(heap_equality->get_arg(1));
             if(this->th->is_uplus(label)) {
                 #ifdef SLHV_DEBUG
                 std::cout << "left hvar: " << mk_ismt2_pp(left_hvar, this->th->get_manager()) << " right label: " << mk_ismt2_pp(label, this->th->get_manager()) << std::endl;
@@ -2594,13 +2653,12 @@ namespace smt {
 
     pt_dgraph_node* edge_labelled_dgraph::get_pt_node(app* orig_pt){
         app* orig_addr_loc = to_app(orig_pt->get_arg(0));
-        app* orig_data_loc = to_app(orig_pt->get_arg(1));
         app* leader_addr_loc = this->loc_eq->get_leader_locvar(orig_addr_loc);
-        app* leader_data_loc = this->loc_eq->get_leader_locvar(orig_data_loc);
+        app* leader_record_loc = to_app(this->pt_term_eq->get_representative_pt(orig_pt)->get_arg(1));
         for(dgraph_node* n : nodes) {
             if(n->is_points_to()) {
                 if(((pt_dgraph_node*)n)->get_pt_pair_label().first == leader_addr_loc &&
-                   ((pt_dgraph_node*)n)->get_pt_pair_label().second == leader_data_loc) {
+                   ((pt_dgraph_node*)n)->get_pt_pair_label().second == leader_record_loc) {
                     return (pt_dgraph_node*)n;
                 }
             }
@@ -2676,7 +2734,7 @@ namespace smt {
         }
         std::vector<dgraph_node*> ns;
         std::vector<dgraph_edge*> es;
-        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, ns, es, true);
+        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, this->pt_term_eq, ns, es, true);
         // create nodes for new graph
         for(dgraph_node* n : this->nodes) {
             if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
@@ -2875,7 +2933,7 @@ namespace smt {
 
 
 
-    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), ns, es, g->get_simplified()){
+    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), g->get_pt_term_eq(), ns, es, g->get_simplified()){
         for(dgraph_node* n : ns) {
             SASSERT(n->get_dgraph() == g);
         }
@@ -3180,9 +3238,9 @@ namespace smt {
         this->leader_hvar = hvar;
     }
 
-    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_data) : dgraph_node(g) {
+    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_record) : dgraph_node(g) {
         this->pt_addr_leader = pt_addr;
-        this->pt_data_leader = pt_data;
+        this->pt_record = pt_record;
     }
     
     // dgraph edge

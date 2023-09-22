@@ -594,6 +594,8 @@ namespace smt
         public:
             pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<app*,  std::vector<app*>> fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
             bool is_in_same_class(app* pt1, app* pt2);
+            app* get_representative_pt(app* pt);
+            void print(std::ostream& os);
 
     };
 
@@ -627,6 +629,7 @@ namespace smt
             theory_slhv* th;
             locvar_eq* loc_eq;
             coarse_hvar_eq* hvar_eq;
+            pt_eq* pt_term_eq;
             std::vector<dgraph_node*>  nodes;
             std::vector<dgraph_edge*>  edges;
             bool simplified;
@@ -637,8 +640,8 @@ namespace smt
             coarse_hvar_eq* check_and_merge_scc_hvars(std::set<int> nontrivial_ids);
             std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
         public:
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h);
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified);
 
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
@@ -673,6 +676,9 @@ namespace smt
             }
             coarse_hvar_eq* get_hvar_eq() {
                 return this->hvar_eq;
+            }
+            pt_eq* get_pt_term_eq() {
+                return this->pt_term_eq;
             }
             theory_slhv* get_th() {
                 return this->th;
@@ -772,12 +778,12 @@ namespace smt
     class pt_dgraph_node : public dgraph_node {
         private:
             app* pt_addr_leader;
-            app* pt_data_leader;
+            app* pt_record;
         public:
-            pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_data);
+            pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_record);
 
             std::pair<app*, app*> get_pt_pair_label() {
-                return {pt_addr_leader, pt_data_leader};
+                return {pt_addr_leader, pt_record};
             }
 
             bool is_hvar() override {
