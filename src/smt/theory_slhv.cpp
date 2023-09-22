@@ -1829,6 +1829,7 @@ namespace smt {
                 SASSERT(sb->get_root_node() == leaf);
                 hterm* leaf_term = sb->obtain_graph_hterm();
                 subheap_relation* rel = alloc(subheap_relation);
+                // TODO debug here
                 rel->add_hterm(leaf_term);
                 rel->add_equal(leaf_term, leaf_term);
                 root2relation[leaf] = rel;
