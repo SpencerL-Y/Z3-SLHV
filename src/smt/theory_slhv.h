@@ -957,9 +957,22 @@ namespace smt
                     }
                 }
             }
-            subheap_relation() {}
+            subheap_relation() {
+                this->loc_eq = nullptr;
+                this->h_eq = nullptr;
+            }
             void add_hterm(hterm* ht) {
-                SASSERT(ht->get_h_eq() == this->h_eq && ht->get_loc_eq() == this->loc_eq);
+                #ifdef SLHV_DEBUG
+                std::cout << "add hterm: ";
+                ht->print(std::cout);
+                std::cout << std::endl;
+                #endif
+                if(this->h_eq == nullptr && this->loc_eq == nullptr) {
+                    this->h_eq = ht->get_h_eq();
+                    this->loc_eq = ht->get_loc_eq();
+                } else {
+                    SASSERT(ht->get_h_eq() == this->h_eq && ht->get_loc_eq() == this->loc_eq);
+                }
                 this->hterm_set.insert(ht);
             }
             void add_pair(hterm* ht_smaller, hterm* ht_larger);

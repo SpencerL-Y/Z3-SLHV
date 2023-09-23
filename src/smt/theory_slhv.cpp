@@ -2945,6 +2945,9 @@ namespace smt {
     }
 
     hterm* edge_labelled_subgraph::obtain_graph_hterm() {
+        #ifdef SLHV_DEBUG
+        std::cout << "obtain graph hterm" << std::endl;
+        #endif
         std::set<std::pair<app*, app*>> rep_hterm;
         std::set<dgraph_node*> leaves = this->get_dest_nodes();
         for(dgraph_node* n : leaves) {
