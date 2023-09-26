@@ -13,26 +13,12 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_points_to_sym("pt"),
     global_emp(nullptr),
     global_nil(nullptr),
-    pt_record_initialized(false),
-    pt_record_length(0),
-    pt_locnum(0),
-    pt_datanum(0)
+    record_type_num(0)
 {
     // sort* nil_range = this->mk_sort(INTLOC_SORT, 0, nullptr);
     // sort* emp_range = this->mk_sort(INTHEAP_SORT, 0, nullptr);
     // this->mk_const_nil(nil_range, 0, nullptr);
     // this->mk_const_emp(emp_range, 0, nullptr);
-}
-
-
-void slhv_decl_plugin::set_pt_record(int ln, int dn) {
-    SASSERT(!this->pt_record_initialized);
-    SASSERT(ln >= 0 && dn >= 0);
-    SASSERT(ln + dn > 0);
-    this->pt_record_length = ln + dn;
-    this->pt_locnum = ln;
-    this->pt_datanum = dn;
-    this->pt_record_initialized = true;
 }
 
 

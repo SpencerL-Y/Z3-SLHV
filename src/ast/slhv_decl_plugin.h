@@ -3,6 +3,8 @@
 #include "ast/ast.h"
 #include "cmd_context/cmd_context.h"
 
+#include <map>
+
 #define INTHEAP_SORT_STR "IntHeap"
 #define INTLOC_SORT_STR "IntLoc"
 // SLHV
@@ -22,6 +24,36 @@ enum slhv_op_kind {
     OP_NIL
 };
 
+class pt_record {
+    private:
+        int loc_num;
+        int data_num;
+        std::string pt_record_name;
+    public:
+    pt_record(std::string name, int ln, int dn) : loc_num(ln), data_num(dn){
+        this->pt_record_name = name;
+    }
+
+    std::string get_pt_record_name() {
+        return this->pt_record_name;
+    }
+
+    int get_loc_num() {
+        return this->loc_num;
+    }
+
+    int get_data_num() {
+        return this->data_num;
+    }
+
+    int get_record_field_length() {
+        return this->loc_num + this->data_num;
+    }
+
+    void print(std::ostream& os) {
+        os << "( " << pt_record_name << " ( " << loc_num << ", " << data_num << "))" << std::endl;
+    }
+};
 
 class slhv_decl_plugin : public decl_plugin {
     symbol m_disj_union_sym;
@@ -32,22 +64,47 @@ class slhv_decl_plugin : public decl_plugin {
 
     public:
     cmd_context* m_ctx;
-    func_decl* Pt_R_decl;
 
     app* global_emp;
     app* global_nil;
 
-    bool pt_record_initialized;
-    int pt_record_length;
-    int pt_locnum;
-    int pt_datanum;
+
+    // this is the map that remembering the pt_records defined in smtlib2 file
+    int record_type_num;
+    
+    std::map<std::string, pt_record*> pt_record_map;
+    std::map<std::string, func_decl*> pt_record_decls;
+
     slhv_decl_plugin();
 
     void set_m_ctx(cmd_context* m) {
         this->m_ctx = m;
     }
 
-    void set_pt_record(int ln, int dn);
+    void add_pt_record(std::string record_name, int ln, int dn) {
+        for(auto r : this->pt_record_map) {
+            if(r.second->get_data_num() == dn && r.second->get_loc_num() == ln) {
+                std::cout << "WARNING: pt record type (" << r.second->get_loc_num() << ", " << r.second->get_data_num() << ") already exists" << std::endl; 
+                this->pt_record_map[record_name] = r.second;
+                return;
+            } 
+        }
+        pt_record* new_pt_r = alloc(pt_record, record_name, ln, dn);
+        this->pt_record_map[record_name] = new_pt_r;
+        this->record_type_num ++;
+    }
+
+    void add_pt_r_decl(std::string record_name, func_decl* pt_r) {
+        if(this->pt_record_decls.find(record_name) != this->pt_record_decls.end()) {
+            SASSERT(false);
+        } else {
+            this->pt_record_decls[record_name] = pt_r;
+        }
+    }
+
+    int get_record_type_num() {
+        return this->record_type_num;
+    }
 
     decl_plugin * mk_fresh() override {
         return alloc(slhv_decl_plugin);
@@ -87,3 +144,4 @@ class slhv_decl_plugin : public decl_plugin {
     ///////////////////
 
 };
+

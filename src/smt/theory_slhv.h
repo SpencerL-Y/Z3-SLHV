@@ -79,8 +79,6 @@ namespace smt
         app* global_emp;
         app* global_nil;
 
-        int pt_locfield_num;
-        int pt_datafield_num;
 
         // check_context for a construction based on locvar_eq and negation choice
 
@@ -127,7 +125,12 @@ namespace smt
         }
 
         bool is_recordterm(app const* n) const {
-            return n->get_sort() == this->slhv_plug->Pt_R_decl->get_range();
+            if(this->slhv_plug->pt_record_map.find(n->get_name().bare_str()) != this->slhv_plug->pt_record_map.end()) {
+                return true;
+            } else {
+                return false;
+            }
+            return false;
         }
 
         bool is_arith_formula(app* l);
@@ -150,6 +153,8 @@ namespace smt
         // analyze all terms to do preprocessing later
         void preprocessing(expr_ref_vector assigned_literals);
 
+        pt_record* analyze_pt_record_type(app* record_app);
+
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
         std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
@@ -165,9 +170,6 @@ namespace smt
         std::set<app*> collect_disj_unions(app* expression);
 
         std::set<app*> collect_points_tos(app* expression);
-
-        void analyze_pt_record_field(app* pt);
-        
 
         void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
         
@@ -1166,17 +1168,36 @@ namespace smt
         app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
 
-        // logic with records:
+        // logic with record:
 
-        app* mk_points_to_new(app* addr_loc, app* record_loc); // DONE
-        app* mk_record(std::vector<app*> locvars, std::vector<app*> datavars);// DONE
+        app* mk_points_to_new(app* addr_loc, app* record_loc); 
 
-        app* mk_fresh_datavar(); // DONE
-        std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); // DONE
-        app* mk_addr_in_hterm_new(app* hterm, app* addr); // DONE
-        app* mk_addr_notin_hterm_new(app *hterm, app* addr);// DONE
-        app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); // DONE
-        app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item); // DONE
+        app* mk_fresh_datavar(); 
+        std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); 
+        app* mk_addr_in_hterm_new(app* hterm, app* addr); 
+        app* mk_addr_notin_hterm_new(app *hterm, app* addr);
+        app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); 
+        app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item); 
+
+
+        // logic with multi-records:
+        app* mk_points_to_multi(app* addr_loc, app* record_term) {
+            return this->mk_points_to_new(addr_loc, record_term);
+        }
+        // TODOs:
+        app* mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars);
+
+        std::vector<std::vector<app*>> mk_hterm_disequality_multi(app* lhs, app* rhs);
+        app* mk_addr_in_hterm_multi(app* hterm, app* addr);
+        app* mk_addr_notin_hterm_multi(app* hterm, app* addr);
+
+
+        // TODO: these two can be postponed
+        app* mk_read_formula_multi(app* from_hvar, app* read_addr, pt_record* record_type, int read_field, app* read_item);
+        app* mk_write_formula_multi(app* orig_hvar, app* writed_hvar, app* write_addr, pt_record* record_type, int write_field, app* write_item);
+
+        
+
          
     };
 

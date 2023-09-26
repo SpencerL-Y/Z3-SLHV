@@ -992,7 +992,9 @@ namespace smt2 {
             check_duplicate(d, line, pos);
 
             d->commit(pm());
-            ptr_vector<datatype::constructor> consvec = pm().get_dt_plugin()->get_constructors(symbol("Pt_R"));
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) this->m().get_plugin(this->m().mk_family_id("slhv"));
+            std::string curr_Pt_R_name = "Pt_R_" + std::to_string(plug->get_record_type_num());
+            ptr_vector<datatype::constructor> consvec = pm().get_dt_plugin()->get_constructors(symbol(curr_Pt_R_name));
             std::cout << "constructor size: " << consvec.size() << std::endl;
             if(consvec.size() > 0) {
                 datatype::constructor* c = consvec.back();
@@ -1011,13 +1013,12 @@ namespace smt2 {
                     }
                 }
 
-                slhv_decl_plugin* plug = (slhv_decl_plugin*) this->m().get_plugin(this->m().mk_family_id("slhv"));
                 
                 // plug->set_m_ctx(&this->m_ctx);
-                func_decl* ptrs = this->m_ctx.find_func_decl(symbol("Pt_R"));
+                func_decl* ptrs = this->m_ctx.find_func_decl(symbol(curr_Pt_R_name));
                 std::cout << "ptrs range sort: " << ptrs->get_range()->get_name() << std::endl;
-                plug->set_pt_record(locnum, datanum);
-                plug->Pt_R_decl = ptrs;
+                plug->add_pt_record(curr_Pt_R_name, locnum, datanum);
+                plug->add_pt_r_decl(curr_Pt_R_name, ptrs);
             }
             
 
