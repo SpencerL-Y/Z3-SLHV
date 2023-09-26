@@ -580,7 +580,8 @@ namespace smt {
                 if(this->is_heapterm(left_expr) && this->is_heapterm(right_expr)) {
                     SASSERT(this->is_hvar(left_expr));
                     // std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality(left_expr, right_expr);
-                    std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_new(left_expr, right_expr);
+                    // std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_new(left_expr, right_expr);
+                    std::vector<std::vector<app*>> disjuncts_after_elim = this->syntax_maker->mk_hterm_disequality_multi(left_expr, right_expr);
                     if(eliminated_neg_vec.size() != 0) {
                         for(std::vector<expr*> ev : eliminated_neg_vec) {
                             for(std::vector<app*> disj : disjuncts_after_elim) {
@@ -1118,7 +1119,7 @@ namespace smt {
         #endif
 
         std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
-
+        // stop here
         #ifdef SLHV_DEBUG
         std::cout << "assignable dataterm constraints: " << std::endl;
         for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
@@ -1386,7 +1387,17 @@ namespace smt {
 
     std::vector<assignable_dataterm_pair*>  theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
         std::vector<assignable_dataterm_pair*> final_result;
-        if(this->pt_datafield_num == 0) {
+
+        bool has_data_record = false;
+        for(pt_record* r : this->slhv_plug->get_all_pt_records()) {
+            if(r->get_data_num() > 0) {
+                has_data_record = true;
+                break;
+            }
+        }
+
+
+        if(!has_data_record) {
             // points-to does not contain any data field
             return final_result;
         } 
@@ -1418,10 +1429,13 @@ namespace smt {
                         if(this->analyze_pt_record_type(pt1_record) != this->analyze_pt_record_type(pt2_record)) {
                             continue;
                         }
+                        pt_record* curr_rec = this->analyze_pt_record_type(pt1_record);
                         if(this->is_points_to_loc_inequal(pt1, pt2, loc_eq)) {
                             continue;
                         } 
-                        for(int i = this->pt_locfield_num; i < this->pt_locfield_num + this->pt_datafield_num; i ++) {
+                        int curr_pt_locfield_num = curr_rec->get_loc_num();
+                        int curr_pt_datafield_num = curr_rec->get_loc_num();
+                        for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
                             app* pt1_temp_data = to_app(pt1_record->get_arg(i));
                             app* pt2_temp_data = to_app(pt2_record->get_arg(i));
                             enode* pt1_temp_data_node = this->get_context().get_enode(pt1_temp_data)->get_root();
