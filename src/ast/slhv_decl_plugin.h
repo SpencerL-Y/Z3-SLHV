@@ -4,6 +4,7 @@
 #include "cmd_context/cmd_context.h"
 
 #include <map>
+#include <set>
 
 #define INTHEAP_SORT_STR "IntHeap"
 #define INTLOC_SORT_STR "IntLoc"
@@ -105,6 +106,44 @@ class slhv_decl_plugin : public decl_plugin {
     int get_record_type_num() {
         return this->record_type_num;
     }
+
+    pt_record* get_first_record() {
+        SASSERT(this->pt_record_map.size() > 0);
+        pt_record* result = (*this->pt_record_map.begin()).second;
+        return result;
+    }
+
+    func_decl* get_first_record_decl() {
+        std::string pt_rec_name = this->get_first_record()->get_pt_record_name();
+        return this->pt_record_decls[pt_rec_name];
+    }
+
+    pt_record* get_simplies_record() {
+        // COMMENT: this strategy can be changed later
+        pt_record* result = nullptr;
+        int min_field_num = -1;
+        for(auto r : this->pt_record_map) {
+            if(min_field_num == -1) {
+                min_field_num = r.second->get_record_field_length();
+                result = r.second;
+            } else {
+                if(r.second->get_record_field_length() < min_field_num) {
+                    min_field_num = r.second->get_record_field_length();
+                    result = r.second;
+                }
+            }
+        }
+        return result;
+    }
+    
+    std::set<pt_record*> get_all_pt_records() {
+        std::set<pt_record*> result;
+        for(auto r : this->pt_record_map) {
+            result.insert(r.second);
+        }
+        return result;
+    }
+
 
     decl_plugin * mk_fresh() override {
         return alloc(slhv_decl_plugin);

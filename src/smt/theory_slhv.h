@@ -1185,12 +1185,12 @@ namespace smt
             return this->mk_points_to_new(addr_loc, record_term);
         }
         // TODOs:
-        app* mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars);
+        app* mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars);// DONE
 
-        std::vector<std::vector<app*>> mk_hterm_disequality_multi(app* lhs, app* rhs);
-        app* mk_addr_in_hterm_multi(app* hterm, app* addr);
-        app* mk_addr_notin_hterm_multi(app* hterm, app* addr);
+        std::vector<std::vector<app*>> mk_hterm_disequality_multi(app* lhs, app* rhs); // DONE
 
+        std::vector<app*> mk_addr_in_hterm_multi(app* hterm, app* addr); // DONE
+        app* mk_addr_notin_hterm_multi(app* hterm, app* addr); // DONE
 
         // TODO: these two can be postponed
         app* mk_read_formula_multi(app* from_hvar, app* read_addr, pt_record* record_type, int read_field, app* read_item);

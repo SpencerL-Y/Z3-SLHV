@@ -1158,6 +1158,8 @@ namespace smt {
                 } else if(pair_exists_right) {
                     enode_pair curr_pair = {computed_enode[1], computed_enode[0]};
                     this->temp_data_term_pair2set[curr_pair].insert(p);
+                } else {
+                    SASSERT(false);
                 }
             }
         }
@@ -3860,6 +3862,35 @@ namespace smt {
         return final_result;
     }
 
+
+    std::vector<app*> slhv_syntax_maker::mk_addr_in_hterm_multi(app* hterm, app* addr) {
+        app* unrelated_h = this->mk_fresh_hvar();
+        std::vector<app*> result;
+        for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
+            int curr_pt_loc_num = r->get_loc_num();
+            int curr_pt_data_num = r->get_data_num();
+            app* curr_eq_lhs = hterm;
+            std::vector<app*> curr_eq_rhs_uplus_args;
+            curr_eq_rhs_uplus_args.push_back(unrelated_h);
+            std::vector<app*> fresh_locvars;
+            std::vector<app*> fresh_datavars;
+            for(int i = 0; i < curr_pt_loc_num; i ++) {
+                fresh_locvars.push_back(this->mk_fresh_locvar());
+            }
+            for(int i = 0; i < curr_pt_data_num; i ++) {
+                fresh_datavars.push_back(this->mk_fresh_datavar());
+            }
+
+            app* rhs_pt_record = this->mk_record(r, fresh_locvars, fresh_datavars);
+            app* rhs_pt = this->mk_points_to_multi(addr, rhs_pt_record);
+            curr_eq_rhs_uplus_args.push_back(rhs_pt);
+            app* curr_eq_rhs = this->mk_uplus(2, curr_eq_rhs_uplus_args);
+            app* temp_result = this->th->get_manager().mk_eq(curr_eq_lhs, curr_eq_rhs);
+            result.push_back(temp_result);
+        }
+        return result;
+    }
+
     app* slhv_syntax_maker::mk_addr_notin_hterm(app* hterm, app* addr) {
         app* fresh_whole_h = this->mk_fresh_hvar();
         app* fresh_data = this->mk_fresh_locvar();
@@ -3902,6 +3933,29 @@ namespace smt {
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
         return final_result;
+    }
+
+    app* slhv_syntax_maker::mk_addr_notin_hterm_multi(app* hterm, app* addr) {
+        app* fresh_whole_hvar = this->mk_fresh_hvar();
+        pt_record* simplies_rec = this->slhv_decl_plug->get_simplies_record();
+        app* eq_lhs = fresh_whole_hvar;
+        std::vector<app*> eq_rhs_uplus_args;
+        
+        std::vector<app*> record_fresh_datavars;
+        std::vector<app*> record_fresh_locvars;
+        for(int i = 0; i < simplies_rec->get_loc_num(); i ++) {
+            record_fresh_locvars.push_back(this->mk_fresh_locvar());
+        }
+        for(int i = 0; i < simplies_rec->get_data_num(); i ++) {
+            record_fresh_datavars.push_back(this->mk_fresh_datavar());
+        }
+        app* rhs_record = this->mk_record(simplies_rec, record_fresh_locvars, record_fresh_datavars);
+        app* rhs_pt = this->mk_points_to_multi(addr, rhs_record);
+        eq_rhs_uplus_args.push_back(hterm);
+        eq_rhs_uplus_args.push_back(rhs_pt);
+        app* eq_rhs = this->mk_uplus(2, eq_rhs_uplus_args);
+        app* result = this->th->get_manager().mk_eq(eq_lhs, eq_rhs);
+        return result;
     }
 
    std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
@@ -4071,6 +4125,7 @@ namespace smt {
             vec.push_back(to_expr(ht1_pt_locvars[i]));
             vec.push_back(to_expr(ht2_pt_locvars[i]));
             app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
+            this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(int i = 0; i < pt_datafield_num; i ++) {
@@ -4078,6 +4133,7 @@ namespace smt {
             vec.push_back(to_expr(ht1_pt_datavars[i]));
             vec.push_back(to_expr(ht2_pt_datavars[i]));
             app* e = this->th->get_manager().mk_distinct(vec.size(), vec.data());
+            this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(expr* e : one_field_distinct) {
@@ -4095,8 +4151,8 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "second disjunct" << std::endl;
         #endif
-        app* x_in_ht1 = this->mk_addr_in_hterm(ht1_hvar, x);
-        app* x_notin_ht2 = this->mk_addr_notin_hterm(ht2_hvar, x);
+        app* x_in_ht1 = this->mk_addr_in_hterm_new(ht1_hvar, x);
+        app* x_notin_ht2 = this->mk_addr_notin_hterm_new(ht2_hvar, x);
         std::vector<app*> second_disj;
         second_disj.push_back(x_in_ht1);
         second_disj.push_back(x_notin_ht2);
@@ -4111,8 +4167,8 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "third disjunct" << std::endl;
         #endif
-        app* x_in_ht2 = this->mk_addr_in_hterm(ht2_hvar, x);
-        app* x_notin_ht1 = this->mk_addr_notin_hterm(ht1_hvar, x);
+        app* x_in_ht2 = this->mk_addr_in_hterm_new(ht2_hvar, x);
+        app* x_notin_ht1 = this->mk_addr_notin_hterm_new(ht1_hvar, x);
         std::vector<app*> third_disj;
         third_disj.push_back(x_in_ht2);
         third_disj.push_back(x_notin_ht1);
@@ -4121,6 +4177,110 @@ namespace smt {
         this->th->get_context().internalize(x_in_ht2, false);
         this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
+        return final_result;
+    }
+
+    std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_multi(app* lhs, app* rhs) {
+        std::vector<std::vector<app*>> final_result;
+
+        std::vector<std::vector<app*>> first_situation_disjuncts;
+
+        app* lhs_fresh_hvar = this->mk_fresh_hvar();
+        app* rhs_fresh_hvar = this->mk_fresh_hvar();
+        app* common_addr = this->mk_fresh_locvar();
+
+        std::set<pt_record*> all_records = this->slhv_decl_plug->get_all_pt_records();
+        for(pt_record* r1 : all_records) {
+            for(pt_record* r2: all_records) {
+                std::vector<app*> lhs_fresh_locvars;
+                std::vector<app*> lhs_fresh_datavars;
+                std::vector<app*> rhs_fresh_locvars;
+                std::vector<app*> rhs_fresh_datavars;
+                
+                int r1_loc_num = r1->get_loc_num();
+                int r1_data_num = r1->get_data_num();
+                int r2_loc_num = r2->get_loc_num();
+                int r2_data_num = r2->get_data_num();
+
+                for(int i = 0; i < r1_loc_num; i ++) {
+                    lhs_fresh_locvars.push_back(this->mk_fresh_locvar());
+                }
+                for(int i = 0; i < r2_loc_num; i ++) {
+                    rhs_fresh_locvars.push_back(this->mk_fresh_locvar());
+                }
+                for(int i = 0; i < r1_data_num; i ++) {
+                    lhs_fresh_datavars.push_back(this->mk_fresh_datavar());
+                }
+                for(int i = 0; i < r2_data_num; i ++) {
+                    rhs_fresh_datavars.push_back(this->mk_fresh_datavar());
+                }
+                app* lhs_hterm_record = this->mk_record(r1, lhs_fresh_locvars, lhs_fresh_datavars);
+                app* rhs_hterm_record = this->mk_record(r2, rhs_fresh_locvars, rhs_fresh_datavars);
+                // first equality
+                app* first_eq_lhs = lhs;
+                std::vector<app*> first_eq_rhs_uplus_args;
+                first_eq_rhs_uplus_args.push_back(lhs_fresh_hvar);
+                app* first_eq_rhs_pt = this->mk_points_to_multi(common_addr, lhs_hterm_record);
+                first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
+                app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
+                app* first_eq = this->th->get_manager().mk_eq(first_eq_lhs, first_eq_rhs);
+                // second equality
+                app* second_eq_lhs = rhs;
+                std::vector<app*> second_eq_rhs_uplus_args;
+                second_eq_rhs_uplus_args.push_back(rhs_fresh_hvar);
+                app* second_eq_rhs_pt = this->mk_points_to_multi(common_addr, rhs_hterm_record);
+                second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
+                app* second_eq_rhs = this->mk_uplus(2, second_eq_rhs_uplus_args);
+                app* second_eq = this->th->get_manager().mk_eq(second_eq_lhs, second_eq_rhs);
+                if(r1 == r2) {
+                    SASSERT(r1_data_num == r2_data_num && r1_loc_num == r2_loc_num);
+                    // at least one field distinct
+                    std::set<app*> all_possible_nequal;
+                    for(int i = 0; i < curr_loc_num; i ++){
+                        app* curr_ne = this->th->get_manager().mk_distinct(lhs_fresh_locvars[i], rhs_fresh_locvars[i]);
+                        this->th->get_context().internalize(curr_ne, false);
+                        all_possible_nequal.insert(curr_ne);
+                    }
+                    for(int i = 0; i < curr_data_num; i ++) {
+                        app* curr_ne = this->th->get_manager().mk_distinct(lhs_fresh_datavars[i], rhs_fresh_datavars[i]);
+                        this->th->get_context().internalize(curr_ne, false);
+                        all_possible_nequal.insert(curr_ne);
+                    }
+                    for(app* nequal_form : all_possible_nequal) {
+                        std::vector<app*> result;
+                        result.push_back(first_eq);
+                        result.push_back(second_eq);
+                        result.push_back(nequal_form);
+                        final_result.push_back(result);
+                    }
+                } else { 
+                    std::vector<app*> result;
+                    result.push_back(first_eq);
+                    result.push_back(second_eq);
+                    final_result.push_back(result);
+                }
+            }
+        }
+
+        // lhs does not have common addr
+        std::vector<app*> common_addr_in_lhs = this->mk_addr_in_hterm_multi(lhs, common_addr);
+        app* common_notin_rhs = this->mk_addr_notin_hterm_multi(rhs, common_addr);
+        for(app* in_nequal : common_addr_in_lhs) {
+            std::vector<app*> result;
+            result.push_back(in_nequal);
+            result.push_back(common_notin_rhs);
+            final_result.push_back(result);
+        }
+
+        // rhs does not have common addr
+        std::vector<app*> common_addr_in_rhs = this->mk_addr_in_hterm_multi(rhs, common_addr);
+        app* common_notin_lhs = this->mk_addr_notin_hterm_multi(lhs, common_addr);
+        for(app* in_nequal : common_addr_in_rhs) {
+            std::vector<app*> result;
+            result.push_back(in_nequal);
+            result.push_back(common_notin_lhs);
+            final_result.push_back(result);
+        }
         return final_result;
     }
 
@@ -4187,6 +4347,7 @@ namespace smt {
         app* result = this->th->get_manager().mk_app(pt_decl, args_vec);
         return result;
     }
+
 
     app* slhv_syntax_maker::mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars) {
         int pt_locfield_num = r->get_loc_num();
