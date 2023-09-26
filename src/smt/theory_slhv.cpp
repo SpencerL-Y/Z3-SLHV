@@ -4052,7 +4052,7 @@ namespace smt {
 
     std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
         if(this->slhv_decl_plug->pt_record_map.size() != 1) {
-            return nullptr;
+            SASSERT(false);
         }
         int pt_locfield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_loc_num();
         int pt_datafield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_data_num();
@@ -4236,13 +4236,19 @@ namespace smt {
                     SASSERT(r1_data_num == r2_data_num && r1_loc_num == r2_loc_num);
                     // at least one field distinct
                     std::set<app*> all_possible_nequal;
-                    for(int i = 0; i < curr_loc_num; i ++){
-                        app* curr_ne = this->th->get_manager().mk_distinct(lhs_fresh_locvars[i], rhs_fresh_locvars[i]);
+                    for(int i = 0; i < r1_loc_num; i ++){
+                        expr_ref_vector neg_lr(this->th->get_manager());
+                        neg_lr.push_back(to_expr( lhs_fresh_locvars[i]));
+                        neg_lr.push_back(to_expr(rhs_fresh_locvars[i]));
+                        app* curr_ne = this->th->get_manager().mk_distinct(neg_lr.size(), neg_lr.data());
                         this->th->get_context().internalize(curr_ne, false);
                         all_possible_nequal.insert(curr_ne);
                     }
-                    for(int i = 0; i < curr_data_num; i ++) {
-                        app* curr_ne = this->th->get_manager().mk_distinct(lhs_fresh_datavars[i], rhs_fresh_datavars[i]);
+                    for(int i = 0; i < r1_data_num; i ++) {
+                        expr_ref_vector neg_lr(this->th->get_manager());
+                        neg_lr.push_back(to_expr(lhs_fresh_datavars[i]));
+                        neg_lr.push_back(to_expr(rhs_fresh_datavars[i]));
+                        app* curr_ne = this->th->get_manager().mk_distinct(neg_lr.size(), neg_lr.data());
                         this->th->get_context().internalize(curr_ne, false);
                         all_possible_nequal.insert(curr_ne);
                     }
