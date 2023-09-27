@@ -1119,7 +1119,7 @@ namespace smt {
         #endif
 
         std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
-        // stop here
+        
         #ifdef SLHV_DEBUG
         std::cout << "assignable dataterm constraints: " << std::endl;
         for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
@@ -1327,7 +1327,8 @@ namespace smt {
                 if(pt_documented[pt1]) {
                     break;
                 }
-                if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
+                if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq) &&
+                  (this->analyze_pt_record_type(pt) == this->analyze_pt_record_type(pt1))) {
                     SASSERT(pt_documented[pt1]);
                     pt_set.insert(pt1);
                     pt_documented[pt1] = true;
