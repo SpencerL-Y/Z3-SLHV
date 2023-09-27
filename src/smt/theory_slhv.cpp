@@ -1327,11 +1327,12 @@ namespace smt {
                 if(pt_documented[pt1]) {
                     break;
                 }
-                if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq) &&
-                  (this->analyze_pt_record_type(pt) == this->analyze_pt_record_type(pt1))) {
-                    SASSERT(pt_documented[pt1]);
-                    pt_set.insert(pt1);
-                    pt_documented[pt1] = true;
+                if((this->analyze_pt_record_type(pt) == this->analyze_pt_record_type(pt1))) {
+                    if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
+                        SASSERT(pt_documented[pt1]);
+                        pt_set.insert(pt1);
+                        pt_documented[pt1] = true;
+                    }
                 } 
             } 
             pt_loc_partition.insert(pt_set);
