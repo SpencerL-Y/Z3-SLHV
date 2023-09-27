@@ -171,11 +171,11 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_points_to" << std::endl; 
     #endif 
         return this->mk_points_to(arity, domain);
-    case OP_POINTS_TO_NEW:
-        #ifdef SLHV_DEBUG
-        std::cout << "mk_func_decl in slhv plugin op_points_to_new" << std::endl;
-        #endif
-        return this->Pt_R_decl != nullptr ? this->Pt_R_decl : this->m_ctx->find_func_decl(symbol("Pt_R"));
+    // case OP_POINTS_TO_NEW:
+    //     #ifdef SLHV_DEBUG
+    //     std::cout << "mk_func_decl in slhv plugin op_points_to_new" << std::endl;
+    //     #endif
+    //     return this->Pt_R_decl != nullptr ? this->Pt_R_decl : this->m_ctx->find_func_decl(symbol("Pt_R"));
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;

@@ -1354,6 +1354,8 @@ namespace smt {
                     bool inequal_found = false;
                     if(the_other_pt != cpt) {
                         for(assignable_dataterm_pair* ne_p : neq_pairs) {
+                            SASSERT(!this->is_points_to_loc_inequal(cpt, the_other_pt, loc_eq));
+
                             if(ne_p->contain_data_constraint(cpt, the_other_pt, loc_eq)) {
                                 inequal_found = true;
                                 break;
@@ -1459,7 +1461,13 @@ namespace smt {
         app* pt1_record = to_app(pt1->get_arg(1));
         app* pt2_record = to_app(pt2->get_arg(1));
         bool is_loc_distinct = false;
-        for(int i = 0; i < this->pt_locfield_num; i ++) {
+        pt_record* pt1_record_type = this->analyze_pt_record_type(pt1_record);
+        pt_record* pt2_record_type = this->analyze_pt_record_type(pt2_record);
+        if(pt1 != pt2) {
+            return true;
+        }
+        int curr_pt_locfield_num = pt1_record_type->get_loc_num();
+        for(int i = 0; i < curr_pt_locfield_num; i ++) {
             app* pt1_temp_loc = to_app(pt1_record->get_arg(i));
             app* pt2_temp_loc = to_app(pt2_record->get_arg(i));
             SASSERT(this->is_locvar(pt1_temp_loc) && this->is_locvar(pt2_temp_loc));
@@ -2519,16 +2527,23 @@ namespace smt {
     }
 
     bool assignable_dataterm_pair::contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq) {
+        // TODO: need debug
         SASSERT(this->th->is_points_to(pt1) && this->th->is_points_to(pt2));
         app* addr_var1 = to_app(pt1->get_arg(0));
         app* addr_var2 = to_app(pt2->get_arg(0));
         app* pt_record1 = to_app(pt1->get_arg(1));
         app* pt_record2 = to_app(pt2->get_arg(1));
+        pt_record* pt1_record_type = this->th->analyze_pt_record_type(pt_record1);
+        pt_record* pt2_record_type = this->th->analyze_pt_record_type(pt_record2);
         SASSERT(this->th->is_locvar(addr_var1) && this->th->is_locvar(addr_var2));
+        SASSERT(pt1_record_type == pt2_record_type);
+        SASSERT(loc_eq->is_in_same_class(addr_var1, addr_var2));
+        int curr_pt_locfield_num = pt1_record_type->get_loc_num();
+        int curr_pt_datafield_num = pt1_record_type->get_data_num();
         if(!loc_eq->is_in_same_class(addr_var1, addr_var2)) {
             return  false;
         } else {
-            for(int i = 0; i < this->th->pt_locfield_num; i ++) {
+            for(int i = 0; i < curr_pt_locfield_num; i ++) {
                 app* temp_loc1 = to_app(pt_record1->get_arg(i));
                 app* temp_loc2 = to_app(pt_record2->get_arg(i));
                 SASSERT(this->th->is_locvar(temp_loc1) && this->th->is_locvar(temp_loc2));
@@ -2536,7 +2551,7 @@ namespace smt {
                     return false;
                 } 
             }
-            for(int i = this->th->pt_locfield_num; i < this->th->pt_locfield_num + this->th->pt_datafield_num; i ++) {
+            for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
                 app* temp_data1 = to_app(pt_record1->get_arg(i));
                 app* temp_data2 = to_app(pt_record2->get_arg(i));
                 if(temp_data1 == temp_data2) {
@@ -3697,7 +3712,7 @@ namespace smt {
                 datavars_vec.push_back(this->mk_fresh_datavar());
             }
             SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-            pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+            pt_record* only_record = this->slhv_decl_plug->get_first_record();  
             app* rhs_record = this->mk_record(only_record, locvars_vec, datavars_vec);
             app* rhs_points_to = this->mk_points_to_new(read_addr, rhs_record);
             std::vector<app*> rhs_uplus_args;
@@ -3724,7 +3739,7 @@ namespace smt {
                 }
             }
             SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-            pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+            pt_record* only_record = this->slhv_decl_plug->get_first_record();
             app* rhs_record = this->mk_record(only_record, locvars_vec, datavars_vec);
             app* rhs_points_to = this->mk_points_to_new(read_addr, rhs_record);
             std::vector<app*> rhs_uplus_args;
@@ -3793,7 +3808,7 @@ namespace smt {
         app* first_eq_lhs = orig_hvar;
         
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         
         app* first_eq_rhs_record = this->mk_record(only_record, first_locvars_vec, first_datavars_vec);
 
@@ -3863,7 +3878,7 @@ namespace smt {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         
         app* addr_pt_record = this->mk_record(only_record, record_fresh_locvars, record_fresh_datavars);
 
@@ -3938,7 +3953,7 @@ namespace smt {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         app* rhs_record = this->mk_record(only_record, record_fresh_locvars, record_fresh_datavars);
         app* rhs_points_to = this->mk_points_to_new(addr, rhs_record);
         app* eq_lhs = fresh_whole_h;
@@ -4074,7 +4089,7 @@ namespace smt {
         int pt_datafield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_data_num();
 
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         std::vector<std::vector<app*>> final_result;
 
         #ifdef SLHV_DEBUG
@@ -4350,7 +4365,7 @@ namespace smt {
     app* slhv_syntax_maker::mk_points_to_new(app* addr_loc, app* record_loc) {
 
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = *this->slhv_decl_plug->pt_record_map.begin();
+        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         func_decl* only_pt_r_decl = this->slhv_decl_plug->pt_record_decls[only_record->get_pt_record_name()];
         SASSERT(this->th->is_locterm(addr_loc));
         SASSERT(this->th->is_recordterm(record_loc));

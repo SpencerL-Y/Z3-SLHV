@@ -135,6 +135,8 @@ namespace smt
 
         bool is_arith_formula(app* l);
 
+        pt_record* analyze_pt_record_type(app* record_app);
+
         private:
         bool final_check();
         
@@ -153,7 +155,6 @@ namespace smt
         // analyze all terms to do preprocessing later
         void preprocessing(expr_ref_vector assigned_literals);
 
-        pt_record* analyze_pt_record_type(app* record_app);
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 

@@ -17,7 +17,6 @@ enum slhv_sort_kind {
 enum slhv_op_kind {
     OP_HEAP_DISJUNION,
     OP_POINTS_TO,
-    OP_POINTS_TO_NEW,
     OP_LIST_SEGMENT,
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
