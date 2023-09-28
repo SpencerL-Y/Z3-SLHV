@@ -76,7 +76,7 @@ func_decl* slhv_decl_plugin::mk_uplus(unsigned arity, sort * const * domain) {
     }
     func_decl* result_decl = m_manager->mk_func_decl(m_disj_union_sym, arity, domain2, domain[0], info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_uplus result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
+    std::cout << "mk_uplus result: " << result_decl->get_name() << "  family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 }
@@ -116,7 +116,7 @@ func_decl* slhv_decl_plugin::mk_const_locvar(symbol name, sort* range, unsigned 
     func_decl_info info(m_family_id, OP_LOCVAR_CONST);
     func_decl* result_decl = m_manager->mk_const_decl(name, range, info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_const_locvar result: " << result_decl->get_name() << "family id: " << m_family_id << std::endl;
+    std::cout << "mk_const_locvar result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 
@@ -147,7 +147,7 @@ func_decl* slhv_decl_plugin::mk_const_nil(sort* range, unsigned arity, sort* con
     func_decl_info info(m_family_id, OP_NIL);
     func_decl* result_decl = m_manager->mk_const_decl(symbol("nil"), range, info);
     #ifdef SLHV_DEBUG
-    std::cout << "mk_nil result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
+    std::cout << "mk_nil result: " << result_decl->get_name() << "  family id: " << m_family_id << std::endl;
     #endif
     expr* const* result_expr = nullptr;
     this->global_nil = this->m_manager->mk_app(result_decl, result_expr);
@@ -171,11 +171,6 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_points_to" << std::endl; 
     #endif 
         return this->mk_points_to(arity, domain);
-    // case OP_POINTS_TO_NEW:
-    //     #ifdef SLHV_DEBUG
-    //     std::cout << "mk_func_decl in slhv plugin op_points_to_new" << std::endl;
-    //     #endif
-    //     return this->Pt_R_decl != nullptr ? this->Pt_R_decl : this->m_ctx->find_func_decl(symbol("Pt_R"));
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;

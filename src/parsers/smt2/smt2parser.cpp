@@ -2646,6 +2646,7 @@ namespace smt2 {
             slhv_decl_plugin* plug = (slhv_decl_plugin*)this->m().get_plugin(m().mk_family_id("slhv"));
             plug->set_curr_hvar(id);
             func_decl* c = plug->mk_func_decl(is_emp ? OP_EMP: OP_HVAR_CONST, 0, nullptr, 0, nullptr, hvar_sort);
+            SASSERT(c != nullptr);
             /*
             func_decl_ref c(m());
             func_decl_info hvar_info(m().mk_family_id("slhv"), is_emp ? OP_EMP: OP_HVAR_CONST);
