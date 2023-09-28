@@ -4212,6 +4212,7 @@ namespace smt {
     }
 
     std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_multi(app* lhs, app* rhs) {
+        SASSERT(this->th->is_hvar(lhs));
         std::vector<std::vector<app*>> final_result;
 
         std::vector<std::vector<app*>> first_situation_disjuncts;
@@ -4221,6 +4222,15 @@ namespace smt {
         app* common_addr = this->mk_fresh_locvar();
 
         std::set<pt_record*> all_records = this->slhv_decl_plug->get_all_pt_records();
+
+        bool rhs_is_hvar = (this->th->is_hvar(rhs));
+        app* second_eq_lhs = nullptr;
+        if(rhs_is_hvar) {
+            second_eq_lhs = rhs;
+        } else {
+            app* second_eq_lhs_fhvar = this->mk_fresh_hvar();
+            second_eq_lhs = second_eq_lhs_fhvar;
+        }
         for(pt_record* r1 : all_records) {
             for(pt_record* r2: all_records) {
                 std::vector<app*> lhs_fresh_locvars;
@@ -4256,7 +4266,7 @@ namespace smt {
                 app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
                 app* first_eq = this->th->get_manager().mk_eq(first_eq_lhs, first_eq_rhs);
                 // second equality
-                app* second_eq_lhs = rhs;
+                
                 std::vector<app*> second_eq_rhs_uplus_args;
                 second_eq_rhs_uplus_args.push_back(rhs_fresh_hvar);
                 app* second_eq_rhs_pt = this->mk_points_to_multi(common_addr, rhs_hterm_record);
@@ -4285,6 +4295,11 @@ namespace smt {
                     }
                     for(app* nequal_form : all_possible_nequal) {
                         std::vector<app*> result;
+                        if(!rhs_is_hvar) {
+                            app* rhs_replace_eq = this->th->get_manager().mk_eq(to_expr(second_eq_lhs), to_expr(rhs));
+                            this->th->get_context().internalize(rhs_replace_eq, false);
+                            result.push_back(rhs_replace_eq);
+                        }
                         result.push_back(first_eq);
                         result.push_back(second_eq);
                         result.push_back(nequal_form);
@@ -4292,6 +4307,11 @@ namespace smt {
                     }
                 } else { 
                     std::vector<app*> result;
+                    if(!rhs_is_hvar) {
+                        app* rhs_replace_eq = this->th->get_manager().mk_eq(to_expr(second_eq_lhs), to_expr(rhs));
+                        this->th->get_context().internalize(rhs_replace_eq, false);
+                        result.push_back(rhs_replace_eq);
+                    }
                     result.push_back(first_eq);
                     result.push_back(second_eq);
                     final_result.push_back(result);
@@ -4377,6 +4397,27 @@ namespace smt {
         sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
         sort* record_sort = only_pt_r_decl->get_range();
         sort_ref_vector sorts_vec(this->th->get_manager()); 
+        sorts_vec.push_back(loc_sort);
+        sorts_vec.push_back(record_sort);
+        sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+        func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
+        app* result = this->th->get_manager().mk_app(pt_decl, args_vec);
+        return result;
+    }
+
+    app* slhv_syntax_maker::mk_points_to_multi(app* addr_loc, app* record) {
+        pt_record* record_template = this->th->analyze_pt_record_type(record);
+        func_decl* curr_pt_r_decl = this->slhv_decl_plug->pt_record_decls[record_template->get_pt_record_name()];
+        SASSERT(this->th->is_locterm(addr_loc));
+        SASSERT(this->th->is_recordterm(record));
+        std::vector<app*> args = {addr_loc, record};
+        expr_ref_vector args_vec(this->th->get_manager());
+        for(app* arg : args) {
+            args_vec.push_back(arg);
+        }
+        sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        sort* record_sort = curr_pt_r_decl->get_range();
+        sort_ref_vector sorts_vec(this->th->get_manager());
         sorts_vec.push_back(loc_sort);
         sorts_vec.push_back(record_sort);
         sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);

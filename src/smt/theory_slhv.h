@@ -1182,9 +1182,7 @@ namespace smt
 
 
         // logic with multi-records:
-        app* mk_points_to_multi(app* addr_loc, app* record_term) {
-            return this->mk_points_to_new(addr_loc, record_term);
-        }
+        app* mk_points_to_multi(app* addr_loc, app* record_term);// DONE
         // TODOs:
         app* mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars);// DONE
 
