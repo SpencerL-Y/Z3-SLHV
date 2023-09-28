@@ -4265,6 +4265,7 @@ namespace smt {
                 first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
                 app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
                 app* first_eq = this->th->get_manager().mk_eq(first_eq_lhs, first_eq_rhs);
+                this->th->get_context().internalize(first_eq, false);
                 // second equality
                 
                 std::vector<app*> second_eq_rhs_uplus_args;
@@ -4273,6 +4274,7 @@ namespace smt {
                 second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
                 app* second_eq_rhs = this->mk_uplus(2, second_eq_rhs_uplus_args);
                 app* second_eq = this->th->get_manager().mk_eq(second_eq_lhs, second_eq_rhs);
+                this->th->get_context().internalize(second_eq, false);
                 if(r1 == r2) {
                     SASSERT(r1_data_num == r2_data_num && r1_loc_num == r2_loc_num);
                     // at least one field distinct
