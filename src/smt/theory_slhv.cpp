@@ -402,7 +402,10 @@ namespace smt {
                 }
 
                 locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
-
+                // if there is no next locvar eq
+                if(this->temp_loceq_bits.size() == 0) {
+                    still_has_loc_eq = false;
+                }
                 
 
                 // TODO: implement CDCL framework here
@@ -443,8 +446,12 @@ namespace smt {
                     auto pt_search_result = this->get_pt_eq_next(curr_loc_eq);
                     still_has_pt_eq = pt_search_result.first;
                     pt_eq* curr_pt_eq = pt_search_result.second;
+                    curr_pt_eq->print(std::cout);
                     if(!still_has_pt_eq) {
                         break;
+                    }
+                    if(this->temp_data_cnstr_bits.size() == 0) {
+                        still_has_pt_eq = false;
                     }
 
                     
@@ -2518,6 +2525,20 @@ namespace smt {
         return this->fine_data[pt][0];
     }
 
+
+    void pt_eq::print(std::ostream& os) {
+        os << "---------- pt_eq data -----------" << std::endl;
+        for(auto item : this->fine_data) {
+            os << "pt: " << mk_ismt2_pp(item.first, this->th->get_manager()) << std::endl;
+            os << "partition: " << std::endl;
+            for(auto i : item.second) {
+                os << mk_ismt2_pp(i, this->th->get_manager()) << ", ";
+            }
+            os << std::endl;
+            os << "---------------------------------" << std::endl;
+        }
+    }
+
     assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2) {
         SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
         SASSERT(t1 != t2);
@@ -2668,6 +2689,14 @@ namespace smt {
                         this->edges.push_back(new_edge);
                     }
                 }
+            } else if(this->th->is_points_to(label)) {
+                dgraph_node* to_dgraph_node = this->get_pt_node(label);
+                dgraph_edge* new_edge = alloc(dgraph_edge, this, from_dgraph_node, to_dgraph_node, label);
+                if(!this->has_edge(new_edge)) {
+                    this->edges.push_back(new_edge);
+                }
+            } else {
+                //pass
             }
         }
     }
