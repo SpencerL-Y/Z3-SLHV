@@ -2576,9 +2576,10 @@ namespace smt {
         this->pt_term_eq = pteq;
         this->construct_graph_from_theory();
         this->simplified = false;
+        this->saturated = false;
     }
 
-    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified) {
+    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified, bool saturated) {
         this->th = t;
         this->loc_eq = l;
         this->hvar_eq = h;
@@ -2586,6 +2587,7 @@ namespace smt {
         this->edges = es;
         this->nodes = ns;
         this->simplified = simplified;
+        this->saturated = saturated;
     }
 
 
@@ -2767,7 +2769,7 @@ namespace smt {
         }
         std::vector<dgraph_node*> ns;
         std::vector<dgraph_edge*> es;
-        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, this->pt_term_eq, ns, es, true);
+        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, this->pt_term_eq, ns, es, true, false);
         // create nodes for new graph
         for(dgraph_node* n : this->nodes) {
             if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
@@ -2788,6 +2790,12 @@ namespace smt {
                 }
             } 
         }
+
+
+        // edge_labelled_dgraph* edge_labelled_dgraph::check_and_saturate() {\
+        //     coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, )
+        //     edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), this->)
+        // }
 
         for(int id : remained_nontrivial_ids) {
             hvar_dgraph_node* id_node = nullptr;
@@ -2966,7 +2974,7 @@ namespace smt {
 
 
 
-    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), g->get_pt_term_eq(), ns, es, g->get_simplified()){
+    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), g->get_pt_term_eq(), ns, es, g->get_simplified(), g->get_saturated()){
         for(dgraph_node* n : ns) {
             SASSERT(n->get_dgraph() == g);
         }

@@ -636,6 +636,7 @@ namespace smt
             std::vector<dgraph_node*>  nodes;
             std::vector<dgraph_edge*>  edges;
             bool simplified;
+            bool saturated;
             void construct_graph_from_theory();
             void tarjanSCC(std::set<dgraph_node*> sources);
             dgraph_node* get_unvisited();
@@ -644,7 +645,7 @@ namespace smt
             std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
         public:
             edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq);
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified);
+            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified, bool saturated);
 
             hvar_dgraph_node* get_hvar_node(app* orig_hvar);
             pt_dgraph_node* get_pt_node(app* orig_pt);
@@ -659,8 +660,12 @@ namespace smt
                 return false;
             }
             edge_labelled_dgraph* check_and_simplify();
+            edge_labelled_dgraph* check_and_saturate();
             void set_simplified() {
                 this->simplified = true;
+            }
+            void set_saturated() {
+                this->saturated = true;
             }
             void add_node(dgraph_node* n);
             void add_edge(dgraph_edge* e);
@@ -688,6 +693,9 @@ namespace smt
             }
             bool get_simplified() {
                 return this->simplified;
+            }
+            bool get_saturated() {
+                return this->saturated;
             }
             std::vector<dgraph_node*> get_nodes() {
                 return this->nodes;
