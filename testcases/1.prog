@@ -1,0 +1,22 @@
+{f, s}
+while(true) {
+    x := alloc(2)
+    x.f := 1
+}
+
+
+
+
+
+x0 = x /\ h0 = h  /\ h1 = h0 \uplus x1 -> (f: f1, s: f2) /\
+\exists h'. v1. v2.(  h1 = h' \uplus x1 -> (f : v1, s, v2) /\ h2 = h' \uplus  x1 -> (f : 1, s : v2))
+
+x h
+
+x0 h0
+x := alloc(2)
+x1 h1
+store(x, f, 1)
+x2 h2
+
+x' h'

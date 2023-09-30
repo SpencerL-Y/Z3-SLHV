@@ -2820,12 +2820,6 @@ namespace smt {
             } 
         }
 
-
-        // edge_labelled_dgraph* edge_labelled_dgraph::check_and_saturate() {\
-        //     coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, )
-        //     edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), this->)
-        // }
-
         for(int id : remained_nontrivial_ids) {
             hvar_dgraph_node* id_node = nullptr;
             for(dgraph_node* n : this->nodes) {
@@ -2852,6 +2846,11 @@ namespace smt {
         }
         // TODO: add label complete here
         return new_graph;
+    }
+
+    edge_labelled_dgraph* edge_labelled_dgraph::check_and_saturate() {
+        coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, this->get_th(), this->get_hvar_eq()->get_coarse_data());
+        edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), copied_hvar_eq, this->pt_term_eq, this->get_nodes(), this->get_edges(), this->get_simplified(), this->get_saturated());
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {

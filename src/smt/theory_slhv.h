@@ -570,6 +570,7 @@ namespace smt
         public:
         // construct coarse hvar eq from th curr_hvars
         coarse_hvar_eq(theory_slhv* th);
+        coarse_hvar_eq(theory_slhv* th, std::map<enode*, std::vector<app*>> coarse_data) : th(th), coarse_data(coarse_data) {}
         coarse_hvar_eq* merge_hvar_nodes(std::vector<std::set<enode*>> enode_sets);
         // return 1 for yes, 0 for no and -1 for not sure
         int is_in_same_class(app* hvar1, app* hvar2);
