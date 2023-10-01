@@ -661,7 +661,7 @@ namespace smt
                 return false;
             }
             edge_labelled_dgraph* check_and_simplify();
-            edge_labelled_dgraph* check_and_saturate();
+            std::pair<bool, edge_labelled_dgraph*> check_and_saturate();
             void set_simplified() {
                 this->simplified = true;
             }
@@ -1134,6 +1134,17 @@ namespace smt
                 }
             }
             return true;
+        }
+
+        template<typename T>
+        static std::set<T> setIntersect(std::set<T> set1, std::set<T> set2) {
+            std::set<T> result;
+            for(T t1 : set1) {
+                if(set2.find(t1) != set2.end()) {
+                    result.insert(t1);
+                }
+            }
+            return result;
         }
     };
 

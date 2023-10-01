@@ -2848,9 +2848,108 @@ namespace smt {
         return new_graph;
     }
 
-    edge_labelled_dgraph* edge_labelled_dgraph::check_and_saturate() {
-        coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, this->get_th(), this->get_hvar_eq()->get_coarse_data());
-        edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), copied_hvar_eq, this->pt_term_eq, this->get_nodes(), this->get_edges(), this->get_simplified(), this->get_saturated());
+    std::pair<bool, edge_labelled_dgraph*> edge_labelled_dgraph::check_and_saturate() {
+        // coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, this->get_th(), this->get_hvar_eq()->get_coarse_data());
+        edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), this->get_hvar_eq(), this->pt_term_eq, this->get_nodes(), this->get_edges(), this->get_simplified(), this->get_saturated());
+
+        // collect sink nodes situations
+        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> node2sinks;
+        std::set<dgraph_node*> saturated;
+        for(dgraph_node* n : copied_graph->get_dest_nodes()) {
+            std::set<dgraph_node*> sinkset;
+            std::set<std::set<dgraph_node*>> sinksets;
+            sinkset.insert(n);
+            sinksets.insert(sinksets);
+            node2sinks[n] = sinksets;
+            saturated.insert(n);
+        }
+        std::set<dgraph_node*> to_be_saturated = copied_graph->get_nodes();
+        do {
+            to_be_saturated = copied_graph->get_nodes();
+            for(dgraph_edge* e : copied_graph->get_edges()) {
+                if(saturated.find(e->get_from()) != saturated.end()) {
+                    to_be_saturated.erase(e->get_from());
+                }
+                if(saturated.find(e->get_to()) != saturated.end()) {
+                    to_be_saturated.erase(e->get_to());
+                }
+                if(saturated.find(e->get_to()) == saturated.end()) {
+                    to_be_saturated.erase(e->get_from());
+                }
+            }
+            for(dgraph_node* todo : to_be_saturated) {
+                std::set<dgraph_edge*> related_edges;
+                std::map<app*, std::set<dgraph_edge*>> layer_subgraph_links;
+                for(dgraph_edge* e : copied_graph->get_edges()) {
+                    if(e->get_from() == todo) {
+                        related_edges.insert(e);
+                        if(layer_subgraph_links.find(e->get_label()) == layer_subgraph_links.end()) {
+                            std::set<dgraph_edge*> label_links;
+                            layer_subgraph_link[e->get_label()] = label_links;
+                        }
+                    }
+                }
+                for(dgraph_edge* e : related_edges) {
+                    layer_subgraph_links[e->get_label()].insert(e);
+                }
+
+                // for each labelled layer, there are children nodes 
+                // these nodes are saturated and each node has sets of dgraph_nodes representing how they are constructed
+                // 
+                for(auto r : layer_subgraph_links) {
+                    std::set<std::set<dgraph_node*>> curr_label_sinksets;
+                    std::set<std::vector<std::set<dgraph_node*>>> concated;
+                    
+                    for(dgraph_edge* e : r.second) {
+                        std::set<std::vector<std::set<dgraph_node*>>> next_concated;
+                        std::set<std::set<dgraph_node*>> curr_concat_sets = node2sinks[e->get_to()];
+                        if(concated.size() == 0) {
+                            for(std::set<dgraph_node*> s : curr_concat_sets) {
+                                std::vector<std::set<dgraph_node*>> init_node_vec;
+                                init_node_vec.push_back(s);
+                                next_concated.insert(init_node_vec);
+                            }
+                            concated = next_concated;
+                        } else {
+                            for(std::vector<std::set<dgraph_node*>> old_vec : concated) {
+                                for(std::set<dgraph_node*> s : curr_concat_sets) {
+                                    std::vector<std::set<dgraph_node*>> new_vec = old_vec;
+                                    new_vec.push_back(s);
+                                    next_concated.insert(new_vec);
+                                }
+                            }
+                            concated = next_concated;
+                        }
+                    }
+                }
+                // check and merge sinknodes for each label
+                std::set<std::set<dgraph_node*>> todo_node_sets;
+                for(std::vector<std::set<dgraph_node*>> nv : concated) {
+                    std::set<dgraph_node*> result;
+                    for(std::set<dgraph_node*> o : nv) {
+                        if(slhv_util::setIntersect(result, o).size() > 0) {
+                            return {false, copied_graph};
+                        } 
+                        result = slhv_util::setUnion(result, o);
+                    }
+                    todo_node_sets.insert(result);
+                }
+
+                for(std::set<dgraph_node*> s1 : todo_node_sets) {
+                    for(std::set<dgraph_node*> s2 : todo_node_sets) {
+                        std::set<dgraph_node*> s1minuss2 = slhv_util::setSubstract(s1, s2);
+                        std::set<dgraph_node*> s2minuss1 = slhv_util::setSubstract(s2, s1);
+                        if(s1 != s2 && 
+                        slhv_util::setIntersect(s1, s2).size() > 0 &&
+                        s1minuss2.size() > 0 && s2minuss1.size() > 0
+                        ) {
+                            
+                        }
+                    }
+                }
+            }
+        } while(to_be_saturated.size() > 0);
+
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {
