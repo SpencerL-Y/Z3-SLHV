@@ -2520,6 +2520,7 @@ namespace smt {
         return false;
     }
 
+
     app* pt_eq::get_representative_pt(app* pt) {
         SASSERT(this->fine_data.find(pt) != this->fine_data.end());
         return this->fine_data[pt][0];
@@ -2859,13 +2860,15 @@ namespace smt {
             std::set<dgraph_node*> sinkset;
             std::set<std::set<dgraph_node*>> sinksets;
             sinkset.insert(n);
-            sinksets.insert(sinksets);
+            sinksets.insert(sinkset);
             node2sinks[n] = sinksets;
             saturated.insert(n);
         }
-        std::set<dgraph_node*> to_be_saturated = copied_graph->get_nodes();
+        std::set<dgraph_node*> to_be_saturated;
         do {
-            to_be_saturated = copied_graph->get_nodes();
+            for(dgraph_node* n : copied_graph->get_nodes()) {
+                to_be_saturated.insert(n);
+            }
             for(dgraph_edge* e : copied_graph->get_edges()) {
                 if(saturated.find(e->get_from()) != saturated.end()) {
                     to_be_saturated.erase(e->get_from());
@@ -2885,7 +2888,7 @@ namespace smt {
                         related_edges.insert(e);
                         if(layer_subgraph_links.find(e->get_label()) == layer_subgraph_links.end()) {
                             std::set<dgraph_edge*> label_links;
-                            layer_subgraph_link[e->get_label()] = label_links;
+                            layer_subgraph_links[e->get_label()] = label_links;
                         }
                     }
                 }
@@ -2896,11 +2899,12 @@ namespace smt {
                 // for each labelled layer, there are children nodes 
                 // these nodes are saturated and each node has sets of dgraph_nodes representing how they are constructed
                 // 
+                std::set<std::vector<std::set<dgraph_node*>>> concated;
                 for(auto r : layer_subgraph_links) {
                     std::set<std::set<dgraph_node*>> curr_label_sinksets;
-                    std::set<std::vector<std::set<dgraph_node*>>> concated;
                     
                     for(dgraph_edge* e : r.second) {
+                        
                         std::set<std::vector<std::set<dgraph_node*>>> next_concated;
                         std::set<std::set<dgraph_node*>> curr_concat_sets = node2sinks[e->get_to()];
                         if(concated.size() == 0) {
@@ -2927,14 +2931,38 @@ namespace smt {
                 for(std::vector<std::set<dgraph_node*>> nv : concated) {
                     std::set<dgraph_node*> result;
                     for(std::set<dgraph_node*> o : nv) {
-                        if(slhv_util::setIntersect(result, o).size() > 0) {
-                            return {false, copied_graph};
-                        } 
+                        for(dgraph_node* n : slhv_util::setIntersect(result, o)) {
+                            // repeated points to for disjoint terms
+                            if(n->is_points_to()) {
+                                return {false, copied_graph};
+                            }
+                        }
                         result = slhv_util::setUnion(result, o);
                     }
                     todo_node_sets.insert(result);
                 }
+                // check points to inconsistency
+                std::set<dgraph_node*> todo_node_pts;
+                for(std::set<dgraph_node*> s : todo_node_sets) {
+                    for(dgraph_node* n : s) {
+                        if(n->is_points_to()) {
+                            todo_node_pts.insert(n);
+                        }
+                    }
+                }
+                for(dgraph_node* ptn1 : todo_node_pts) {
+                    for(dgraph_node* ptn2 : todo_node_pts) {
+                        SASSERT(ptn1->is_points_to() && ptn2->is_points_to());
+                        pt_dgraph_node* ptnode1 = (pt_dgraph_node*) ptn1;
+                        pt_dgraph_node* ptnode2 = (pt_dgraph_node*) ptn2;
+                        if(ptnode1->get_pt_pair_label().first == ptnode2->get_pt_pair_label().first && 
+                        ptnode1->get_pt_pair_label().second != ptnode2->get_pt_pair_label().second) {
+                            return {false, copied_graph};
+                        }
+                    }
+                }
 
+                // saturating
                 for(std::set<dgraph_node*> s1 : todo_node_sets) {
                     for(std::set<dgraph_node*> s2 : todo_node_sets) {
                         std::set<dgraph_node*> s1minuss2 = slhv_util::setSubstract(s1, s2);
@@ -2943,13 +2971,139 @@ namespace smt {
                         slhv_util::setIntersect(s1, s2).size() > 0 &&
                         s1minuss2.size() > 0 && s2minuss1.size() > 0
                         ) {
-                            
+                            // both are heap var
+                            if(s1minuss2.size() == 1 && s2minuss1.size() == 1) {
+                                dgraph_node* s1_node = *s1minuss2.begin();
+                                dgraph_node* s2_node = *s2minuss1.begin();
+                                if(s1_node->is_hvar() && s2_node->is_hvar()) {
+                                    // move edges linked to s2_node
+                                    for(dgraph_edge* e : copied_graph->edges) {
+                                        if(e->get_from() == s2_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, s1_node, e->get_to(), e->get_label());
+                                            copied_graph->del_edge(e);
+                                            copied_graph->add_edge(newE);
+                                        } else if(e->get_to() == s2_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), s2_node, e->get_label());
+                                            copied_graph->del_edge(e);
+                                            copied_graph->add_edge(newE);
+                                        } else {
+
+                                        }
+                                    }
+                                    copied_graph->del_node(s2_node);
+                                    node2sinks[s1_node] = slhv_util::setUnion(node2sinks[s1_node], node2sinks[s2_node]);
+                                    node2sinks.erase(s2_node);
+                                } else {
+                                    return {false, copied_graph};
+                                }
+                            // one of them is hvar
+                            } else if(s1minuss2.size() == 1) {
+                                dgraph_node* hvar_node = *s1minuss2.begin();
+                                std::set<dgraph_node*> leaves = s2minuss1;
+                                if(node2sinks[hvar_node].find(leaves) ==  node2sinks[hvar_node].end()) {
+                                    std::vector<app*> uplus_args;
+                                    for(dgraph_node* ln : leaves) {
+                                        if(ln->is_hvar()) {
+                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
+                                            uplus_args.push_back(leader_hvar);
+                                        } else {
+                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
+                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
+                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            uplus_args.push_back(pt_label);
+                                        }
+                                    }
+                                    SASSERT(leaves.size() == uplus_args.size());
+                                    app* label = this->th->syntax_maker->mk_uplus(leaves.size(), uplus_args);
+                                    for(dgraph_node* l : leaves) {
+                                        dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
+                                    }
+                                    saturated.erase(hvar_node);
+                                }
+                            } else if(s2minuss1.size() == 1) {
+                                dgraph_node* hvar_node = *s2minuss1.begin();
+                                std::set<dgraph_node*> leaves = s1minuss2;
+                                if(node2sinks[hvar_node].find(leaves) ==  node2sinks[hvar_node].end()) {
+                                    std::vector<app*> uplus_args;
+                                    for(dgraph_node* ln : leaves) {
+                                        if(ln->is_hvar()) {
+                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
+                                            uplus_args.push_back(leader_hvar);
+                                        } else {
+                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
+                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
+                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            uplus_args.push_back(pt_label);
+                                        }
+                                    }
+                                    SASSERT(leaves.size() == uplus_args.size());
+                                    app* label = this->th->syntax_maker->mk_uplus(leaves.size(), uplus_args);
+                                    for(dgraph_node* l : leaves) {
+                                        dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
+                                    }
+                                    saturated.erase(hvar_node);
+                                }
+                            // both are heap terms
+                            } else {
+                                std::set<dgraph_node*> leaves1 = s1minuss2;
+                                std::set<dgraph_node*> leaves2 = s2minuss1;
+                                bool hvar_node_found = false;
+                                for(auto r : node2sinks) {
+                                    if(r.second.find(leaves1) != r.second.end() &&
+                                       r.second.find(leaves2) != r.second.end()) {
+                                        hvar_node_found = true;
+                                        break;
+                                       }
+                                }
+                                if(!hvar_node_found) {
+                                    app* fresh_hvar = this->th->syntax_maker->mk_fresh_hvar();
+                                    dgraph_node* newN = alloc(hvar_dgraph_node, copied_graph, fresh_hvar);
+                                    copied_graph->add_node(newN);
+                                    std::vector<app*> uplus_args1;
+                                    std::vector<app*> uplus_args2;
+                                    for(dgraph_node* ln : leaves1) {
+                                        if(ln->is_hvar()) {
+                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
+                                            uplus_args1.push_back(leader_hvar);
+                                        } else {
+                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
+                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
+                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            uplus_args1.push_back(pt_label);
+                                        }
+                                    }
+                                    SASSERT(leaves1.size() == uplus_args1.size());
+                                    app* label1 = this->th->syntax_maker->mk_uplus(leaves2.size(), uplus_args1);
+
+                                    for(dgraph_node* ln : leaves2) {
+                                        if(ln->is_hvar()) {
+                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
+                                            uplus_args2.push_back(leader_hvar);
+                                        } else {
+                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
+                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
+                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            uplus_args2.push_back(pt_label);
+                                        }
+                                    }
+                                    SASSERT(leaves2.size() == uplus_args2.size());
+                                    app* label2 = this->th->syntax_maker->mk_uplus(leaves2.size(), uplus_args2);
+                                    for(dgraph_node* ln : leaves1) {
+                                        dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label1);
+                                        copied_graph->add_edge(temp_edge);
+                                    }
+                                    for(dgraph_node* ln : leaves2) {    
+                                        dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label2);
+                                        copied_graph->add_edge(temp_edge);
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
         } while(to_be_saturated.size() > 0);
-
+        return {true, copied_graph};
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {
@@ -2978,6 +3132,27 @@ namespace smt {
                }
         }
         this->edges.push_back(e);
+    }
+
+
+    void edge_labelled_dgraph::del_node(dgraph_node* n){
+        for(auto it = this->nodes.begin(); it != this->nodes.end();) {
+            if(*it == n) {
+                it = this->nodes.erase(it);
+            } else {
+                ++it;
+            }
+        }
+    }
+
+    void edge_labelled_dgraph::del_edge(dgraph_edge* e){
+        for(auto it = this->edges.begin(); it != this->edges.end();) {
+            if(*it == e) {
+                it = this->edges.erase(it);
+            } else {
+                ++it;
+            }
+        }
     }
 
     dgraph_node* edge_labelled_dgraph::get_node_by_low(int low_idx) {

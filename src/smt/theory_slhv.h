@@ -598,6 +598,7 @@ namespace smt
         public:
             pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<app*,  std::vector<app*>> fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
             bool is_in_same_class(app* pt1, app* pt2);
+            bool record_in_same_class(app* rec1, app* rec2);
             app* get_representative_pt(app* pt);
             void print(std::ostream& os);
 
@@ -670,6 +671,8 @@ namespace smt
             }
             void add_node(dgraph_node* n);
             void add_edge(dgraph_edge* e);
+            void del_node(dgraph_node* n);
+            void del_edge(dgraph_edge* e);
             dgraph_node* get_node_by_low(int low_idx);
             std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraph);
             std::vector<edge_labelled_subgraph*> subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2);
