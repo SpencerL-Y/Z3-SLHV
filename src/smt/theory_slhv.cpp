@@ -466,8 +466,17 @@ namespace smt {
                         std::cout << "simplified graph: " << std::endl;
                         simplified_graph->print(std::cout);
                     #endif
+                    std::pair<bool, edge_labelled_dgraph*> curr_result = simplified_graph->check_and_saturate();
+                    if(curr_result.first && this->check_status != slhv_unsat) {
+                        #ifdef SLHV_DEBUG
+                        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+                        #endif
+                        this->check_status = slhv_sat;
+                        return true;
+                    }
+                    #ifdef OLD_LOGIC
                     // infer hterm inclusion
-                    // first compute the node2subgraphs mapping
+                    // first compute the node2subgraphs mapping 
                     std::set<dgraph_node*> roots = simplified_graph->get_sources();
                     std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
                     for(dgraph_node* n : roots) {
@@ -479,6 +488,8 @@ namespace smt {
                     // deduce subheap relation for each node
                     std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
                     // the subheap deduction find a feasible subheap relation for satisfiability
+                    
+
                     if(curr_result.second && this->check_status != slhv_unsat) {
                                 #ifdef SLHV_DEBUG
                                 std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
@@ -486,6 +497,7 @@ namespace smt {
                         this->check_status = slhv_sat;
                         return true;
                     }
+                    #endif
 
                 }
             }
@@ -2850,7 +2862,10 @@ namespace smt {
     }
 
     std::pair<bool, edge_labelled_dgraph*> edge_labelled_dgraph::check_and_saturate() {
-        // coarse_hvar_eq* copied_hvar_eq = alloc(coarse_hvar_eq, this->get_th(), this->get_hvar_eq()->get_coarse_data());
+
+        #ifdef SLHV_DEBUG
+        std::cout << "check_and_saturate" << std::endl;
+        #endif
         edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), this->get_hvar_eq(), this->pt_term_eq, this->get_nodes(), this->get_edges(), this->get_simplified(), this->get_saturated());
 
         // collect sink nodes situations
@@ -2867,7 +2882,11 @@ namespace smt {
         std::set<dgraph_node*> to_be_saturated;
         do {
             for(dgraph_node* n : copied_graph->get_nodes()) {
-                to_be_saturated.insert(n);
+                if(copied_graph->get_edges_from_node(n).size() != 0 ||
+                   copied_graph->get_edges_to_node(n).size() != 0) {
+                    to_be_saturated.insert(n);
+
+                }
             }
             for(dgraph_edge* e : copied_graph->get_edges()) {
                 if(saturated.find(e->get_from()) != saturated.end()) {
@@ -2880,7 +2899,19 @@ namespace smt {
                     to_be_saturated.erase(e->get_from());
                 }
             }
+            
+            #ifdef SLHV_DEBUG
+            std::cout << "current copied graph: " << std::endl;
+            copied_graph->print(std::cout);
+            std::cout << "current to_be_saturated: " << std::endl;
+            for(dgraph_node* n : to_be_saturated) {
+                n->print(std::cout);
+                std::cout << std::endl;
+            }
+
+            #endif
             for(dgraph_node* todo : to_be_saturated) {
+                saturated.insert(todo);
                 std::set<dgraph_edge*> related_edges;
                 std::map<app*, std::set<dgraph_edge*>> layer_subgraph_links;
                 for(dgraph_edge* e : copied_graph->get_edges()) {
@@ -2946,6 +2977,11 @@ namespace smt {
                 for(std::set<dgraph_node*> s : todo_node_sets) {
                     for(dgraph_node* n : s) {
                         if(n->is_points_to()) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "TODO node pt: ";
+                            n->print(std::cout);
+                            std::cout << std::endl; 
+                            #endif
                             todo_node_pts.insert(n);
                         }
                     }
@@ -2955,6 +2991,13 @@ namespace smt {
                         SASSERT(ptn1->is_points_to() && ptn2->is_points_to());
                         pt_dgraph_node* ptnode1 = (pt_dgraph_node*) ptn1;
                         pt_dgraph_node* ptnode2 = (pt_dgraph_node*) ptn2;
+                        #ifdef SLHV_DEBUG
+                        std::cout << "conflict judgement: " << std::endl;
+                        ptnode1->print(std::cout);
+                        ptnode2->print(std::cout);
+                        std::cout << (ptnode1->get_pt_pair_label().first == ptnode2->get_pt_pair_label().first) << " " << (ptnode1->get_pt_pair_label().second != ptnode2->get_pt_pair_label().second) << std::endl;
+
+                        #endif
                         if(ptnode1->get_pt_pair_label().first == ptnode2->get_pt_pair_label().first && 
                         ptnode1->get_pt_pair_label().second != ptnode2->get_pt_pair_label().second) {
                             return {false, copied_graph};
@@ -3098,9 +3141,22 @@ namespace smt {
                                     }
                                 }
                             }
+                        } else if(s1minuss2.size() == 0 && s2minuss1.size() != 0) {
+                            for(dgraph_node* n : s2minuss1) {
+                                if(n->is_points_to()) {
+                                    return {false, copied_graph};
+                                }
+                            }
+                        } else if(s2minuss1.size() == 0 && s1minuss2.size() != 0) {
+                            for(dgraph_node* n : s1minuss2) {
+                                return {false, copied_graph};
+                            }
+                        } else {
+
                         }
                     }
                 }
+
             }
         } while(to_be_saturated.size() > 0);
         return {true, copied_graph};
@@ -3501,6 +3557,16 @@ namespace smt {
         std::vector<dgraph_edge*> result;
         for(dgraph_edge* e : this->edges) {
             if(e->get_from() == n) {    
+                result.push_back(e);
+            }
+        }
+        return result;
+    }
+
+    std::vector<dgraph_edge*> edge_labelled_dgraph::get_edges_to_node(dgraph_node* n) {
+        std::vector<dgraph_edge*> result;
+        for(dgraph_edge* e : this->edges) {
+            if(e->get_to() == n) {
                 result.push_back(e);
             }
         }

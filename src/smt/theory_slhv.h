@@ -657,6 +657,7 @@ namespace smt
             bool has_edge_to(dgraph_node* node);
             bool has_edge_from(dgraph_node* node);
             std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
+            std::vector<dgraph_edge*> get_edges_to_node(dgraph_node* n);
             bool is_scc_computed();
             virtual bool is_subgraph() {
                 return false;
