@@ -3140,12 +3140,23 @@ namespace smt {
                         } else if(s1minuss2.size() == 0 && s2minuss1.size() != 0) {
                             for(dgraph_node* n : s2minuss1) {
                                 if(n->is_points_to()) {
+                                    #ifdef SLHV_DEBUG
+                                    std::cout << "s1minuss2 is empty, s2minuss1 contains: " << std::endl;
+                                    n->print(std::cout);
+                                    #endif
+
                                     return {false, copied_graph};
                                 }
                             }
                         } else if(s2minuss1.size() == 0 && s1minuss2.size() != 0) {
                             for(dgraph_node* n : s1minuss2) {
-                                return {false, copied_graph};
+                                if(n->is_points_to()) {
+                                    #ifdef SLHV_DEBUG
+                                    std::cout << "s2minuss1 is empty, s1minuss2 contains: " << std::endl;
+                                    n->print(std::cout);
+                                    #endif
+                                    return {false, copied_graph};
+                                }
                             }
                         } else {
 
