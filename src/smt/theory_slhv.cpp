@@ -498,7 +498,6 @@ namespace smt {
                         return true;
                     }
                     #endif
-
                 }
             }
         }
@@ -1130,11 +1129,11 @@ namespace smt {
 
     void theory_slhv::init_dataterm_boolvec(locvar_eq* loc_eq) {
         this->temp_data_zero_enumerated = false;
-        this->temp_loceq_bits.clear();
+        this->temp_data_cnstr_bits.clear();
         this->indexed_assignable_data_pairs.clear();
         this->temp_data_term_pair2set.clear();
         #ifdef SLHV_DEBUG
-        std::cout << "initialize dataterm  constraint boolvector" << std::endl;
+        std::cout << "initialize dataterm constraint boolvector" << std::endl;
         #endif
 
         std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
@@ -1213,7 +1212,7 @@ namespace smt {
     std::pair<bool, std::map<enode*, std::set<app*>>> theory_slhv::get_locvar_eq_next() {
         #ifdef SLHV_DEBUG
         std::cout << "get locvars eq next" << std::endl;
-        std::cout << "current bits: ";
+        std::cout << "current loc bits: ";
         for(int idx; idx < this->temp_loceq_bits.size(); idx ++) {
             std::cout << this->temp_loceq_bits[idx];
         }
@@ -1272,7 +1271,7 @@ namespace smt {
     std::pair<bool, pt_eq*> theory_slhv::get_pt_eq_next(locvar_eq* loc_eq) {
         #ifdef SLHV_DEBUG
         std::cout << "get pt eq next" << std::endl;
-        std::cout << "current bits: ";
+        std::cout << "current pt bits: ";
         for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++) {
             std::cout << this->temp_data_cnstr_bits[idx];
         }
@@ -1339,16 +1338,20 @@ namespace smt {
         }
 
         for(app* pt : this->curr_pts) {
+            if(pt_documented[pt]) {
+                continue;
+            }
             std::set<app*> pt_set;
             pt_set.insert(pt);
             pt_documented[pt] = true;
             for(app* pt1 : this->curr_pts) {
                 if(pt_documented[pt1]) {
-                    break;
+                    continue;
                 }
-                if((this->analyze_pt_record_type(pt) == this->analyze_pt_record_type(pt1))) {
+                app* pt_r = to_app(pt->get_arg(1));
+                app* pt1_r = to_app(pt1->get_arg(1));
+                if((this->analyze_pt_record_type(pt_r) == this->analyze_pt_record_type(pt1_r))) {
                     if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
-                        SASSERT(pt_documented[pt1]);
                         pt_set.insert(pt1);
                         pt_documented[pt1] = true;
                     }
@@ -1413,18 +1416,21 @@ namespace smt {
 
         bool has_data_record = false;
         for(pt_record* r : this->slhv_plug->get_all_pt_records()) {
+            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << std::endl;
+            for(auto item : this->slhv_plug->pt_record_map) {
+                std::cout << "record name: " << item.first << std::endl;
+            }
+            SASSERT(r != nullptr);
             if(r->get_data_num() > 0) {
                 has_data_record = true;
                 break;
             }
         }
 
-
         if(!has_data_record) {
             // points-to does not contain any data field
             return final_result;
         } 
-
         std::map<app*, std::vector<app*>> addr2pts;
         std::set<app*> addr_appeared;
         for(app* pt : this->curr_pts) {
@@ -1476,26 +1482,22 @@ namespace smt {
     }
 
 
-    bool theory_slhv::is_points_to_loc_inequal(app* pt1, app*pt2, locvar_eq* loc_eq) {
+    bool theory_slhv::is_points_to_loc_inequal(app* pt1, app* pt2, locvar_eq* loc_eq) {
         app* pt1_record = to_app(pt1->get_arg(1));
         app* pt2_record = to_app(pt2->get_arg(1));
-        bool is_loc_distinct = false;
         pt_record* pt1_record_type = this->analyze_pt_record_type(pt1_record);
         pt_record* pt2_record_type = this->analyze_pt_record_type(pt2_record);
-        if(pt1 != pt2) {
+        if(pt1_record_type != pt2_record_type) {
             return true;
         }
         int curr_pt_locfield_num = pt1_record_type->get_loc_num();
         for(int i = 0; i < curr_pt_locfield_num; i ++) {
             app* pt1_temp_loc = to_app(pt1_record->get_arg(i));
             app* pt2_temp_loc = to_app(pt2_record->get_arg(i));
-            SASSERT(this->is_locvar(pt1_temp_loc) && this->is_locvar(pt2_temp_loc));
+            SASSERT((this->is_locvar(pt1_temp_loc) || this->is_nil(pt1_temp_loc)) && this->is_locvar(pt2_temp_loc) || this->is_nil(pt2_temp_loc));
             if(!loc_eq->is_in_same_class(pt1_temp_loc, pt2_temp_loc)) {
-                is_loc_distinct = true;
+                return true;
             }
-            if(is_loc_distinct) {
-                return is_loc_distinct;
-            } 
         }
         return false;
     }
@@ -2661,12 +2663,8 @@ namespace smt {
         
         for(app* pt : this->th->curr_pts) {
             app* addr_loc_leader = this->loc_eq->get_leader_locvar(to_app(pt->get_arg(0)));
-            app* data_record_leader = to_app(this->pt_term_eq->get_representative_pt(pt)->get_arg(1));
-            addr_record_pairs.insert({addr_loc_leader, data_record_leader});
-        }
-
-        for(auto pair : addr_record_pairs) {
-            dgraph_node* new_node = alloc(pt_dgraph_node, this, pair.first, pair.second);
+            app* pt_leader = this->pt_term_eq->get_representative_pt(pt);
+            dgraph_node* new_node = alloc(pt_dgraph_node, this, addr_loc_leader, pt_leader);
             this->nodes.push_back(new_node);
         }
         #ifdef SLHV_DEBUG
@@ -2729,14 +2727,11 @@ namespace smt {
     }
 
     pt_dgraph_node* edge_labelled_dgraph::get_pt_node(app* orig_pt){
-        app* orig_addr_loc = to_app(orig_pt->get_arg(0));
-        app* leader_addr_loc = this->loc_eq->get_leader_locvar(orig_addr_loc);
-        app* leader_record_loc = to_app(this->pt_term_eq->get_representative_pt(orig_pt)->get_arg(1));
+        app* leader_pt = this->pt_term_eq->get_representative_pt(orig_pt);
         for(dgraph_node* n : nodes) {
             if(n->is_points_to()) {
-                if(((pt_dgraph_node*)n)->get_pt_pair_label().first == leader_addr_loc &&
-                   ((pt_dgraph_node*)n)->get_pt_pair_label().second == leader_record_loc) {
-                    return (pt_dgraph_node*)n;
+                if(((pt_dgraph_node*)n)->get_pt_leader() == leader_pt) {
+                    return (pt_dgraph_node*) n;
                 }
             }
         }
@@ -2817,7 +2812,7 @@ namespace smt {
             if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
                 if(n->is_points_to()) {
                     pt_dgraph_node* old_node = (pt_dgraph_node*)n;
-                    pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_pt_pair_label().first, old_node->get_pt_pair_label().second);
+                    pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_addr_leader(), old_node->get_pt_leader());
                     new_node->set_dfs_index(old_node->get_dfs_index());
                     new_node->set_low_index(old_node->get_low_index());
                     new_graph->add_node(new_node);
@@ -2933,7 +2928,6 @@ namespace smt {
                 std::set<std::vector<std::set<dgraph_node*>>> concated;
                 for(auto r : layer_subgraph_links) {
                     std::set<std::set<dgraph_node*>> curr_label_sinksets;
-                    
                     for(dgraph_edge* e : r.second) {
                         
                         std::set<std::vector<std::set<dgraph_node*>>> next_concated;
@@ -2995,11 +2989,11 @@ namespace smt {
                         std::cout << "conflict judgement: " << std::endl;
                         ptnode1->print(std::cout);
                         ptnode2->print(std::cout);
-                        std::cout << (ptnode1->get_pt_pair_label().first == ptnode2->get_pt_pair_label().first) << " " << (ptnode1->get_pt_pair_label().second != ptnode2->get_pt_pair_label().second) << std::endl;
+                        std::cout << " addr same: " << (ptnode1->get_addr_leader() == ptnode2->get_addr_leader()) << " pt_same: " << (ptnode1->get_pt_leader()== ptnode2->get_pt_leader()) << std::endl;
 
                         #endif
-                        if(ptnode1->get_pt_pair_label().first == ptnode2->get_pt_pair_label().first && 
-                        ptnode1->get_pt_pair_label().second != ptnode2->get_pt_pair_label().second) {
+                        if(ptnode1->get_addr_leader() == ptnode2->get_addr_leader() && 
+                           ptnode1->get_pt_leader() != ptnode2->get_pt_leader()) {
                             return {false, copied_graph};
                         }
                     }
@@ -3050,9 +3044,7 @@ namespace smt {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
                                             uplus_args.push_back(leader_hvar);
                                         } else {
-                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
-                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
-                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
                                             uplus_args.push_back(pt_label);
                                         }
                                     }
@@ -3073,9 +3065,7 @@ namespace smt {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
                                             uplus_args.push_back(leader_hvar);
                                         } else {
-                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
-                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
-                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
                                             uplus_args.push_back(pt_label);
                                         }
                                     }
@@ -3109,9 +3099,7 @@ namespace smt {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
                                             uplus_args1.push_back(leader_hvar);
                                         } else {
-                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
-                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
-                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
                                             uplus_args1.push_back(pt_label);
                                         }
                                     }
@@ -3123,9 +3111,7 @@ namespace smt {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
                                             uplus_args2.push_back(leader_hvar);
                                         } else {
-                                            app* addr = ((pt_dgraph_node*)ln)->get_pt_pair_label().first;
-                                            app* record = ((pt_dgraph_node*)ln)->get_pt_pair_label().second;
-                                            app* pt_label = this->th->syntax_maker->mk_points_to_multi(addr, record);
+                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
                                             uplus_args2.push_back(pt_label);
                                         }
                                     }
@@ -3159,6 +3145,9 @@ namespace smt {
 
             }
         } while(to_be_saturated.size() > 0);
+        #ifdef SLHV_DEBUG
+        std::cout << "CHECK AND SATURATE SAT XXXXXX" << std::endl;
+        #endif
         return {true, copied_graph};
     }
 
@@ -3649,12 +3638,12 @@ namespace smt {
     hvar_dgraph_node::hvar_dgraph_node(edge_labelled_dgraph* g, app* hvar) : dgraph_node(g){
         this->leader_hvar = hvar;
     }
-
-    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_record) : dgraph_node(g) {
-        this->pt_addr_leader = pt_addr;
-        this->pt_record = pt_record;
-    }
     
+
+    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph* g, app* addr, app* pt) : dgraph_node(g) {
+        this->addr_leader = addr;
+        this->pt_leader = pt;
+    }
     // dgraph edge
     dgraph_edge::dgraph_edge(edge_labelled_dgraph* g, dgraph_node* f, dgraph_node* t, app* hterm_label) {
         this->dgraph = g;
@@ -3665,8 +3654,7 @@ namespace smt {
 
     // graph print functions
     void pt_dgraph_node::print(std::ostream& out) {
-        auto pt_pair = this->get_pt_pair_label();
-        out << "(N)-(PT)-(pt " << mk_ismt2_pp(pt_pair.first, this->get_dgraph()->get_th()->get_manager()) << " " << mk_ismt2_pp(pt_pair.second, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
+        out << "(N)-(PT)-" << mk_ismt2_pp(this->pt_leader, this->get_dgraph()->get_th()->get_manager()) <<"-(" << mk_ismt2_pp(this->addr_leader, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
     }
 
     void hvar_dgraph_node::print(std::ostream& out) {

@@ -793,15 +793,25 @@ namespace smt
 
     class pt_dgraph_node : public dgraph_node {
         private:
-            app* pt_addr_leader;
-            app* pt_record;
+            app* addr_leader;
+            app* pt_leader;
         public:
-            pt_dgraph_node(edge_labelled_dgraph* g, app* pt_addr, app* pt_record);
 
-            std::pair<app*, app*> get_pt_pair_label() {
-                return {pt_addr_leader, pt_record};
+            pt_dgraph_node(edge_labelled_dgraph* g, app* addr, app* pt);
+
+            app* get_addr_leader() {
+                return this->addr_leader;
             }
 
+            std::pair<app*, app*> get_pt_pair_label(){
+                app* record = to_app(pt_leader->get_arg(1));
+                return {addr_leader, record};
+            }
+
+            app* get_pt_leader() {
+                return this->pt_leader;
+            }
+            
             bool is_hvar() override {
                 return false;
             }
