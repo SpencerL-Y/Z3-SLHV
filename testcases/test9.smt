@@ -6,7 +6,8 @@
 (declare-locvar nil IntLoc)
 (declare-locvar x IntLoc)
 (declare-locvar y IntLoc)
-(declare-const d Int)
+(declare-const d1 Int)
+(declare-const d2 Int)
 
 (declare-datatype
     pt_record_0
@@ -14,7 +15,7 @@
 )
 
 
-(assert (not (= h (pt x (Pt_R x d)))))
-(assert (=  h (pt x (Pt_R y d))))
-(assert (distinct x y))
+(assert (not (= h (pt x (Pt_R_0 x d2)))))
+(assert (=  h (pt x (Pt_R_0 y d1))))
+(assert (= x y))
 (check-sat)

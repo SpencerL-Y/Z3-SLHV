@@ -1,9 +1,11 @@
 (set-logic SLHV)
 
 (declare-hvar emp IntHeap)
+(declare-locvar nil IntLoc)
+
+
 (declare-hvar h IntHeap)
 (declare-hvar hp IntHeap)
-(declare-locvar nil IntLoc)
 (declare-locvar x IntLoc)
 (declare-locvar y IntLoc)
 (declare-const d Int)

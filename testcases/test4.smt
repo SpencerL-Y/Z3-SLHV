@@ -9,6 +9,11 @@
 (declare-const i Int)
 (declare-const j Int)
 
+(declare-datatype 
+    pt_record_0
+    ((Pt_R_0 (l IntLoc)))
+)
 
-(assert (and (= hp (uplus h (pt x x) (pt x y))) (> i j) (> j 0)))
+
+(assert (and (= hp (uplus h (pt x (Pt_R_0 x) ) (pt x (Pt_R_0 y)))) (> i j) (> j 0)))
 (check-sat)
