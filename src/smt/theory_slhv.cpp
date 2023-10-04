@@ -2886,12 +2886,18 @@ namespace smt {
         }
         std::set<dgraph_node*> to_be_saturated;
         do {
+            #ifdef SLHV_DEBUG
+            std::cout << "enter saturating loop" << std::endl;
+            #endif
             for(dgraph_node* n : copied_graph->get_nodes()) {
                 if(copied_graph->get_edges_from_node(n).size() != 0 ||
                    copied_graph->get_edges_to_node(n).size() != 0) {
                     to_be_saturated.insert(n);
 
                 }
+            }
+            for(dgraph_node* s : saturated) {
+                to_be_saturated.erase(s);
             }
             for(dgraph_edge* e : copied_graph->get_edges()) {
                 if(saturated.find(e->get_from()) != saturated.end()) {
@@ -2917,26 +2923,25 @@ namespace smt {
             #endif
             for(dgraph_node* todo : to_be_saturated) {
                 saturated.insert(todo);
-                std::set<dgraph_edge*> related_edges;
                 std::map<app*, std::set<dgraph_edge*>> layer_subgraph_links;
                 for(dgraph_edge* e : copied_graph->get_edges()) {
                     if(e->get_from() == todo) {
-                        related_edges.insert(e);
                         if(layer_subgraph_links.find(e->get_label()) == layer_subgraph_links.end()) {
                             std::set<dgraph_edge*> label_links;
+                            label_links.insert(e);
                             layer_subgraph_links[e->get_label()] = label_links;
+                        } else {
+                            layer_subgraph_links[e->get_label()].insert(e);
                         }
                     }
-                }
-                for(dgraph_edge* e : related_edges) {
-                    layer_subgraph_links[e->get_label()].insert(e);
                 }
 
                 // for each labelled layer, there are children nodes 
                 // these nodes are saturated and each node has sets of dgraph_nodes representing how they are constructed
                 // 
-                std::set<std::vector<std::set<dgraph_node*>>> concated;
+                std::set<std::set<dgraph_node*>> todo_node_sets;
                 for(auto r : layer_subgraph_links) {
+                    std::set<std::vector<std::set<dgraph_node*>>> concated;
                     std::set<std::set<dgraph_node*>> curr_label_sinksets;
                     for(dgraph_edge* e : r.second) {
                         
@@ -2960,21 +2965,25 @@ namespace smt {
                             concated = next_concated;
                         }
                     }
-                }
                 // check and merge sinknodes for each label
-                std::set<std::set<dgraph_node*>> todo_node_sets;
-                for(std::vector<std::set<dgraph_node*>> nv : concated) {
-                    std::set<dgraph_node*> result;
-                    for(std::set<dgraph_node*> o : nv) {
-                        for(dgraph_node* n : slhv_util::setIntersect(result, o)) {
-                            // repeated points to for disjoint terms
-                            if(n->is_points_to()) {
-                                return {false, copied_graph};
+                    for(std::vector<std::set<dgraph_node*>> nv : concated) {
+                        std::set<dgraph_node*> result;
+                        for(std::set<dgraph_node*> o : nv) {
+                            for(dgraph_node* n : slhv_util::setIntersect(result, o)) {
+                                // repeated points to for disjoint terms
+                                if(n->is_points_to()) {
+                                    #ifdef SLHV_DEBUG
+                                    std::cout << "same points to below one label: ";
+                                    n->print(std::cout);
+                                    std::cout << std::endl;
+                                    #endif
+                                    return {false, copied_graph};
+                                }
                             }
+                            result = slhv_util::setUnion(result, o);
                         }
-                        result = slhv_util::setUnion(result, o);
+                        todo_node_sets.insert(result);
                     }
-                    todo_node_sets.insert(result);
                 }
                 // check points to inconsistency
                 std::set<dgraph_node*> todo_node_pts;
@@ -3004,6 +3013,11 @@ namespace smt {
                         #endif
                         if(ptnode1->get_addr_leader() == ptnode2->get_addr_leader() && 
                            ptnode1->get_pt_leader() != ptnode2->get_pt_leader()) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "conflict found: " << std::endl;
+                            ptnode1->print(std::cout);
+                            ptnode2->print(std::cout);
+                            #endif
                             return {false, copied_graph};
                         }
                     }
@@ -3018,6 +3032,9 @@ namespace smt {
                         slhv_util::setIntersect(s1, s2).size() > 0 &&
                         s1minuss2.size() > 0 && s2minuss1.size() > 0
                         ) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "saturating condition satisfied" << std::endl;
+                            #endif
                             // both are heap var
                             if(s1minuss2.size() == 1 && s2minuss1.size() == 1) {
                                 dgraph_node* s1_node = *s1minuss2.begin();
@@ -3041,6 +3058,11 @@ namespace smt {
                                     node2sinks[s1_node] = slhv_util::setUnion(node2sinks[s1_node], node2sinks[s2_node]);
                                     node2sinks.erase(s2_node);
                                 } else {
+                                    #ifdef SLHV_DEBUG
+                                    std::cout << "minus both 1: " << std::endl;
+                                    s1_node->print(std::cout);
+                                    s2_node->print(std::cout);
+                                    #endif
                                     return {false, copied_graph};
                                 }
                             // one of them is hvar
