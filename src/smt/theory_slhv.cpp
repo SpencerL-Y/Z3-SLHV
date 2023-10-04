@@ -410,6 +410,9 @@ namespace smt {
 
                 // TODO: implement CDCL framework here
                 if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "curr_loc_eq not feasible" << std::endl;
+                    #endif
                     continue;
                 }
                 #ifdef SLHV_DEBUG
@@ -1196,14 +1199,14 @@ namespace smt {
         if(bits.size() == 0) {
             return;
         }
-        bool adding_comsumed = false;
+        bool adding_consumed = false;
         int curr_idx = 0;
-        while(!adding_comsumed && curr_idx < bits.size()) {
+        while(!adding_consumed && curr_idx < bits.size()) {
             if(bits[curr_idx]) {
-                curr_idx ++;
                 bits[curr_idx] = false;
+                curr_idx ++;
             } else {
-                adding_comsumed = true;
+                adding_consumed = true;
                 bits[curr_idx] = true;
             }
         }
@@ -1483,6 +1486,13 @@ namespace smt {
 
 
     bool theory_slhv::is_points_to_loc_inequal(app* pt1, app* pt2, locvar_eq* loc_eq) {
+        app* pt1_addr = to_app(pt1->get_arg(0));
+        app* pt2_addr = to_app(pt2->get_arg(0));
+        SASSERT(this->is_locvar(pt1_addr) && this->is_locvar(pt2_addr));
+        if(!loc_eq->is_in_same_class(pt1_addr, pt2_addr)) {
+            return true;
+        }
+
         app* pt1_record = to_app(pt1->get_arg(1));
         app* pt2_record = to_app(pt2->get_arg(1));
         pt_record* pt1_record_type = this->analyze_pt_record_type(pt1_record);
