@@ -733,6 +733,7 @@ namespace smt
             // other means visited
             int dfs_index;
             int low_index;
+            bool in_tarjan_stack;
         public: 
             dgraph_node(edge_labelled_dgraph* g);
             int tarjanSCC(int& dfs_num);
@@ -765,6 +766,17 @@ namespace smt
             }
             void set_dfs_index(int idx) {
                 this->dfs_index = idx;
+            }
+            void push_tarjan_stack() {
+                SASSERT(this->in_tarjan_stack == false);
+                this->in_tarjan_stack = true;
+            }   
+            void pop_tarjan_stack() {
+                SASSERT(this->in_tarjan_stack == true);
+                this->in_tarjan_stack = false;
+            }
+            bool is_in_tarjan_stack() {
+                return this->in_tarjan_stack;
             }
             virtual void print(std::ostream& out) {
                 out << "node print node implemented" << std::endl;

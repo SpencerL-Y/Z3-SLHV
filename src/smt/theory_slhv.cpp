@@ -465,6 +465,10 @@ namespace smt {
                         orig_graph->print(std::cout);
                     #endif
                     edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
+                    if(simplified_graph == nullptr) {
+                        // simplify check unsat
+                        continue;
+                    }
                     #ifdef SLHV_DEBUG   
                         std::cout << "simplified graph: " << std::endl;
                         simplified_graph->print(std::cout);
@@ -3654,26 +3658,31 @@ namespace smt {
         this->dgraph = g;
         this->dfs_index = -1;
         this->low_index = -1;
+        this->in_tarjan_stack = false;
     }
 
     int dgraph_node::tarjanSCC(int& dfs_num) {
         if(this->dfs_index == -1) {
             this->low_index = dfs_num;
             this->dfs_index = dfs_num;
+            this->push_tarjan_stack();
             dfs_num += 1;
         } else {
-            return this->low_index;
+            if(this->in_tarjan_stack) {
+                return this->low_index;
+            } else {
+                return this->dgraph->get_nodes().size() + 2;
+            }
         }
         std::vector<dgraph_edge*> edges = this->dgraph->get_edges_from_node(this);
         for(dgraph_edge* e : edges) {
             dgraph_node* curr_next_node = e->get_to();
-            if(curr_next_node->dfs_index == -1) {
-                int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
-                if(ret_low_index < this->low_index) {
-                    this->low_index = ret_low_index;
-                }
+            int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
+            if(ret_low_index < this->low_index) {
+                this->low_index = ret_low_index;
             }
         }
+        this->pop_tarjan_stack();
         return this->low_index;
     }
 
