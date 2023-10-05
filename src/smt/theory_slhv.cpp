@@ -1530,7 +1530,7 @@ namespace smt {
 
     void theory_slhv::infer_emp_hterms() {
         #ifdef SLHV_DEBUG
-        std::cout << "slhv inter emp hterms" << std::endl;
+        std::cout << "slhv infer emp hterms" << std::endl;
         #endif
         enode* emp_root = this->ctx.get_enode(this->global_emp);
         this->curr_emp_hterm_enodes.insert(emp_root);
@@ -1661,7 +1661,7 @@ namespace smt {
     void theory_slhv::infer_distinct_heapterms(app* atom){
 
         #ifdef SLHV_DEBUG
-        std::cout << "slhv infer distinct heap terms" << mk_ismt2_pp(atom, m) << std::endl;
+        std::cout << "slhv infer distinct heap terms: " << mk_ismt2_pp(atom, m) << std::endl;
         #endif
         SASSERT(atom->is_app_of(basic_family_id, OP_EQ));
         app* left_var = to_app(atom->get_arg(0));
@@ -4333,6 +4333,7 @@ namespace smt {
             curr_eq_rhs_uplus_args.push_back(rhs_pt);
             app* curr_eq_rhs = this->mk_uplus(2, curr_eq_rhs_uplus_args);
             app* temp_result = this->th->get_manager().mk_eq(curr_eq_lhs, curr_eq_rhs);
+            this->th->get_context().internalize(temp_result, false);
             result.push_back(temp_result);
         }
         return result;
@@ -4402,6 +4403,7 @@ namespace smt {
         eq_rhs_uplus_args.push_back(rhs_pt);
         app* eq_rhs = this->mk_uplus(2, eq_rhs_uplus_args);
         app* result = this->th->get_manager().mk_eq(eq_lhs, eq_rhs);
+        this->th->get_context().internalize(result, false);
         return result;
     }
 
