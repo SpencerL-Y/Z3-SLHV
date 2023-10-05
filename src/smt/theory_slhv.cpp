@@ -4641,6 +4641,8 @@ namespace smt {
 
         std::set<pt_record*> all_records = this->slhv_decl_plug->get_all_pt_records();
 
+        
+
         bool rhs_is_hvar = (this->th->is_hvar(rhs));
         app* second_eq_lhs = nullptr;
         if(rhs_is_hvar) {
@@ -4649,6 +4651,7 @@ namespace smt {
             app* second_eq_lhs_fhvar = this->mk_fresh_hvar();
             second_eq_lhs = second_eq_lhs_fhvar;
         }
+
         for(pt_record* r1 : all_records) {
             for(pt_record* r2: all_records) {
                 std::vector<app*> lhs_fresh_locvars;
@@ -4740,22 +4743,31 @@ namespace smt {
         }
 
         // lhs does not have common addr
+        app* rhs_no_common_addr_hvar = second_eq_lhs;
         std::vector<app*> common_addr_in_lhs = this->mk_addr_in_hterm_multi(lhs, common_addr);
-        app* common_notin_rhs = this->mk_addr_notin_hterm_multi(rhs, common_addr);
+        app* common_notin_rhs = this->mk_addr_notin_hterm_multi(rhs_no_common_addr_hvar, common_addr);
         for(app* in_nequal : common_addr_in_lhs) {
             std::vector<app*> result;
             result.push_back(in_nequal);
             result.push_back(common_notin_rhs);
             final_result.push_back(result);
+            if(!rhs_is_hvar) {
+                app* rhs_replace_eq = this->th->get_manager().mk_eq(to_expr(rhs_no_common_addr_hvar), to_expr(rhs));
+                result.push_back(rhs_replace_eq);
+            }
         }
 
         // rhs does not have common addr
-        std::vector<app*> common_addr_in_rhs = this->mk_addr_in_hterm_multi(rhs, common_addr);
+        std::vector<app*> common_addr_in_rhs = this->mk_addr_in_hterm_multi(rhs_no_common_addr_hvar, common_addr);
         app* common_notin_lhs = this->mk_addr_notin_hterm_multi(lhs, common_addr);
         for(app* in_nequal : common_addr_in_rhs) {
             std::vector<app*> result;
             result.push_back(in_nequal);
             result.push_back(common_notin_lhs);
+            if(!rhs_is_hvar) {
+                app* rhs_replace_eq = this->th->get_manager().mk_eq(to_expr(rhs_no_common_addr_hvar), to_expr(rhs));
+                result.push_back(rhs_replace_eq);
+            }
             final_result.push_back(result);
         }
         return final_result;
