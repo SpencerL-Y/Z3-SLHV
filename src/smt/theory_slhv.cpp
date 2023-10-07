@@ -4652,6 +4652,9 @@ namespace smt {
             second_eq_lhs = second_eq_lhs_fhvar;
         }
 
+        #ifdef SLHV_DEBUG
+        std::cout << "begin negation elimnation encoding" << std::endl;
+        #endif
         for(pt_record* r1 : all_records) {
             for(pt_record* r2: all_records) {
                 std::vector<app*> lhs_fresh_locvars;
@@ -4742,6 +4745,9 @@ namespace smt {
             }
         }
 
+        #ifdef SLHV_DEBUG
+        std::cout << "lhs does not have common addr" << std::endl;
+        #endif
         // lhs does not have common addr
         app* rhs_no_common_addr_hvar = second_eq_lhs;
         std::vector<app*> common_addr_in_lhs = this->mk_addr_in_hterm_multi(lhs, common_addr);
@@ -4757,6 +4763,10 @@ namespace smt {
             }
         }
 
+
+        #ifdef SLHV_DEBUG
+        std::cout << "rhs does not have common addr" << std::endl;
+        #endif
         // rhs does not have common addr
         std::vector<app*> common_addr_in_rhs = this->mk_addr_in_hterm_multi(rhs_no_common_addr_hvar, common_addr);
         app* common_notin_lhs = this->mk_addr_notin_hterm_multi(lhs, common_addr);
