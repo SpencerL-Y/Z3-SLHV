@@ -4679,8 +4679,12 @@ namespace smt {
                 for(int i = 0; i < r2_data_num; i ++) {
                     rhs_fresh_datavars.push_back(this->mk_fresh_datavar());
                 }
+
                 app* lhs_hterm_record = this->mk_record(r1, lhs_fresh_locvars, lhs_fresh_datavars);
                 app* rhs_hterm_record = this->mk_record(r2, rhs_fresh_locvars, rhs_fresh_datavars);
+                #ifdef SLHV_DEBUG
+                std::cout << "first equality" << std::endl;
+                #endif
                 // first equality
                 app* first_eq_lhs = lhs;
                 std::vector<app*> first_eq_rhs_uplus_args;
@@ -4690,6 +4694,9 @@ namespace smt {
                 app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
                 app* first_eq = this->th->get_manager().mk_eq(first_eq_lhs, first_eq_rhs);
                 this->th->get_context().internalize(first_eq, false);
+                #ifdef SLHV_DEBUG
+                std::cout << "second equality" << std::endl;
+                #endif
                 // second equality
                 
                 std::vector<app*> second_eq_rhs_uplus_args;
@@ -4877,7 +4884,8 @@ namespace smt {
         SASSERT(datavars.size() == pt_datafield_num);
         std::vector<app*> args;
         sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
-        sort* data_sort = this->th->get_manager().mk_sort(arith_family_id, INT_SORT);
+        arith_util a(this->th->get_manager());
+        sort* data_sort = a.mk_int();
         sort_ref_vector field_sorts(this->th->get_manager());
         for(app* loc : locvars) {
             args.push_back(loc);
@@ -4892,7 +4900,14 @@ namespace smt {
             args_vec.push_back(arg);
         }
         func_decl* record_decl = this->slhv_decl_plug->pt_record_decls[r->get_pt_record_name()];
+        #ifdef SLHV_DEBUG
+        std::cout << "make record " << record_decl->get_name() << " sort: " << std::endl;
+        
+        #endif
         app* result = this->th->get_manager().mk_app(record_decl, args_vec);
+        #ifdef SLHV_DEBUG
+        std::cout << "record made: " << mk_ismt2_pp(result, this->th->get_manager()) << std::endl;
+        #endif
         return result;
     }
  
@@ -4932,15 +4947,17 @@ namespace smt {
     }
 
     app* slhv_fresh_var_maker::mk_fresh_datavar() {
+        arith_util a(this->th->get_manager());
         std::string name = "f_th_datavar" + std::to_string(this->curr_datavar_id);
         family_id arith_family_id = this->th->get_manager().mk_family_id("arith");
-        sort* range_sort = this->th->get_manager().mk_sort(arith_family_id, INT_SORT);
+        sort* range_sort = a.mk_int();
         unsigned num_args = 0;
         arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
-        app* fresh_datavar = this->th->get_manager().mk_app(
-            symbol(name), 0, nullptr, range_sort
-        );
+        app* fresh_datavar = this->th->get_manager().mk_const(name, range_sort);
         curr_datavar_id ++;
+        #ifdef SLHV_DEBUG
+        std::cout << "fresh datavar made: " << name << std::endl;
+        #endif
         return fresh_datavar;
     }
 }
