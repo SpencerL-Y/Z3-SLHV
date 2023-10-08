@@ -112,6 +112,9 @@ namespace smt {
                     theory * th   = m_context->get_theory(fid);
                     if (th && th->build_models()) {
                         if (r->get_th_var(th->get_id()) != null_theory_var) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "enode th var mk_value: " << mk_ismt2_pp(r->get_expr(), this->m) << " fid: " << fid << std::endl;
+                            #endif
                             proc = th->mk_value(r, *this);
                             SASSERT(proc);
                         }
