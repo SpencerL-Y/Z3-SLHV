@@ -456,6 +456,11 @@ namespace smt {
                     if(this->temp_data_cnstr_bits.size() == 0) {
                         still_has_pt_eq = false;
                     }
+                    // check current numeral constraint
+                    bool numeral_check_result = check_temp_neq_pairs_data_constraint(numeral_solver);
+                    if(!numeral_check_result) {
+                        continue;
+                    }
 
                     
                     edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq, curr_pt_eq);
@@ -1319,6 +1324,7 @@ namespace smt {
             }
             curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
             simulation_add(this->temp_data_cnstr_bits);
+            this->temp_data_neq_pairs = neq_pairs;
             return {true, curr_pt_eq};
         } else {
             std::set<assignable_dataterm_pair*> neq_pairs;
@@ -1332,6 +1338,9 @@ namespace smt {
             }
             
             curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
+            simulation_add(this->temp_data_cnstr_bits);
+            this->temp_data_zero_enumerated = true;
+            this->temp_data_neq_pairs = neq_pairs;
             return {true, curr_pt_eq};
         }
     }
@@ -1712,6 +1721,41 @@ namespace smt {
             } 
         }
         return true;
+    }
+
+    bool theory_slhv::check_temp_neq_pairs_data_constraint(solver* numeral_solver) {
+        solver* new_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+        for(assignable_dataterm_pair* dtp : this->temp_data_neq_pairs) {
+            expr* pc = dtp->extract_constraint();
+            new_solver->assert_expr(pc);
+        }
+        for(auto e : numeral_solver->get_assertions()) {
+            new_solver->assert_expr(e);
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "numeral constraint with neq_pairs =========" << std::endl;
+        for(auto e : new_solver->get_assertions()) {
+            std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+        }
+        std::cout << "=========" << std::endl;
+        #endif
+        lbool result = new_solver->check_sat();
+        if(result == l_true) {
+            #ifdef SLHV_DEBUG
+            std::cout << "XXXXXXXXXXXX DATA CONSTRAINT RESULT(with neq) XXXXXXXXXXXX" << std::endl;
+            std::cout << "SAT" << std::endl;
+            #endif
+            return true;
+        } else if(result == l_false) {
+            #ifdef SLHV_DEBUG
+            std::cout << "XXXXXXXXXXXX DATA CONSTRAINT RESULT(with neq) XXXXXXXXXXXX" << std::endl;
+            std::cout << "UNSAT" << std::endl;
+            #endif
+            return false;
+        } else {
+            SASSERT(false);
+            return false;
+        }
     }
 
     std::set<hterm*> theory_slhv::construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs) {
@@ -2618,6 +2662,16 @@ namespace smt {
 
     }
 
+
+    expr* assignable_dataterm_pair::extract_constraint() {
+        expr_ref_vector distinct_pair(this->th->get_manager());
+        SASSERT(this->pair.size() == 2);
+        for(app* e : this->pair) {
+            distinct_pair.push_back(e);
+        }
+        expr* constr = this->th->get_manager().mk_distinct(2, distinct_pair.data());
+        return constr;
+    }
 
     edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq) {
         this->th = t;

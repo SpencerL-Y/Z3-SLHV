@@ -71,6 +71,7 @@ namespace smt
         bool temp_data_zero_enumerated;
         std::map<int, enode_pair> indexed_assignable_data_pairs;
         std::map<enode_pair, std::set<assignable_dataterm_pair*>> temp_data_term_pair2set;
+        std::set<assignable_dataterm_pair*> temp_data_neq_pairs;
 
 
 
@@ -193,7 +194,6 @@ namespace smt
 
         std::pair<bool, std::map<enode*, std::set<app*>>> get_locvar_eq_next();
 
-        // TODO: implement pt_eq computation
         std::pair<bool, pt_eq*> get_pt_eq_next(locvar_eq* loc_eq);
 
         std::set<std::set<app*>> construct_pt_coarse_eq(locvar_eq* loc_eq);
@@ -222,6 +222,8 @@ namespace smt
         void infer_distinct_heapterms(app* atom);
 
         bool check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq);
+
+        bool check_temp_neq_pairs_data_constraint(solver* numeral_solver);
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
@@ -269,15 +271,20 @@ namespace smt
         final_check_status final_check_eh() override {
             return final_check()? FC_DONE : FC_CONTINUE;
         }
-
+        // model generation
         void init_model(model_generator & mg) override;
         /**
            \brief Return true if the theory has something to propagate
         */
 
+        bool build_models() const override { 
+            return true;
+        }
+
         bool can_propagate() override {
             return false;
-        }
+        }        
+        
         
         
         /**
@@ -504,9 +511,7 @@ namespace smt
         // /**
         //    \brief Return true if theory support model construction
         // */
-        // virtual bool build_models() const { 
-        //     return true;
-        // }
+
 
         // virtual void init_model(model_generator & m) {
         // }
@@ -625,6 +630,8 @@ namespace smt
                 return *this->pair.end();
             }
             bool contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq);
+
+            expr* extract_constraint();
     };
 
 // edge-labelled directed graph
