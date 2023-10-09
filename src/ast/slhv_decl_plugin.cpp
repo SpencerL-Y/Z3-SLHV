@@ -206,6 +206,7 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
 }
 
 app* slhv_decl_plugin::mk_locint(unsigned addr) {
+
     parameter param(addr);
     sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
     func_decl* loc_const_f = m_manager->mk_const_decl(m_locconst_symbol, loc_sort, func_decl_info(m_family_id, OP_LOCVAR_CONST, 1, &param));
