@@ -55,10 +55,12 @@ class pt_record {
     }
 };
 
+
 class slhv_decl_plugin : public decl_plugin {
     symbol m_disj_union_sym;
     symbol m_points_to_sym;
     symbol m_list_segment_sym;
+    symbol m_locconst_symbol;
     symbol curr_locvar_name;
     symbol curr_hvar_name;
 
@@ -180,6 +182,10 @@ class slhv_decl_plugin : public decl_plugin {
                                      unsigned arity, sort * const * domain, sort * range) override;
 
     ///////////////////
+    /// for value factory
+    app* mk_locint(unsigned addr);
+
+    bool is_loc_value(app* e);
 
 };
 

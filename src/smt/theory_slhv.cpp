@@ -4,6 +4,10 @@
 #include "smt/smt_context.h"
 #include "smt/theory_slhv.h"
 #include "smt/smt_solver.h"
+#include "model/numeral_factory.h"
+#include "model/heap_factory.h"
+#include "model/model_core.h"
+#include "smt/smt_model_generator.h"
 #include "util/params.h"
 #include <bitset>
 namespace smt {
@@ -484,6 +488,7 @@ namespace smt {
                         std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
                         #endif
                         this->check_status = slhv_sat;
+                        this->model_graph = curr_result.second;
                         return true;
                     }
                     #ifdef OLD_LOGIC
@@ -2394,12 +2399,6 @@ namespace smt {
             return false;
         }
         return true;
-    }
-
-    void theory_slhv::init_model(model_generator & mg)  {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv init model" << std::endl;
-        #endif
     }
 
     theory_var theory_slhv::mk_var(enode* n) {
@@ -5013,5 +5012,31 @@ namespace smt {
         std::cout << "fresh datavar made: " << name << std::endl;
         #endif
         return fresh_datavar;
+    }
+
+    // model generation
+
+
+    void theory_slhv::init_model(model_generator & mg)  {
+        SASSERT(this->check_status == slhv_sat);
+        #ifdef SLHV_DEBUG
+        std::cout << "slhv init model" << std::endl;
+        #endif
+        m_factory = alloc(heap_factory, this->get_manager(), this->get_family_id());
+        mg.register_factory(m_factory);
+        m_factory->set_heap_sat_model(this->model_graph);
+        SASSERT(this->global_nil != nullptr && this->global_emp != nullptr);
+        this->m_factory->set_nil_loc(this->global_nil);
+        this->m_factory->set_emp_heap(this->global_emp);
+    }
+
+    model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
+        theory_var enode_var = n->get_th_var(this->get_family_id());
+        SASSERT(this->check_status == slhv_sat);
+        #ifdef SLHV_DEBUG
+        std::cout << "mk_value for enode: " << mk_ismt2_pp(n->get_expr(), this->get_manager()) << " th_var id: " << enode_var << std::endl;
+        #endif
+        return nullptr;
+
     }
 }

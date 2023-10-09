@@ -2,7 +2,7 @@
 
 #include "smt/smt_theory.h"
 #include "ast/slhv_decl_plugin.h"
-#include "model/value_factory.h"
+#include "model/heap_factory.h"
 #include <set>
 #include <stack>
 #include <vector>
@@ -39,6 +39,7 @@ namespace smt
         
         // configurations for a call of final_check
         slhv_check_status check_status;
+        edge_labelled_dgraph* model_graph {nullptr};
 
         std::set<app *> curr_locvars;
         std::set<app *> curr_hvars;
@@ -79,6 +80,13 @@ namespace smt
 
         app* global_emp;
         app* global_nil;
+
+        // model generation
+
+        heap_factory* m_factory {nullptr};
+        std::vector<model_value_proc*> m_var2value;
+
+
 
 
         // check_context for a construction based on locvar_eq and negation choice
@@ -280,6 +288,8 @@ namespace smt
         bool build_models() const override { 
             return true;
         }
+
+        model_value_proc * mk_value(enode * n, model_generator & mg) override;
 
         bool can_propagate() override {
             return false;
@@ -522,9 +532,7 @@ namespace smt
         // /**
         //    \brief Return a functor that can build the value (interpretation) for n.
         // */
-        // virtual model_value_proc * mk_value(enode * n, model_generator & mg) {
-        //     return nullptr;
-        // }
+        
 
         // virtual bool include_func_interp(func_decl* f) {
         //     return false;
