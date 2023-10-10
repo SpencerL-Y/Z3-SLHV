@@ -2,7 +2,8 @@
 
 #include "smt/smt_theory.h"
 #include "ast/slhv_decl_plugin.h"
-#include "model/heap_factory.h"
+#include "model/locvar_factory.h"
+#include "smt/smt_model_generator.h"
 #include <set>
 #include <stack>
 #include <vector>
@@ -83,8 +84,8 @@ namespace smt
 
         // model generation
 
-        heap_factory* m_factory {nullptr};
-        std::vector<model_value_proc*> m_var2value;
+        locvar_factory* m_factory {nullptr};
+        std::map<app*, model_value_proc*> expr2value;
 
 
 
@@ -1227,7 +1228,7 @@ namespace smt
         app* mk_addr_notin_hterm(app* hterm, app* addr);
         std::vector<std::vector<app*>> mk_hterm_disequality(app* lhs, app* rhs);
 
-        app* mk_uplus(int num_arg, std::vector<app*> hterm_args);
+        app* mk_uplus_app(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
 
         // logic with record:
@@ -1259,6 +1260,44 @@ namespace smt
         
 
          
+    };
+
+
+    class heap_value_proc : public model_value_proc {
+        family_id m_fid;
+        sort*     m_sort;
+        unsigned m_num_entries;
+        svector<model_value_dependency> m_dependencies;
+
+        public:
+        heap_value_proc(family_id id, sort* s) {
+            this->m_fid = id;
+            this->m_sort = s;
+            this->m_num_entries = 0;
+        }
+
+        void add_dependency(model_value_dependency d) {
+            this->m_num_entries ++;
+            this->m_dependencies.push_back(d);
+        }
+
+        void get_dependencies(buffer<model_value_dependency>& result) override{
+            result.append(this->m_dependencies.size(), m_dependencies.data());
+        }
+
+        app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
+            ast_manager& m = mg.get_manager();
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
+            if(values.size() > 1) {
+                return plug->mk_uplus_value(values.size(), values);
+            } else if(values.size() == 1){
+                return to_app(values.get(0));
+            } else {
+                return nullptr;
+            }
+        }
+
+
     };
 
 

@@ -1,7 +1,6 @@
 
 #pragma once
 #include "ast/ast.h"
-#include "cmd_context/cmd_context.h"
 
 #include <map>
 #include <set>
@@ -65,7 +64,6 @@ class slhv_decl_plugin : public decl_plugin {
     symbol curr_hvar_name;
 
     public:
-    cmd_context* m_ctx;
 
     app* global_emp;
     app* global_nil;
@@ -79,9 +77,6 @@ class slhv_decl_plugin : public decl_plugin {
 
     slhv_decl_plugin();
 
-    void set_m_ctx(cmd_context* m) {
-        this->m_ctx = m;
-    }
 
     void add_pt_record(std::string record_name, int ln, int dn) {
         for(auto r : this->pt_record_map) {
@@ -182,10 +177,14 @@ class slhv_decl_plugin : public decl_plugin {
                                      unsigned arity, sort * const * domain, sort * range) override;
 
     ///////////////////
-    /// for value factory
+    /// for value factory and model generation
     app* mk_locint(unsigned addr);
 
+    app* mk_uplus_value(int num_arg, expr_ref_vector items);
+
     bool is_loc_value(app* e);
+
+
 
 };
 

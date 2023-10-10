@@ -213,6 +213,18 @@ app* slhv_decl_plugin::mk_locint(unsigned addr) {
     return m_manager->mk_const(loc_const_f);
 }
 
+
+app* slhv_decl_plugin::mk_uplus_value(int num_arg, expr_ref_vector items) {
+    sort* heap_sort = this->mk_sort(INTHEAP_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* uplus_decl = this->mk_uplus(num_arg, domain);
+    app* result = m_manager->mk_app(uplus_decl, items.data());
+    return result;
+}
+
 bool slhv_decl_plugin::is_loc_value(app* e) {
     return is_app_of(e, m_family_id, OP_LOCVAR_CONST);
 }

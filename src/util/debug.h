@@ -37,7 +37,7 @@ void set_default_debug_action(debug_action a);
 
 #include "util/error_codes.h"
 #include "util/warning.h"
-#define Z3DEBUG 1
+// #define Z3DEBUG 1
 
 #define SLHV_DEBUG
 #ifdef Z3DEBUG
