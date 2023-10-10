@@ -5,7 +5,7 @@
 #include "smt/theory_slhv.h"
 #include "smt/smt_solver.h"
 #include "model/numeral_factory.h"
-#include "model/heap_factory.h"
+#include "model/locvar_factory.h"
 #include "model/model_core.h"
 #include "smt/smt_model_generator.h"
 #include "util/params.h"
@@ -3138,7 +3138,7 @@ namespace smt {
                                         }
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
-                                    app* label = this->th->syntax_maker->mk_uplus(leaves.size(), uplus_args);
+                                    app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3159,7 +3159,7 @@ namespace smt {
                                         }
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
-                                    app* label = this->th->syntax_maker->mk_uplus(leaves.size(), uplus_args);
+                                    app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3193,7 +3193,7 @@ namespace smt {
                                         }
                                     }
                                     SASSERT(leaves1.size() == uplus_args1.size());
-                                    app* label1 = this->th->syntax_maker->mk_uplus(leaves2.size(), uplus_args1);
+                                    app* label1 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args1);
 
                                     for(dgraph_node* ln : leaves2) {
                                         if(ln->is_hvar()) {
@@ -3205,7 +3205,7 @@ namespace smt {
                                         }
                                     }
                                     SASSERT(leaves2.size() == uplus_args2.size());
-                                    app* label2 = this->th->syntax_maker->mk_uplus(leaves2.size(), uplus_args2);
+                                    app* label2 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args2);
                                     for(dgraph_node* ln : leaves1) {
                                         dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label1);
                                         copied_graph->add_edge(temp_edge);
@@ -4142,7 +4142,7 @@ namespace smt {
         std::vector<app*> right_args;
         right_args.push_back(fresh_hvar);
         right_args.push_back(this->mk_points_to(read_addr, read_data));
-        app* new_eq_right = this->mk_uplus(right_arg_num, right_args);
+        app* new_eq_right = this->mk_uplus_app(right_arg_num, right_args);
         // includes internalize:
         // literal result = this->th->mk_eq(new_eq_left, new_eq_right, false);
 
@@ -4187,7 +4187,7 @@ namespace smt {
             std::vector<app*> rhs_uplus_args;
             rhs_uplus_args.push_back(fresh_hvar);
             rhs_uplus_args.push_back(rhs_points_to);
-            app* eq_rhs = this->mk_uplus(2, rhs_uplus_args);
+            app* eq_rhs = this->mk_uplus_app(2, rhs_uplus_args);
             app_ref result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
 
             this->th->get_context().internalize(result, false);
@@ -4214,7 +4214,7 @@ namespace smt {
             std::vector<app*> rhs_uplus_args;
             rhs_uplus_args.push_back(fresh_hvar);
             rhs_uplus_args.push_back(rhs_points_to);
-            app* eq_rhs = this->mk_uplus(2, rhs_uplus_args);
+            app* eq_rhs = this->mk_uplus_app(2, rhs_uplus_args);
             app_ref result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
 
             this->th->get_context().internalize(result, false);
@@ -4231,7 +4231,7 @@ namespace smt {
         std::vector<app*> first_uplus_args;
         first_uplus_args.push_back(fresh_hvar);
         first_uplus_args.push_back(first_eq_right_pt);
-        app* first_eq_right = this->mk_uplus(2, first_uplus_args);
+        app* first_eq_right = this->mk_uplus_app(2, first_uplus_args);
         // app* first_eq = this->th->mk_eq(first_eq_left, first_eq_right, false);
         app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_left, first_eq_right), this->th->get_manager());
         this->th->get_context().internalize(first_eq, false);
@@ -4241,7 +4241,7 @@ namespace smt {
         std::vector<app*> second_uplus_args;
         second_uplus_args.push_back(fresh_hvar);
         second_uplus_args.push_back(second_eq_right_pt);
-        app* second_eq_right = this->mk_uplus(2, second_uplus_args);
+        app* second_eq_right = this->mk_uplus_app(2, second_uplus_args);
         // app* second_eq = this->th->mk_eq(second_eq_left, second_eq_right, false);
         app_ref second_eq(this->th->get_context().mk_eq_atom(second_eq_left, second_eq_right), this->th->get_manager());
         this->th->get_context().internalize(second_eq, false);
@@ -4285,7 +4285,7 @@ namespace smt {
         std::vector<app*> first_eq_rhs_uplus_args;
         first_eq_rhs_uplus_args.push_back(fresh_hvar);
         first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
-        app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
+        app* first_eq_rhs = this->mk_uplus_app(2, first_eq_rhs_uplus_args);
 
         app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_lhs, first_eq_rhs), this->th->get_manager());
 
@@ -4306,7 +4306,7 @@ namespace smt {
         std::vector<app*> second_eq_rhs_uplus_args;
         second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
         second_eq_rhs_uplus_args.push_back(fresh_hvar);
-        app* second_eq_rhs = this->mk_uplus(2, second_eq_rhs_uplus_args);
+        app* second_eq_rhs = this->mk_uplus_app(2, second_eq_rhs_uplus_args);
 
         app_ref second_eq(this->th->get_context().mk_eq_atom(second_eq_lhs, second_eq_rhs), this->th->get_manager());
         app* final_result = this->th->get_manager().mk_and(first_eq, second_eq);
@@ -4323,7 +4323,7 @@ namespace smt {
         app* rhs_pt = this->mk_points_to(addr, addr_data_fresh_l);
         rhs_uplus_args.push_back(fresh_unrelated_h);
         rhs_uplus_args.push_back(rhs_pt);
-        app* eq_rhs_uplus = this->mk_uplus(2, rhs_uplus_args);
+        app* eq_rhs_uplus = this->mk_uplus_app(2, rhs_uplus_args);
 
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
@@ -4356,7 +4356,7 @@ namespace smt {
         rhs_uplus_args.push_back(fresh_unrelated_h);
         rhs_uplus_args.push_back(rhs_pt);
         app* eq_lhs = hterm;
-        app* eq_rhs_uplus = this->mk_uplus(2, rhs_uplus_args);
+        app* eq_rhs_uplus = this->mk_uplus_app(2, rhs_uplus_args);
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
         return final_result;
@@ -4384,7 +4384,7 @@ namespace smt {
             app* rhs_pt_record = this->mk_record(r, fresh_locvars, fresh_datavars);
             app* rhs_pt = this->mk_points_to_multi(addr, rhs_pt_record);
             curr_eq_rhs_uplus_args.push_back(rhs_pt);
-            app* curr_eq_rhs = this->mk_uplus(2, curr_eq_rhs_uplus_args);
+            app* curr_eq_rhs = this->mk_uplus_app(2, curr_eq_rhs_uplus_args);
             app* temp_result = this->th->get_manager().mk_eq(curr_eq_lhs, curr_eq_rhs);
             this->th->get_context().internalize(temp_result, false);
             result.push_back(temp_result);
@@ -4400,7 +4400,7 @@ namespace smt {
         std::vector<app*> uplus_args;
         uplus_args.push_back(hterm);
         uplus_args.push_back(rhs_points_to);
-        app* eq_rhs = this->mk_uplus(2, uplus_args);
+        app* eq_rhs = this->mk_uplus_app(2, uplus_args);
 
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
@@ -4430,7 +4430,7 @@ namespace smt {
         std::vector<app*> uplus_args;
         uplus_args.push_back(hterm);
         uplus_args.push_back(rhs_points_to);
-        app* eq_rhs = this->mk_uplus(2, uplus_args);
+        app* eq_rhs = this->mk_uplus_app(2, uplus_args);
         app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(final_result, false);
         return final_result;
@@ -4454,7 +4454,7 @@ namespace smt {
         app* rhs_pt = this->mk_points_to_multi(addr, rhs_record);
         eq_rhs_uplus_args.push_back(hterm);
         eq_rhs_uplus_args.push_back(rhs_pt);
-        app* eq_rhs = this->mk_uplus(2, eq_rhs_uplus_args);
+        app* eq_rhs = this->mk_uplus_app(2, eq_rhs_uplus_args);
         app* result = this->th->get_manager().mk_eq(eq_lhs, eq_rhs);
         this->th->get_context().internalize(result, false);
         return result;
@@ -4490,7 +4490,7 @@ namespace smt {
         #endif
         first_conj_eq_rhs_uplus_args.push_back(h);
         first_conj_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
-        app* first_conj_eq_rhs = this->mk_uplus(first_conj_eq_rhs_uplus_args.size(), first_conj_eq_rhs_uplus_args);
+        app* first_conj_eq_rhs = this->mk_uplus_app(first_conj_eq_rhs_uplus_args.size(), first_conj_eq_rhs_uplus_args);
         app_ref first_conj_eq(this->th->get_context().mk_eq_atom(first_conj_eq_lhs, first_conj_eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(first_conj_eq, false);
         
@@ -4499,7 +4499,7 @@ namespace smt {
         std::vector<app*> second_conj_eq_rhs_uplus_args;
         second_conj_eq_rhs_uplus_args.push_back(h_prime);
         second_conj_eq_rhs_uplus_args.push_back(second_conj_eq_rhs_pt);
-        app* second_conj_eq_rhs = this->mk_uplus(second_conj_eq_rhs_uplus_args.size(), second_conj_eq_rhs_uplus_args);
+        app* second_conj_eq_rhs = this->mk_uplus_app(second_conj_eq_rhs_uplus_args.size(), second_conj_eq_rhs_uplus_args);
         app_ref second_conj_eq(this->th->get_context().mk_eq_atom(second_conj_eq_lhs, second_conj_eq_rhs), this->th->get_manager());
         this->th->get_context().internalize(second_conj_eq, false);
 
@@ -4615,8 +4615,8 @@ namespace smt {
         ht2_eq_rhs_uplus_args.push_back(hp);
         ht2_eq_rhs_uplus_args.push_back(ht2_eq_rhs_pt);
 
-        app* ht1_eq_rhs = this->mk_uplus(2, ht1_eq_rhs_uplus_args);
-        app* ht2_eq_rhs = this->mk_uplus(2, ht2_eq_rhs_uplus_args);
+        app* ht1_eq_rhs = this->mk_uplus_app(2, ht1_eq_rhs_uplus_args);
+        app* ht2_eq_rhs = this->mk_uplus_app(2, ht2_eq_rhs_uplus_args);
 
         app_ref ht1_eq(this->th->get_context().mk_eq_atom(ht1_eq_lhs, ht1_eq_rhs), this->th->get_manager());
         app_ref ht2_eq(this->th->get_context().mk_eq_atom(ht2_eq_lhs, ht2_eq_rhs), this->th->get_manager());
@@ -4744,7 +4744,7 @@ namespace smt {
                 first_eq_rhs_uplus_args.push_back(lhs_fresh_hvar);
                 app* first_eq_rhs_pt = this->mk_points_to_multi(common_addr, lhs_hterm_record);
                 first_eq_rhs_uplus_args.push_back(first_eq_rhs_pt);
-                app* first_eq_rhs = this->mk_uplus(2, first_eq_rhs_uplus_args);
+                app* first_eq_rhs = this->mk_uplus_app(2, first_eq_rhs_uplus_args);
                 app* first_eq = this->th->get_manager().mk_eq(first_eq_lhs, first_eq_rhs);
                 this->th->get_context().internalize(first_eq, false);
                 #ifdef SLHV_DEBUG
@@ -4756,7 +4756,7 @@ namespace smt {
                 second_eq_rhs_uplus_args.push_back(rhs_fresh_hvar);
                 app* second_eq_rhs_pt = this->mk_points_to_multi(common_addr, rhs_hterm_record);
                 second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
-                app* second_eq_rhs = this->mk_uplus(2, second_eq_rhs_uplus_args);
+                app* second_eq_rhs = this->mk_uplus_app(2, second_eq_rhs_uplus_args);
                 app* second_eq = this->th->get_manager().mk_eq(second_eq_lhs, second_eq_rhs);
                 this->th->get_context().internalize(second_eq, false);
                 if(r1 == r2) {
@@ -4843,7 +4843,7 @@ namespace smt {
         return final_result;
     }
 
-    app* slhv_syntax_maker::mk_uplus(int num_arg, std::vector<app*> hterm_args) {
+    app* slhv_syntax_maker::mk_uplus_app(int num_arg, std::vector<app*> hterm_args) {
         SASSERT(num_arg == hterm_args.size());
         for(app* t : hterm_args) {
             SASSERT(this->th->is_heapterm(t));
@@ -5022,13 +5022,14 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "slhv init model" << std::endl;
         #endif
-        m_factory = alloc(heap_factory, this->get_manager(), this->get_family_id());
+        m_factory = alloc(locvar_factory, this->get_manager(), this->get_family_id());
         mg.register_factory(m_factory);
-        m_factory->set_heap_sat_model(this->model_graph);
+        m_factory->set_slhv_decl_plugin(this->slhv_plug);
         SASSERT(this->global_nil != nullptr && this->global_emp != nullptr);
         this->m_factory->set_nil_loc(this->global_nil);
         this->m_factory->set_emp_heap(this->global_emp);
     }
+
 
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
         theory_var enode_var = n->get_th_var(this->get_family_id());
@@ -5041,12 +5042,31 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "curr mk value for intloc sort" << std::endl;
             #endif
+            SASSERT(this->is_locvar(n->get_expr()));
+            app* locvar = to_app(n->get_expr());
+            app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
+            if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
+                // if the equivalence class already have value
+                return this->expr2value[locvar];
+            } else {
+                // otherwise create a fresh loc value
+                app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
+                expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
+                this->expr2value[leader_locvar] = result;
+            }
         } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
-
+            #ifdef SLHV_DEBUG
+            std::cout << "curr mk value for intheap sort" << std::endl;
+            #endif
+            SASSERT(this->is_hvar(n->get_expr()));
+            heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
+            return hvp;
         } else if(n->get_sort() == a.mk_int()) {
             // use previous model generated by 
+            SASSERT(this->is_datavar(n->get_expr()));
+            return nullptr;
         } else {
-
+            SASSERT(false);
         }
         return nullptr;
 

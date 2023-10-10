@@ -15,7 +15,7 @@ z3_add_component(model
     numeral_factory.cpp
     struct_factory.cpp
     value_factory.cpp
-    heap_factory.cpp
+    locvar_factory.cpp
   COMPONENT_DEPENDENCIES
     rewriter
     macros
