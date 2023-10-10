@@ -1014,7 +1014,6 @@ namespace smt2 {
                 }
 
                 
-                // plug->set_m_ctx(&this->m_ctx);
                 func_decl* ptrs = this->m_ctx.find_func_decl(symbol(curr_Pt_R_name));
                 std::cout << "ptrs range sort: " << ptrs->get_range()->get_name() << std::endl;
                 plug->add_pt_record(curr_Pt_R_name, locnum, datanum);
@@ -2645,7 +2644,7 @@ namespace smt2 {
             // next();
             slhv_decl_plugin* plug = (slhv_decl_plugin*)this->m().get_plugin(m().mk_family_id("slhv"));
             plug->set_curr_hvar(id);
-            
+
             func_decl* c = plug->mk_func_decl(is_emp ? OP_EMP: OP_HVAR_CONST, 0, nullptr, 0, nullptr, hvar_sort);
             SASSERT(c != nullptr);
             /*
