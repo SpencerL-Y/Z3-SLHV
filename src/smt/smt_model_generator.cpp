@@ -91,6 +91,9 @@ namespace smt {
     */
     void model_generator::mk_value_procs(obj_map<enode, model_value_proc *> & root2proc, ptr_vector<enode> & roots, 
                                          ptr_vector<model_value_proc> & procs) {
+        #ifdef   SLHV_DEBUG
+        std::cout << "mk value procs" << std::endl;
+        #endif
         for (enode * r : m_context->enodes()) {
             if (r == r->get_root() && (m_context->is_relevant(r) || m.is_value(r->get_expr()))) {
                 roots.push_back(r);
