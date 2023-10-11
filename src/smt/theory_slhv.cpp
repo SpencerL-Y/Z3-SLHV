@@ -1437,9 +1437,10 @@ namespace smt {
 
         bool has_data_record = false;
         for(pt_record* r : this->slhv_plug->get_all_pt_records()) {
-            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << std::endl;
+            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << "pt_record_map size: " << this->slhv_plug->pt_record_map.size() << std::endl;
             for(auto item : this->slhv_plug->pt_record_map) {
                 std::cout << "record name: " << item.first << std::endl;
+                item.second->print(std::cout);
             }
             SASSERT(r != nullptr);
             if(r->get_data_num() > 0) {
@@ -1450,8 +1451,10 @@ namespace smt {
 
         if(!has_data_record) {
             // points-to does not contain any data field
+            std::cout << "  have no data record" << std::endl;
             return final_result;
         } 
+        std::cout << "  have data record" << std::endl;
         std::map<app*, std::vector<app*>> addr2pts;
         std::set<app*> addr_appeared;
         for(app* pt : this->curr_pts) {
@@ -1468,7 +1471,6 @@ namespace smt {
                 addr2pts[addr_leader_var] = new_pt_vec;
             }
         }
-
         for(app* leader_var : addr_appeared) {
             std::vector<app*> addr_pts = addr2pts[leader_var];
             for(app* pt1 : addr_pts) {
@@ -1484,7 +1486,7 @@ namespace smt {
                             continue;
                         } 
                         int curr_pt_locfield_num = curr_rec->get_loc_num();
-                        int curr_pt_datafield_num = curr_rec->get_loc_num();
+                        int curr_pt_datafield_num = curr_rec->get_data_num();
                         for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
                             app* pt1_temp_data = to_app(pt1_record->get_arg(i));
                             app* pt2_temp_data = to_app(pt2_record->get_arg(i));
@@ -5086,15 +5088,15 @@ namespace smt {
                 SASSERT(false);
             }
         } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_DEBUG 
             std::cout << "curr mk value for intheap sort" << std::endl;
             #endif
             if(this->is_hvar(n->get_expr())) {
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 app* n_hvar = to_app(n->get_expr());
                 dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
-                std::vector<enode*> 
-                hvp->add_dependency(model_value_dependency(this->get_context().get_enode(leader_hvar)));
+                // std::vector<enode*> 
+                // hvp->add_dependency(model_value_dependency(this->get_context().get_enode(leader_hvar)));
                 return hvp;
             } else if(this->is_uplus(n->get_expr())) {
 
