@@ -706,6 +706,9 @@ namespace smt
             coarse_hvar_eq* get_hvar_eq() {
                 return this->hvar_eq;
             }
+            void set_hvar_eq(coarse_hvar_eq* heq) {
+                this->hvar_eq = heq;
+            }
             pt_eq* get_pt_term_eq() {
                 return this->pt_term_eq;
             }

@@ -3098,22 +3098,45 @@ namespace smt {
                                 dgraph_node* s2_node = *s2minuss1.begin();
                                 if(s1_node->is_hvar() && s2_node->is_hvar()) {
                                     // move edges linked to s2_node
+
+                                    // merge hvar in equivalence class
+                                    std::set<enode*> enodes2merge;
+                                    std::vector<std::set<enode*>> sets2merge;
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s1_node)->get_hvar_label()));
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s2_node)->get_hvar_label()));
+                                    if(enodes2merge.size() > 1) {
+                                        sets2merge.push_back(enodes2merge);
+                                        coarse_hvar_eq* new_h_eq = copied_graph->get_hvar_eq()->merge_hvar_nodes(sets2merge);
+                                        copied_graph->set_hvar_eq(new_h_eq);
+                                    }
+                                    dgraph_node* reserved_node = nullptr;
+                                    dgraph_node* del_node = nullptr;
+                                    app* new_hvar = copied_graph->get_hvar_eq()->get_leader_hvar(((hvar_dgraph_node*)s1_node)->get_hvar_label());
+                                    if(new_hvar == ((hvar_dgraph_node*)s1_node)->get_hvar_label()) {
+                                        reserved_node = s1_node;
+                                        del_node = s2_node;
+                                    } else {
+                                        reserved_node = s2_node;
+                                        del_node = s1_node;
+                                    }
+
+
                                     for(dgraph_edge* e : copied_graph->edges) {
-                                        if(e->get_from() == s2_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, s1_node, e->get_to(), e->get_label());
+                                        if(e->get_from() == del_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, reserved_node, e->get_to(), e->get_label());
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
-                                        } else if(e->get_to() == s2_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), s1_node, e->get_label());
+                                        } else if(e->get_to() == del_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), reserved_node, e->get_label());
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
                                         } else {
 
                                         }
                                     }
-                                    copied_graph->del_node(s2_node);
-                                    node2sinks[s1_node] = slhv_util::setUnion(node2sinks[s1_node], node2sinks[s2_node]);
-                                    node2sinks.erase(s2_node);
+                                    copied_graph->del_node(del_node);
+                                    node2sinks[reserved_node] = slhv_util::setUnion(node2sinks[reserved_node], node2sinks[del_node]);
+                                    node2sinks.erase(del_node);
                                 } else {
                                     #ifdef SLHV_DEBUG
                                     std::cout << "minus both 1: " << std::endl;
