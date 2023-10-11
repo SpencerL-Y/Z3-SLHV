@@ -453,7 +453,6 @@ namespace smt {
                     auto pt_search_result = this->get_pt_eq_next(curr_loc_eq);
                     still_has_pt_eq = pt_search_result.first;
                     pt_eq* curr_pt_eq = pt_search_result.second;
-                    curr_pt_eq->print(std::cout);
                     if(!still_has_pt_eq) {
                         break;
                     }
@@ -465,6 +464,7 @@ namespace smt {
                     if(!numeral_check_result) {
                         continue;
                     }
+                    curr_pt_eq->print(std::cout);
 
                     
                     edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq, curr_pt_eq);
@@ -1156,9 +1156,12 @@ namespace smt {
         std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
         
         #ifdef SLHV_DEBUG
-        std::cout << "assignable dataterm constraints: " << std::endl;
+        std::cout << "assignable dataterm constraints: num: " << all_assignable_app_eq_pairs.size() << std::endl;
         for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
-            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->m) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->m) << std::endl;
+            all_assignable_app_eq_pairs[i]->extract_constraint();
+            std::cout << "here" << std::endl;
+            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->extract_constraint(), this->get_manager()) << std::endl;
+            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->get_manager()) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->get_manager()) << std::endl;
         }
         #endif
         int index = 0;
@@ -1327,6 +1330,12 @@ namespace smt {
                     }
                 }
             }
+            #ifdef SLHV_DEBUG
+            std::cout << "neq pairs: " << std::endl;
+            for(auto p : neq_pairs) {
+                std::cout << mk_ismt2_pp(p->get_first(), this->get_manager()) << " not eq " << mk_ismt2_pp(p->get_last(), this->get_manager()) << std::endl;
+            }
+            #endif
             curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
             simulation_add(this->temp_data_cnstr_bits);
             this->temp_data_neq_pairs = neq_pairs;
@@ -1451,10 +1460,10 @@ namespace smt {
 
         if(!has_data_record) {
             // points-to does not contain any data field
-            std::cout << "  have no data record" << std::endl;
+            std::cout << "have no record with data" << std::endl;
             return final_result;
         } 
-        std::cout << "  have data record" << std::endl;
+        std::cout << "have record with data" << std::endl;
         std::map<app*, std::vector<app*>> addr2pts;
         std::set<app*> addr_appeared;
         for(app* pt : this->curr_pts) {
@@ -1473,8 +1482,10 @@ namespace smt {
         }
         for(app* leader_var : addr_appeared) {
             std::vector<app*> addr_pts = addr2pts[leader_var];
-            for(app* pt1 : addr_pts) {
-                for(app* pt2 : addr_pts) {
+            for(int i = 0; i < addr_pts.size(); i ++) {
+                for(int j = i + 1; j < addr_pts.size(); j ++) {
+                    app* pt1 = addr_pts[i];
+                    app* pt2 = addr_pts[j];
                     if(this->get_context().get_enode(pt1)->get_root() != this->get_context().get_enode(pt2)->get_root()) {
                         app* pt1_record = to_app(pt1->get_arg(1));
                         app* pt2_record = to_app(pt2->get_arg(1));
@@ -1490,10 +1501,12 @@ namespace smt {
                         for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
                             app* pt1_temp_data = to_app(pt1_record->get_arg(i));
                             app* pt2_temp_data = to_app(pt2_record->get_arg(i));
+                            
                             enode* pt1_temp_data_node = this->get_context().get_enode(pt1_temp_data)->get_root();
                             enode* pt2_temp_data_node = this->get_context().get_enode(pt2_temp_data)->get_root();
                             if(!(pt1_temp_data_node == pt2_temp_data_node)) {
-                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data);
+                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data, this);
+                                std::cout << "add pair: " << mk_ismt2_pp(pt1_temp_data, this->m) << " " << mk_ismt2_pp(pt2_temp_data, this->m) << std::endl;
                                 final_result.push_back(dtp);
                             }
                         }
@@ -2613,7 +2626,8 @@ namespace smt {
         }
     }
 
-    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2) {
+    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2, theory_slhv* th) {
+        this->th = th;
         SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
         SASSERT(t1 != t2);
         this->pair.insert(t1);
