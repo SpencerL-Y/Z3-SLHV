@@ -3104,7 +3104,7 @@ namespace smt {
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
                                         } else if(e->get_to() == s2_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), s2_node, e->get_label());
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), s1_node, e->get_label());
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
                                         } else {
@@ -3139,6 +3139,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
                                     app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
+                                    this->th->get_context().internalize(label, false);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3160,6 +3161,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
                                     app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
+                                    this->th->get_context().internalize(label, false);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3179,6 +3181,7 @@ namespace smt {
                                 }
                                 if(!hvar_node_found) {
                                     app* fresh_hvar = this->th->syntax_maker->mk_fresh_hvar();
+                                    this->th->get_context().internalize(fresh_hvar, false);
                                     dgraph_node* newN = alloc(hvar_dgraph_node, copied_graph, fresh_hvar);
                                     copied_graph->add_node(newN);
                                     std::vector<app*> uplus_args1;
@@ -3194,7 +3197,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves1.size() == uplus_args1.size());
                                     app* label1 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args1);
-
+                                    this->th->get_context().internalize(label1, false);
                                     for(dgraph_node* ln : leaves2) {
                                         if(ln->is_hvar()) {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
@@ -3206,6 +3209,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves2.size() == uplus_args2.size());
                                     app* label2 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args2);
+                                    this->th->get_context().internalize(label2, false);
                                     for(dgraph_node* ln : leaves1) {
                                         dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label1);
                                         copied_graph->add_edge(temp_edge);
@@ -5042,33 +5046,44 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "curr mk value for intloc sort" << std::endl;
             #endif
-            SASSERT(this->is_locvar(n->get_expr()));
-            app* locvar = to_app(n->get_expr());
-            app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
-            if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
-                // if the equivalence class already have value
-                return this->expr2value[locvar];
+            if(this->is_locvar(n->get_expr())) {
+                app* locvar = to_app(n->get_expr());
+                app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
+                if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
+                    // if the equivalence class already have value
+                    return this->expr2value[locvar];
+                } else {
+                    // otherwise create a fresh loc value
+                    app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
+                    expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
+                    this->expr2value[leader_locvar] = result;
+                }
             } else {
-                // otherwise create a fresh loc value
-                app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
-                expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
-                this->expr2value[leader_locvar] = result;
+                // currently not support complicate loc terms
+                SASSERT(false);
             }
         } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
             #ifdef SLHV_DEBUG
             std::cout << "curr mk value for intheap sort" << std::endl;
             #endif
-            SASSERT(this->is_hvar(n->get_expr()));
-            heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
-            return hvp;
+            if(this->is_hvar(n->get_expr())) {
+                heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
+                app* n_hvar = to_app(n->get_expr());
+                dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
+                std::vector<enode*> 
+                hvp->add_dependency(model_value_dependency(this->get_context().get_enode(leader_hvar)));
+                return hvp;
+            } else if(this->is_uplus(n->get_expr())) {
+
+            } else if(this->is_points_to(n->get_expr())) {
+
+            } else {
+                SASSERT(false);
+            }
         } else if(n->get_sort() == a.mk_int()) {
-            // use previous model generated by 
-            SASSERT(this->is_datavar(n->get_expr()));
-            return nullptr;
+            SASSERT(false);
         } else {
             SASSERT(false);
         }
-        return nullptr;
-
     }
 }
