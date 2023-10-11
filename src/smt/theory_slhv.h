@@ -625,7 +625,7 @@ namespace smt
             std::set<app*> pair;
 
         public:
-            assignable_dataterm_pair(app* t1, app* t2);
+            assignable_dataterm_pair(app* t1, app* t2, theory_slhv* th);
             std::set<app*> get_pair() {
                 return this->pair;
             }
@@ -633,10 +633,25 @@ namespace smt
                 return this->th;
             }   
             app* get_first() {
-                return *this->pair.begin();
+                app* first;
+                for(app* a : this->pair) {
+                    first = a;
+                    return first;
+                }
+                return nullptr;
             }
             app* get_last() {
-                return *this->pair.end();
+                app* first = nullptr;
+                app* second = nullptr;
+                for(app* a : this->pair) {
+                    if(first == nullptr) {
+                        first = a;
+                    } else {
+                        second = a;
+                        return second;
+                    }
+                }
+                return nullptr;
             }
             bool contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq);
 
@@ -705,6 +720,9 @@ namespace smt
             }
             coarse_hvar_eq* get_hvar_eq() {
                 return this->hvar_eq;
+            }
+            void set_hvar_eq(coarse_hvar_eq* heq) {
+                this->hvar_eq = heq;
             }
             pt_eq* get_pt_term_eq() {
                 return this->pt_term_eq;

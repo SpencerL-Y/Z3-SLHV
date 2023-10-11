@@ -453,7 +453,6 @@ namespace smt {
                     auto pt_search_result = this->get_pt_eq_next(curr_loc_eq);
                     still_has_pt_eq = pt_search_result.first;
                     pt_eq* curr_pt_eq = pt_search_result.second;
-                    curr_pt_eq->print(std::cout);
                     if(!still_has_pt_eq) {
                         break;
                     }
@@ -465,6 +464,7 @@ namespace smt {
                     if(!numeral_check_result) {
                         continue;
                     }
+                    curr_pt_eq->print(std::cout);
 
                     
                     edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq, curr_pt_eq);
@@ -1156,9 +1156,12 @@ namespace smt {
         std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
         
         #ifdef SLHV_DEBUG
-        std::cout << "assignable dataterm constraints: " << std::endl;
+        std::cout << "assignable dataterm constraints: num: " << all_assignable_app_eq_pairs.size() << std::endl;
         for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
-            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->m) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->m) << std::endl;
+            all_assignable_app_eq_pairs[i]->extract_constraint();
+            std::cout << "here" << std::endl;
+            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->extract_constraint(), this->get_manager()) << std::endl;
+            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->get_manager()) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->get_manager()) << std::endl;
         }
         #endif
         int index = 0;
@@ -1327,6 +1330,12 @@ namespace smt {
                     }
                 }
             }
+            #ifdef SLHV_DEBUG
+            std::cout << "neq pairs: " << std::endl;
+            for(auto p : neq_pairs) {
+                std::cout << mk_ismt2_pp(p->get_first(), this->get_manager()) << " not eq " << mk_ismt2_pp(p->get_last(), this->get_manager()) << std::endl;
+            }
+            #endif
             curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
             simulation_add(this->temp_data_cnstr_bits);
             this->temp_data_neq_pairs = neq_pairs;
@@ -1437,9 +1446,10 @@ namespace smt {
 
         bool has_data_record = false;
         for(pt_record* r : this->slhv_plug->get_all_pt_records()) {
-            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << std::endl;
+            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << "pt_record_map size: " << this->slhv_plug->pt_record_map.size() << std::endl;
             for(auto item : this->slhv_plug->pt_record_map) {
                 std::cout << "record name: " << item.first << std::endl;
+                item.second->print(std::cout);
             }
             SASSERT(r != nullptr);
             if(r->get_data_num() > 0) {
@@ -1450,8 +1460,10 @@ namespace smt {
 
         if(!has_data_record) {
             // points-to does not contain any data field
+            std::cout << "have no record with data" << std::endl;
             return final_result;
         } 
+        std::cout << "have record with data" << std::endl;
         std::map<app*, std::vector<app*>> addr2pts;
         std::set<app*> addr_appeared;
         for(app* pt : this->curr_pts) {
@@ -1468,11 +1480,12 @@ namespace smt {
                 addr2pts[addr_leader_var] = new_pt_vec;
             }
         }
-
         for(app* leader_var : addr_appeared) {
             std::vector<app*> addr_pts = addr2pts[leader_var];
-            for(app* pt1 : addr_pts) {
-                for(app* pt2 : addr_pts) {
+            for(int i = 0; i < addr_pts.size(); i ++) {
+                for(int j = i + 1; j < addr_pts.size(); j ++) {
+                    app* pt1 = addr_pts[i];
+                    app* pt2 = addr_pts[j];
                     if(this->get_context().get_enode(pt1)->get_root() != this->get_context().get_enode(pt2)->get_root()) {
                         app* pt1_record = to_app(pt1->get_arg(1));
                         app* pt2_record = to_app(pt2->get_arg(1));
@@ -1484,14 +1497,16 @@ namespace smt {
                             continue;
                         } 
                         int curr_pt_locfield_num = curr_rec->get_loc_num();
-                        int curr_pt_datafield_num = curr_rec->get_loc_num();
+                        int curr_pt_datafield_num = curr_rec->get_data_num();
                         for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
                             app* pt1_temp_data = to_app(pt1_record->get_arg(i));
                             app* pt2_temp_data = to_app(pt2_record->get_arg(i));
+                            
                             enode* pt1_temp_data_node = this->get_context().get_enode(pt1_temp_data)->get_root();
                             enode* pt2_temp_data_node = this->get_context().get_enode(pt2_temp_data)->get_root();
                             if(!(pt1_temp_data_node == pt2_temp_data_node)) {
-                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data);
+                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data, this);
+                                std::cout << "add pair: " << mk_ismt2_pp(pt1_temp_data, this->m) << " " << mk_ismt2_pp(pt2_temp_data, this->m) << std::endl;
                                 final_result.push_back(dtp);
                             }
                         }
@@ -2611,7 +2626,8 @@ namespace smt {
         }
     }
 
-    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2) {
+    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2, theory_slhv* th) {
+        this->th = th;
         SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
         SASSERT(t1 != t2);
         this->pair.insert(t1);
@@ -3098,22 +3114,45 @@ namespace smt {
                                 dgraph_node* s2_node = *s2minuss1.begin();
                                 if(s1_node->is_hvar() && s2_node->is_hvar()) {
                                     // move edges linked to s2_node
+
+                                    // merge hvar in equivalence class
+                                    std::set<enode*> enodes2merge;
+                                    std::vector<std::set<enode*>> sets2merge;
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s1_node)->get_hvar_label()));
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s2_node)->get_hvar_label()));
+                                    if(enodes2merge.size() > 1) {
+                                        sets2merge.push_back(enodes2merge);
+                                        coarse_hvar_eq* new_h_eq = copied_graph->get_hvar_eq()->merge_hvar_nodes(sets2merge);
+                                        copied_graph->set_hvar_eq(new_h_eq);
+                                    }
+                                    dgraph_node* reserved_node = nullptr;
+                                    dgraph_node* del_node = nullptr;
+                                    app* new_hvar = copied_graph->get_hvar_eq()->get_leader_hvar(((hvar_dgraph_node*)s1_node)->get_hvar_label());
+                                    if(new_hvar == ((hvar_dgraph_node*)s1_node)->get_hvar_label()) {
+                                        reserved_node = s1_node;
+                                        del_node = s2_node;
+                                    } else {
+                                        reserved_node = s2_node;
+                                        del_node = s1_node;
+                                    }
+
+
                                     for(dgraph_edge* e : copied_graph->edges) {
-                                        if(e->get_from() == s2_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, s1_node, e->get_to(), e->get_label());
+                                        if(e->get_from() == del_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, reserved_node, e->get_to(), e->get_label());
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
-                                        } else if(e->get_to() == s2_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), s2_node, e->get_label());
+                                        } else if(e->get_to() == del_node) {
+                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), reserved_node, e->get_label());
                                             copied_graph->del_edge(e);
                                             copied_graph->add_edge(newE);
                                         } else {
 
                                         }
                                     }
-                                    copied_graph->del_node(s2_node);
-                                    node2sinks[s1_node] = slhv_util::setUnion(node2sinks[s1_node], node2sinks[s2_node]);
-                                    node2sinks.erase(s2_node);
+                                    copied_graph->del_node(del_node);
+                                    node2sinks[reserved_node] = slhv_util::setUnion(node2sinks[reserved_node], node2sinks[del_node]);
+                                    node2sinks.erase(del_node);
                                 } else {
                                     #ifdef SLHV_DEBUG
                                     std::cout << "minus both 1: " << std::endl;
@@ -3139,6 +3178,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
                                     app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
+                                    this->th->get_context().internalize(label, false);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3160,6 +3200,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
                                     app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
+                                    this->th->get_context().internalize(label, false);
                                     for(dgraph_node* l : leaves) {
                                         dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
                                     }
@@ -3179,6 +3220,7 @@ namespace smt {
                                 }
                                 if(!hvar_node_found) {
                                     app* fresh_hvar = this->th->syntax_maker->mk_fresh_hvar();
+                                    this->th->get_context().internalize(fresh_hvar, false);
                                     dgraph_node* newN = alloc(hvar_dgraph_node, copied_graph, fresh_hvar);
                                     copied_graph->add_node(newN);
                                     std::vector<app*> uplus_args1;
@@ -3194,7 +3236,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves1.size() == uplus_args1.size());
                                     app* label1 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args1);
-
+                                    this->th->get_context().internalize(label1, false);
                                     for(dgraph_node* ln : leaves2) {
                                         if(ln->is_hvar()) {
                                             app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
@@ -3206,6 +3248,7 @@ namespace smt {
                                     }
                                     SASSERT(leaves2.size() == uplus_args2.size());
                                     app* label2 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args2);
+                                    this->th->get_context().internalize(label2, false);
                                     for(dgraph_node* ln : leaves1) {
                                         dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label1);
                                         copied_graph->add_edge(temp_edge);
@@ -5042,33 +5085,44 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "curr mk value for intloc sort" << std::endl;
             #endif
-            SASSERT(this->is_locvar(n->get_expr()));
-            app* locvar = to_app(n->get_expr());
-            app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
-            if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
-                // if the equivalence class already have value
-                return this->expr2value[locvar];
+            if(this->is_locvar(n->get_expr())) {
+                app* locvar = to_app(n->get_expr());
+                app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
+                if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
+                    // if the equivalence class already have value
+                    return this->expr2value[locvar];
+                } else {
+                    // otherwise create a fresh loc value
+                    app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
+                    expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
+                    this->expr2value[leader_locvar] = result;
+                }
             } else {
-                // otherwise create a fresh loc value
-                app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
-                expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
-                this->expr2value[leader_locvar] = result;
+                // currently not support complicate loc terms
+                SASSERT(false);
             }
         } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_DEBUG 
             std::cout << "curr mk value for intheap sort" << std::endl;
             #endif
-            SASSERT(this->is_hvar(n->get_expr()));
-            heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
-            return hvp;
+            if(this->is_hvar(n->get_expr())) {
+                heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
+                app* n_hvar = to_app(n->get_expr());
+                dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
+                // std::vector<enode*> 
+                // hvp->add_dependency(model_value_dependency(this->get_context().get_enode(leader_hvar)));
+                return hvp;
+            } else if(this->is_uplus(n->get_expr())) {
+
+            } else if(this->is_points_to(n->get_expr())) {
+
+            } else {
+                SASSERT(false);
+            }
         } else if(n->get_sort() == a.mk_int()) {
-            // use previous model generated by 
-            SASSERT(this->is_datavar(n->get_expr()));
-            return nullptr;
+            SASSERT(false);
         } else {
             SASSERT(false);
         }
-        return nullptr;
-
     }
 }
