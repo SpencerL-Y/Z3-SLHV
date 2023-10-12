@@ -1315,6 +1315,10 @@ namespace smt
             }
         }
 
+        bool is_fresh() const override {
+            return false;
+        }
+
 
     };
 

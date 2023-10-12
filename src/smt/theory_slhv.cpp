@@ -5109,8 +5109,26 @@ namespace smt {
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 app* n_hvar = to_app(n->get_expr());
                 dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
-                // std::vector<enode*> 
-                // hvp->add_dependency(model_value_dependency(this->get_context().get_enode(leader_hvar)));
+                std::vector<dgraph_node*> nodes_depend;
+                std::set<enode*> enodes_depend;
+                for(dgraph_edge* e : this->model_graph->get_edges_from_node(n_hvar_node)) {
+                    nodes_depend.push_back(e->get_to()); 
+                }
+                for(dgraph_node* n : nodes_depend) {
+                    if(n->is_hvar()) {
+                        enode* hvar_enode = this->get_context().get_enode(((hvar_dgraph_node*)n)->get_hvar_label());
+                        enodes_depend.insert(hvar_enode);
+                    } else if(n->is_points_to()) {
+                        // TODO: this can be detailize into enodes of loc vars and datavars
+                        enode* pt_enode = this->get_context().get_enode(((pt_dgraph_node*)n)->get_pt_leader());
+                        enodes_depend.insert(pt_enode);
+                    } else {
+                        SASSERT(false);
+                    }
+                }
+                for(enode* en : enodes_depend) {
+                    hvp->add_dependency(model_value_dependency(en));
+                }
                 return hvp;
             } else if(this->is_uplus(n->get_expr())) {
 
