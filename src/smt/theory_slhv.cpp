@@ -3298,7 +3298,7 @@ namespace smt {
     }
 
 
-    edge_labelled_dgraph* theory_slhv::infer_pt_belongingness(edge_labelled_dgraph* saturated_graph) {
+    std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> theory_slhv::infer_pt_belongingness(edge_labelled_dgraph* saturated_graph) {
         // collect which pt in which hterm
         std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2belonging_hterms;
         std::map<dgraph_node*, std::set<dgraph_node*>> pt2pt_not_in_set;
@@ -3334,6 +3334,18 @@ namespace smt {
                 }
             }
         }
+        // all different points-tos are disj inclusive with each other
+        std::set<dgraph_node*> all_pt_nodes;
+        for(auto ptnot : pt2pt_not_in_set) {
+            all_pt_nodes.insert(ptnot.first);
+        }
+        for(dgraph_node* ptn : all_pt_nodes) {
+            for(dgraph_node* ptnp : all_pt_nodes) {
+                if(ptn != ptnp) {
+                    pt2pt_not_in_set[ptn].insert(ptnp);
+                }
+            }
+        }
         // compute hterms pt belongs to
         for(auto i : this->sat_node2sinks) {
             for(std::set<dgraph_node*> s : i.second) {
@@ -3351,7 +3363,60 @@ namespace smt {
                 }
             }
         }
-        // 
+        // infer smaller pt belongingness for each pt node
+        for(dgraph_node* pt : all_pt_nodes) {
+            std::set<std::set<dgraph_node*>> current_hterms = pt2belonging_hterms[pt];
+            std::set<std::set<dgraph_node*>> next_hterms;
+            do {
+                next_hterms.clear();
+                for(std::set<dgraph_node*> ns1 : current_hterms) {
+                    for(std::set<dgraph_node*> ns2 : current_hterms) {
+                        if(ns1 != ns2 && !slhv_util::setIsSubset(ns1, ns2) && !slhv_util::setIsSubset(ns2, ns1)) {
+                            // size not greater than 0 means that pt is a subterm of emp
+                            std::set<dgraph_node*> new_hterm = slhv_util::setIntersect(ns1, ns2);
+                            SASSERT(new_hterm.size() > 0);
+                            next_hterms.insert(new_hterm);
+                        }
+                    }
+                }
+                next_hterms = slhv_util::setUnion(next_hterms, current_hterms);
+                pt2belonging_hterms[pt] = next_hterms;
+            } while(next_hterms.size() - current_hterms.size() > 0);
+        }
+        return pt2belonging_hterms;
+    }
+
+
+    std::map<dgraph_node*, std::set<dgraph_node*>>  theory_slhv::choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms) {
+        std::map<dgraph_node*, std::set<dgraph_node*>> result;
+        std::map<dgraph_node*, dgraph_node*> pt2container;
+        for(auto i : pt2hterms) {
+            bool cannot_choose = false;
+            for(std::set<dgraph_node*> ns : i.second) {
+                if(ns.size() == 1) {
+                    SASSERT((*ns.begin())->is_hvar());
+                    pt2container[i.first] = (*ns.begin());
+                    cannot_choose = true;
+                    break;
+                }
+            }
+            if(!cannot_choose) {
+                std::set<dgraph_node*>  first_set = *i.second.begin();
+                dgraph_node* choosed_node = *first_set.begin();
+                SASSERT(choosed_node->is_hvar());
+                pt2container[i.first] = choosed_node;
+            }
+        }
+        for(auto i : pt2container) {
+            if(result.find(i.second) == result.end()) {
+                std::set<dgraph_node*> hvar_pts;
+                hvar_pts.insert(i.first);
+                result[i.second] = hvar_pts;
+            } else {
+                result[i.second].insert(i.first);
+            }
+        }
+        return result;
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {

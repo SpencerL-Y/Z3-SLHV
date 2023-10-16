@@ -237,7 +237,9 @@ namespace smt
         bool check_temp_neq_pairs_data_constraint(solver* numeral_solver);
 
 
-        edge_labelled_dgraph* infer_pt_belongingness(edge_labelled_dgraph* saturated_graph);
+        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> infer_pt_belongingness(edge_labelled_dgraph* saturated_graph);
+
+        std::map<dgraph_node*, std::set<dgraph_node*>> choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms);
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
