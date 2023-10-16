@@ -84,6 +84,8 @@ namespace smt
 
         // model generation
 
+        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> sat_node2sinks;
+
         locvar_factory* m_factory {nullptr};
         std::map<app*, model_value_proc*> expr2value;
 
@@ -233,6 +235,9 @@ namespace smt
         bool check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq);
 
         bool check_temp_neq_pairs_data_constraint(solver* numeral_solver);
+
+
+        edge_labelled_dgraph* infer_pt_belongingness(edge_labelled_dgraph* saturated_graph);
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
