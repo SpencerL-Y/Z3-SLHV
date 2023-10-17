@@ -3419,6 +3419,20 @@ namespace smt {
         return result;
     }
 
+
+    edge_labelled_dgraph* construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts) {
+        edge_labelled_dgraph* dependency_graph = alloc(edge_labelled_dgraph, copied_graph->get_th(), copied_graph->get_locvar_eq(), copied_graph->get_hvar_eq(), copied_graph->get_pt_term_eq(), copied_graph->get_nodes(), copied_graph->get_edges(), copied_graph->get_simplified(), copied_graph->get_saturated());
+        std::set<dgraph_node*> graph_sinks = dependency_graph->get_dest_nodes();
+        std::set<dgraph_node*> sinks_has_pt;
+        for(auto i : hvar2pts) {
+            sinks_has_pt.insert(i.first);
+        }
+
+        std::set<dgraph_node*> sinks_without_pts = slhv_util::setSubstract(graph_sinks, sinks_has_pt);
+        //TODO: collect pt belongingness according to graph not only sink nodes
+
+    }
+
     bool edge_labelled_dgraph::is_scc_computed() {
         for(dgraph_node* n : this->nodes) {
             if(!n->is_tarjan_visited()) {

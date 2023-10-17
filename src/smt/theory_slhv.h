@@ -241,6 +241,8 @@ namespace smt
 
         std::map<dgraph_node*, std::set<dgraph_node*>> choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms);
 
+        edge_labelled_dgraph* construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts);
+
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 
         std::pair<equiheap_relation*, bool> check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
