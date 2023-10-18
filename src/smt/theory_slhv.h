@@ -75,6 +75,8 @@ namespace smt
         std::map<enode_pair, std::set<assignable_dataterm_pair*>> temp_data_term_pair2set;
         std::set<assignable_dataterm_pair*> temp_data_neq_pairs;
 
+        std::map<dgraph_node*, std::set<dgraph_node*>> depend_graph;
+
 
 
         slhv_decl_plugin* slhv_plug;
@@ -241,7 +243,7 @@ namespace smt
 
         std::map<dgraph_node*, std::set<dgraph_node*>> choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms);
 
-        edge_labelled_dgraph* construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts);
+        std::map<dgraph_node*, std::set<dgraph_node*>> construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts);
 
         std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
 

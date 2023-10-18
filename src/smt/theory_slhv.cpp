@@ -490,6 +490,9 @@ namespace smt {
                         #endif
                         this->check_status = slhv_sat;
                         this->model_graph = curr_result.second;
+                        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms  = this->infer_pt_belongingness(curr_result.second);
+                        std::map<dgraph_node*, std::set<dgraph_node*>> pt_depend = choose_pt_dependency(pt2hterms);
+                        this->depend_graph = construct_dependency_graph(this->model_graph, pt_depend);
                         return true;
                     }
                     #ifdef OLD_LOGIC
@@ -3176,7 +3179,7 @@ namespace smt {
                                         } else {
                                             app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
                                             uplus_args.push_back(pt_label);
-                                        }set
+                                        }
                                     }
                                     SASSERT(leaves.size() == uplus_args.size());
                                     app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
@@ -3420,9 +3423,8 @@ namespace smt {
     }
 
 
-    edge_labelled_dgraph* construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts) {
-        edge_labelled_dgraph* dependency_graph = alloc(edge_labelled_dgraph, copied_graph->get_th(), copied_graph->get_locvar_eq(), copied_graph->get_hvar_eq(), copied_graph->get_pt_term_eq(), copied_graph->get_nodes(), copied_graph->get_edges(), copied_graph->get_simplified(), copied_graph->get_saturated());
-        std::set<dgraph_node*> graph_sinks = dependency_graph->get_dest_nodes();
+    std::map<dgraph_node*, std::set<dgraph_node*>> theory_slhv::construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts) {
+        std::set<dgraph_node*> graph_sinks = copied_graph->get_dest_nodes();
         std::set<dgraph_node*> sinks_has_pt;
         for(auto i : hvar2pts) {
             sinks_has_pt.insert(i.first);
@@ -3430,7 +3432,27 @@ namespace smt {
 
         std::set<dgraph_node*> sinks_without_pts = slhv_util::setSubstract(graph_sinks, sinks_has_pt);
         //TODO: collect pt belongingness according to graph not only sink nodes
+        std::map<dgraph_node*, std::set<dgraph_node*>> node2allpts;
 
+        for(auto i : this->sat_node2sinks) {
+            std::set<dgraph_node*> current_root_pts;
+            for(std::set<dgraph_node*> sinks : i.second) {
+                for(dgraph_node* n : sinks) {
+                    if(n->is_points_to()) {
+                        current_root_pts.insert(n);
+                    } else {
+                        SASSERT(n->is_hvar());
+                        if(hvar2pts.find(n) != hvar2pts.end()) {
+                            for(dgraph_node* pt_node : hvar2pts[n]) {
+                                current_root_pts.insert(pt_node);
+                            }
+                        }
+                    }
+                }
+            }
+            node2allpts[i.first] = current_root_pts;
+        }
+        return node2allpts;
     }
 
     bool edge_labelled_dgraph::is_scc_computed() {
@@ -5250,14 +5272,13 @@ namespace smt {
                 dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
                 std::vector<dgraph_node*> nodes_depend;
                 std::set<enode*> enodes_depend;
-                for(dgraph_edge* e : this->model_graph->get_edges_from_node(n_hvar_node)) {
-                    nodes_depend.push_back(e->get_to()); 
-                }
-                for(dgraph_node* n : nodes_depend) {
-                    if(n->is_hvar()) {
+
+                for(dgraph_node* pt_depend : this->depend_graph[n_hvar_node]) {
+                    nodes_depend.push_back(pt_depend);
+                    if(pt_depend->is_hvar()) {
                         enode* hvar_enode = this->get_context().get_enode(((hvar_dgraph_node*)n)->get_hvar_label());
                         enodes_depend.insert(hvar_enode);
-                    } else if(n->is_points_to()) {
+                    } else if(pt_depend->is_points_to()) {
                         // TODO: this can be detailize into enodes of loc vars and datavars
                         enode* pt_enode = this->get_context().get_enode(((pt_dgraph_node*)n)->get_pt_leader());
                         enodes_depend.insert(pt_enode);
@@ -5270,9 +5291,16 @@ namespace smt {
                 }
                 return hvp;
             } else if(this->is_uplus(n->get_expr())) {
-
+                app* uplus_app = to_app(n->get_expr());
+                heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
+                for(int i = 0; i < uplus_app->get_num_args(); i ++) {
+                    hvp->add_dependency(model_value_dependency(this->get_context().get_enode(uplus_app->get_arg(i))));
+                }
+                return hvp;
             } else if(this->is_points_to(n->get_expr())) {
-
+                heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
+                // TODO add dependency
+                hvp->add_dependency(model_value_dependency())
             } else {
                 SASSERT(false);
             }
