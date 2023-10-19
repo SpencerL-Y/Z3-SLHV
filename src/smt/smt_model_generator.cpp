@@ -269,7 +269,9 @@ namespace smt {
     void model_generator::top_sort_sources(ptr_vector<enode> const & roots, 
                                            obj_map<enode, model_value_proc *> const & root2proc, 
                                            svector<source> & sorted_sources) {
-        
+        #ifdef SLHV_DEBUG
+        std::cout << "top sort sources" << std::endl;
+        #endif
         svector<source>     todo;
         source2color        colors;
         // The following 'set' of sorts is used to avoid traversing roots looking for enodes of sort S.

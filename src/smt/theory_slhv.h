@@ -75,7 +75,6 @@ namespace smt
         std::map<enode_pair, std::set<assignable_dataterm_pair*>> temp_data_term_pair2set;
         std::set<assignable_dataterm_pair*> temp_data_neq_pairs;
 
-        std::map<dgraph_node*, std::set<dgraph_node*>> depend_graph;
 
 
 
@@ -90,6 +89,7 @@ namespace smt
 
         locvar_factory* m_factory {nullptr};
         std::map<app*, model_value_proc*> expr2value;
+        std::map<dgraph_node*, std::set<dgraph_node*>> depend_graph;
 
 
 

@@ -488,8 +488,20 @@ namespace smt {
                         #ifdef SLHV_DEBUG
                         std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
                         #endif
+                        
                         this->check_status = slhv_sat;
                         this->model_graph = curr_result.second;
+                        #ifdef SLHV_DEBUG
+                        std::cout << "current hvar eq: " << std::endl;
+                        for(auto item : this->model_graph->get_hvar_eq()->get_coarse_data()) {
+                            std::cout << "---------------" << std::endl;
+                            for(app* hvar : item.second) {
+                                std::cout << mk_ismt2_pp(hvar, this->get_manager()) << std::endl;
+                            }
+                        }
+                        std::cout << "---------------" << std::endl;
+                        
+                        #endif
                         std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms  = this->infer_pt_belongingness(curr_result.second);
                         std::map<dgraph_node*, std::set<dgraph_node*>> pt_depend = choose_pt_dependency(pt2hterms);
                         this->depend_graph = construct_dependency_graph(this->model_graph, pt_depend);
@@ -1163,7 +1175,6 @@ namespace smt {
         std::cout << "assignable dataterm constraints: num: " << all_assignable_app_eq_pairs.size() << std::endl;
         for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
             all_assignable_app_eq_pairs[i]->extract_constraint();
-            std::cout << "here" << std::endl;
             std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->extract_constraint(), this->get_manager()) << std::endl;
             std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->get_manager()) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->get_manager()) << std::endl;
         }
@@ -2561,6 +2572,9 @@ namespace smt {
 
     app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
         enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
+        if(this->coarse_data.find(hvar_root_node) == this->coarse_data.end()) {
+            return nullptr;
+        }
         if(this->is_emp_hvar(hvar) == 1) {
             return this->th->global_emp;
         } else {
@@ -3123,8 +3137,8 @@ namespace smt {
                                     // merge hvar in equivalence class
                                     std::set<enode*> enodes2merge;
                                     std::vector<std::set<enode*>> sets2merge;
-                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s1_node)->get_hvar_label()));
-                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s2_node)->get_hvar_label()));
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s1_node)->get_hvar_label())->get_root());
+                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s2_node)->get_hvar_label())->get_root());
                                     if(enodes2merge.size() > 1) {
                                         sets2merge.push_back(enodes2merge);
                                         coarse_hvar_eq* new_h_eq = copied_graph->get_hvar_eq()->merge_hvar_nodes(sets2merge);
@@ -3226,6 +3240,9 @@ namespace smt {
                                 if(!hvar_node_found) {
                                     app* fresh_hvar = this->th->syntax_maker->mk_fresh_hvar();
                                     this->th->get_context().internalize(fresh_hvar, false);
+                                    #ifdef SLHV_DEBUG
+                                    std::cout << "mk fresh hvar node " << mk_ismt2_pp(fresh_hvar, this->th->get_manager()) <<" for hterms equiv" << std::endl;
+                                    #endif
                                     dgraph_node* newN = alloc(hvar_dgraph_node, copied_graph, fresh_hvar);
                                     copied_graph->add_node(newN);
                                     std::vector<app*> uplus_args1;
@@ -3303,6 +3320,9 @@ namespace smt {
 
     std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> theory_slhv::infer_pt_belongingness(edge_labelled_dgraph* saturated_graph) {
         // collect which pt in which hterm
+        #ifdef SLHV_DEBUG
+        std::cout << "infer pt belongingness" << std::endl;
+        #endif
         std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2belonging_hterms;
         std::map<dgraph_node*, std::set<dgraph_node*>> pt2pt_not_in_set;
         std::map<dgraph_node*, std::set<dgraph_node*>> root2sinkpts;
@@ -3391,21 +3411,31 @@ namespace smt {
 
 
     std::map<dgraph_node*, std::set<dgraph_node*>>  theory_slhv::choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms) {
+        #ifdef SLHV_DEBUG
+        std::cout << "choose pt dependency" << std::endl;
+        #endif
+        // the result is hvar2the set of pt it contains
         std::map<dgraph_node*, std::set<dgraph_node*>> result;
         std::map<dgraph_node*, dgraph_node*> pt2container;
         for(auto i : pt2hterms) {
             bool cannot_choose = false;
+            SASSERT(i.second.size() > 0);
             for(std::set<dgraph_node*> ns : i.second) {
+                SASSERT(ns.size() > 0);
                 if(ns.size() == 1) {
                     SASSERT((*ns.begin())->is_hvar());
-                    pt2container[i.first] = (*ns.begin());
+                    pt2container[i.first] = (*(ns.begin()));
                     cannot_choose = true;
                     break;
                 }
             }
             if(!cannot_choose) {
-                std::set<dgraph_node*>  first_set = *i.second.begin();
-                dgraph_node* choosed_node = *first_set.begin();
+                std::set<dgraph_node*>  first_set;
+                for(std::set<dgraph_node*> ns : i.second) {
+                    first_set = ns;
+                    break;
+                }
+                dgraph_node* choosed_node = *(first_set.begin());
                 SASSERT(choosed_node->is_hvar());
                 pt2container[i.first] = choosed_node;
             }
@@ -3424,6 +3454,9 @@ namespace smt {
 
 
     std::map<dgraph_node*, std::set<dgraph_node*>> theory_slhv::construct_dependency_graph(edge_labelled_dgraph* copied_graph, std::map<dgraph_node*, std::set<dgraph_node*>> hvar2pts) {
+        #ifdef SLHV_DEBUG
+        std::cout << "construct dependency graph" << std::endl;
+        #endif
         std::set<dgraph_node*> graph_sinks = copied_graph->get_dest_nodes();
         std::set<dgraph_node*> sinks_has_pt;
         for(auto i : hvar2pts) {
@@ -5257,30 +5290,40 @@ namespace smt {
                     app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
                     expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
                     this->expr2value[leader_locvar] = result;
+                    return result;
                 }
             } else {
                 // currently not support complicate loc terms
                 SASSERT(false);
+                return nullptr;
             }
         } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
             #ifdef SLHV_DEBUG 
             std::cout << "curr mk value for intheap sort" << std::endl;
             #endif
-            if(this->is_hvar(n->get_expr())) {
+            if(this->is_hvar(n->get_expr())) { 
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 app* n_hvar = to_app(n->get_expr());
-                dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
+                app* leader_hvar = this->model_graph->get_hvar_eq()->get_leader_hvar(n_hvar);
+                #ifdef SLHV_DEBUG
+                std::cout << "leader hvar: " << mk_ismt2_pp(leader_hvar, this->get_manager()) << std::endl;
+                #endif
+                dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(leader_hvar);
                 std::vector<dgraph_node*> nodes_depend;
                 std::set<enode*> enodes_depend;
+                if(this->depend_graph.find(n_hvar_node) == this->depend_graph.end()) {
+                    // this is free sink hvar node
+                    return hvp;
+                }
 
                 for(dgraph_node* pt_depend : this->depend_graph[n_hvar_node]) {
                     nodes_depend.push_back(pt_depend);
                     if(pt_depend->is_hvar()) {
-                        enode* hvar_enode = this->get_context().get_enode(((hvar_dgraph_node*)n)->get_hvar_label());
+                        enode* hvar_enode = this->get_context().get_enode(((hvar_dgraph_node*)n)->get_hvar_label())->get_root();
                         enodes_depend.insert(hvar_enode);
                     } else if(pt_depend->is_points_to()) {
                         // TODO: this can be detailize into enodes of loc vars and datavars
-                        enode* pt_enode = this->get_context().get_enode(((pt_dgraph_node*)n)->get_pt_leader());
+                        enode* pt_enode = this->get_context().get_enode(((pt_dgraph_node*)n)->get_pt_leader())->get_root();
                         enodes_depend.insert(pt_enode);
                     } else {
                         SASSERT(false);
@@ -5294,20 +5337,34 @@ namespace smt {
                 app* uplus_app = to_app(n->get_expr());
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 for(int i = 0; i < uplus_app->get_num_args(); i ++) {
-                    hvp->add_dependency(model_value_dependency(this->get_context().get_enode(uplus_app->get_arg(i))));
+                    hvp->add_dependency(model_value_dependency(this->get_context().get_enode(uplus_app->get_arg(i))->get_root()));
                 }
                 return hvp;
-            } else if(this->is_points_to(n->get_expr())) {
+            } else if(this->is_points_to(n->get_expr())) {  
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 // TODO add dependency
-                hvp->add_dependency(model_value_dependency())
+                app* record_app = to_app(to_app(n->get_expr())->get_arg(1));
+                pt_record* pt_type = this->analyze_pt_record_type(record_app);
+                enode* addr_enode = this->get_context().get_enode(record_app->get_arg(1))->get_root();
+                std::vector<enode*> rhs_terms_enodes;
+                for(int i = 0; i < pt_type->get_record_field_length(); i ++) {
+                    rhs_terms_enodes.push_back(this->get_context().get_enode(record_app->get_arg(i))->get_root());
+                }
+                hvp->add_dependency(model_value_dependency(addr_enode));
+                for(enode* e : rhs_terms_enodes) {
+                    hvp->add_dependency(model_value_dependency(e));
+                }
+                return hvp;
             } else {
                 SASSERT(false);
+                return nullptr;
             }
         } else if(n->get_sort() == a.mk_int()) {
             SASSERT(false);
+            return nullptr;
         } else {
             SASSERT(false);
+            return nullptr;
         }
     }
 }
