@@ -133,6 +133,9 @@ namespace smt {
                 }
                 SASSERT(proc);
                 procs.push_back(proc);
+                #ifdef SLHV_DEBUG
+                std::cout << "insert root2proc: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;
+                #endif
                 root2proc.insert(r, proc);
             }
         }
@@ -279,7 +282,6 @@ namespace smt {
         obj_hashtable<sort> already_traversed;
 
         // topological sort
-
         // traverse all extra fresh values...
         for (extra_fresh_value * f : m_extra_fresh_values) {
             process_source(source(f), roots, root2proc, colors, already_traversed, todo, sorted_sources);
@@ -287,7 +289,14 @@ namespace smt {
 
         // traverse all enodes that are associated with fresh values...
         for (enode* r : roots) {
+                #ifdef SLHV_DEBUG
+                std::cout << "find root: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;
+                #endif
+                SASSERT(root2proc.find(r) != root2proc.end());
             if (root2proc[r]->is_fresh()) {
+                #ifdef SLHV_DEBUG
+                std::cout << "process source for root: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;
+                #endif
                 process_source(source(r), roots, root2proc, colors, already_traversed, todo, sorted_sources);
             }
         }
@@ -295,6 +304,9 @@ namespace smt {
         for (enode * r : roots) {
             process_source(source(r), roots, root2proc, colors, already_traversed, todo, sorted_sources);
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "top sort sources end" << std::endl;
+        #endif
     }
 
     void model_generator::mk_values() {
@@ -329,8 +341,14 @@ namespace smt {
             if (curr.is_fresh_value()) {
                 sort * s = curr.get_value()->get_sort();
                 TRACE("model_fresh_bug", tout << curr << " : " << mk_pp(s, m) << " " << curr.get_value()->get_value() << "\n";);
+                #ifdef SLHV_DEBUG
+                std::cout << curr << " : " << mk_pp(s, m) << " " << curr.get_value()->get_value() << "\n";
+                #endif
                 expr * val = m_model->get_fresh_value(s);
                 TRACE("model_fresh_bug", tout << curr << " := #" << (val == nullptr ? UINT_MAX : val->get_id()) << "\n";);
+                #ifdef SLHV_DEBUG
+                std::cout << curr << " := #" << (val == nullptr ? UINT_MAX : val->get_id()) << "\n";
+                #endif
                 m_asts.push_back(val);
                 curr.get_value()->set_value(val);
             }
@@ -339,15 +357,25 @@ namespace smt {
                 SASSERT(n->get_root() == n);
                 TRACE("mg_top_sort", tout << curr << "\n";);
                 app* val = nullptr;
-                if (m.is_value(n->get_expr()))
+                if (m.is_value(n->get_expr())) {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "curr enode: " << mk_pp(n->get_expr(), m) << std::endl;
+                    #endif
                     val = to_app(n->get_expr());
+                }
                 else {
+                    #ifdef SLHV_DEBUG
+                    std::cout << "curr enode: " << mk_pp(n->get_expr(), m) << std::endl;
+                    #endif
                     dependencies.reset();
                     dependency_values.reset();
                     model_value_proc * proc = root2proc[n];
                     SASSERT(proc);
                     proc->get_dependencies(dependencies);
                     for (model_value_dependency const& d : dependencies) {
+                        #ifdef SLHV_DEBUG
+                        std::cout << "dependency: " << mk_pp(d.get_enode()->get_expr(), m) << std::endl;
+                        #endif
                         if (d.is_fresh_value()) {
                             CTRACE("mg_top_sort", !d.get_value()->get_value(), 
                                    tout << "#" << n->get_owner_id() << " " << mk_pp(n->get_expr(), m) << " -> " << d << "\n";);
@@ -362,9 +390,22 @@ namespace smt {
                             dependency_values.push_back(m_root2value[child]);
                         }
                     }
+
+                    #ifdef SLHV_DEBUG
+                    std::cout << "dependency make value" << std::endl;
+                    #endif
                     val = proc->mk_value(*this, dependency_values);
+                    #ifdef SLHV_DEBUG
+                    std::cout << "dependency make value end" << std::endl;
+                    #endif
                 }
+                #ifdef SLHV_DEBUG
+                std::cout << "register value: " << mk_pp(val, m) << std::endl;
+                #endif
                 register_value(val);
+                #ifdef SLHV_DEBUG
+                std::cout << "register value end" << std::endl;
+                #endif
                 m_asts.push_back(val);
                 m_root2value.insert(n, val);
             }

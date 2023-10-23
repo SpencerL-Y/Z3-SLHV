@@ -2464,12 +2464,19 @@ namespace smt {
         if(this->is_nil(loc)) {
             return this->th->global_nil;
         } else {
+            if(this->fine_data.find(th->get_context().get_enode(loc)->get_root()) == this->fine_data.end()) {
+                return nullptr;
+            }
             return this->fine_data[th->get_context().get_enode(loc)->get_root()][0];
         }
     }
 
     bool locvar_eq::is_nil(app* loc) {
         enode* loc_root = this->th->get_context().get_enode(loc)->get_root();
+        if(this->fine_data.find(loc_root) == this->fine_data.end()) {
+            // loc not relavant can be seen as nil
+            return true;
+        }
         for(app* l : this->fine_data[loc_root]) {
             if(l == this->th->global_nil) {
                 return true;
@@ -2572,12 +2579,12 @@ namespace smt {
 
     app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
         enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
-        if(this->coarse_data.find(hvar_root_node) == this->coarse_data.end()) {
-            return nullptr;
-        }
         if(this->is_emp_hvar(hvar) == 1) {
             return this->th->global_emp;
         } else {
+            if(this->coarse_data.find(hvar_root_node) == this->coarse_data.end()) {
+                return nullptr;
+            }
             return this->coarse_data[hvar_root_node][0];
         }
     }
@@ -2586,7 +2593,7 @@ namespace smt {
         enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
         if(this->th->curr_emp_hterm_enodes.find(hvar_root_node) != this->th->curr_emp_hterm_enodes.end() || 
            this->th->get_context().get_enode(this->th->global_emp)->get_root() == hvar_root_node || 
-           this->th->global_emp == hvar) {
+           this->th->global_emp == hvar) { 
             return 1;
         } else {
             return -1;
@@ -5279,12 +5286,15 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "curr mk value for intloc sort" << std::endl;
             #endif
-            if(this->is_locvar(n->get_expr())) {
+            if(this->is_locvar(n->get_expr()) || this->is_nil(n->get_expr())) {
                 app* locvar = to_app(n->get_expr());
                 app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
+                if(leader_locvar == nullptr) {
+                    leader_locvar = locvar;
+                }
                 if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
                     // if the equivalence class already have value
-                    return this->expr2value[locvar];
+                    return this->expr2value[leader_locvar];
                 } else {
                     // otherwise create a fresh loc value
                     app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
@@ -5301,10 +5311,14 @@ namespace smt {
             #ifdef SLHV_DEBUG 
             std::cout << "curr mk value for intheap sort" << std::endl;
             #endif
-            if(this->is_hvar(n->get_expr())) { 
+            if(this->is_hvar(n->get_expr()) || this->is_emp(n->get_expr())) { 
                 heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
                 app* n_hvar = to_app(n->get_expr());
                 app* leader_hvar = this->model_graph->get_hvar_eq()->get_leader_hvar(n_hvar);
+                if(leader_hvar == nullptr) {
+                    // current assignment is not related to n_hvar, any assignment is ok
+                    return hvp;
+                }
                 #ifdef SLHV_DEBUG
                 std::cout << "leader hvar: " << mk_ismt2_pp(leader_hvar, this->get_manager()) << std::endl;
                 #endif
@@ -5312,7 +5326,8 @@ namespace smt {
                 std::vector<dgraph_node*> nodes_depend;
                 std::set<enode*> enodes_depend;
                 if(this->depend_graph.find(n_hvar_node) == this->depend_graph.end()) {
-                    // this is free sink hvar node
+                    // this is free sink hvar node, only add emp for dependency
+                    hvp->add_dependency(model_value_dependency(this->get_context().get_enode(this->global_emp)));
                     return hvp;
                 }
 
