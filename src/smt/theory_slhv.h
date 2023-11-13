@@ -152,8 +152,11 @@ namespace smt
 
         std::set<app*> collect_points_tos(app* expression);
 
+        
         void reset_configs();
         // checking logic
+
+        std::set<hterm*> extract_all_hterms();
 
         public:
         theory_slhv(context& ctx);

@@ -369,6 +369,7 @@ namespace smt {
                 continue;
             }
             // TODO: add reduction and solving
+            std::set<hterm*> all_hterms =  extract_all_hterms();
         }
 
         #ifdef SLHV_DEBUG
@@ -711,6 +712,10 @@ namespace smt {
     }
 
     // check_logic
+
+    std::set<hterm*> theory_slhv::extract_all_hterms() {
+        
+    }
 
 
     theory_var theory_slhv::mk_var(enode* n) {
