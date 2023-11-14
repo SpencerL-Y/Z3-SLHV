@@ -370,6 +370,12 @@ namespace smt {
             }
             // TODO: add reduction and solving
             std::set<hterm*> all_hterms =  extract_all_hterms();
+            #ifdef SLHV_DEBUG
+            std::cout << "all hterms: " << std::endl;
+            for(hterm* ht : all_hterms) {
+                ht->print(std::cout);
+            }
+            #endif
         }
 
         #ifdef SLHV_DEBUG
@@ -714,8 +720,49 @@ namespace smt {
     // check_logic
 
     std::set<hterm*> theory_slhv::extract_all_hterms() {
-        
+        std::set<hterm*> eq_hterms;
+        for(app* eq : this->curr_heap_cnstr) {
+            SASSERT(eq->is_app_of(basic_family_id, OP_EQ));
+            app* lhs_hterm = to_app(eq->get_arg(0));
+            app* rhs_hterm = to_app(eq->get_arg(1));
+            if(this->is_atom_hterm(lhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(lhs_hterm);
+                hterm* lhs_atom_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
+                eq_hterms.insert(lhs_atom_hterm);
+            } else {
+                SASSERT(this->is_uplus(lhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
+                }
+                hterm* lhs_bunch_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
+                eq_hterms.insert(lhs_bunch_hterm);
+            }
+
+            if(this->is_atom_hterm(rhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(rhs_hterm);
+                hterm* rhs_atom_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
+                eq_hterms.insert(rhs_atom_hterm);
+            } else {
+                SASSERT(this->is_uplus(rhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
+                }
+                hterm* rhs_bunch_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
+                eq_hterms.insert(rhs_bunch_hterm);
+            }
+        }
+        std::set<hterm*> all_hterms;
+        for(hterm* eq_hterm : eq_hterms) {
+            all_hterms = slhv_util::setUnion(all_hterms, eq_hterm->get_subhterms());
+        }
+        return all_hterms;
     }
+
+
 
 
     theory_var theory_slhv::mk_var(enode* n) {
@@ -728,39 +775,34 @@ namespace smt {
     }
 
     // heap term
-    hterm::hterm(std::vector<app*>& atomics, std::set<app*> atoms) {
-        this->atomic_hterms_vec = atomics;
+    hterm::hterm(std::vector<app*>& atomics, std::vector<app*> atoms) : atomic_hterms_vec(atomics) {
         for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
-            this->atomic_boolvec[i] = false;
+            this->atomic_hterms_count[i] = 0;
         }
-        int found_num = 0;
-        for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
-            if(atoms.find(this->atomic_hterms_vec[i]) != atoms.end()) {
-                found_num ++;
-                this->atomic_boolvec[i] = true;
+        for(app* atom_contained : atoms) {
+            for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
+                if(this->atomic_hterms_vec[i] == atom_contained) {
+                    this->atomic_hterms_count[i] ++;
+                }
             }
         }
-        SASSERT(found_num == atoms.size());
     }
 
     bool hterm::is_subhterm_of(hterm* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
         for(int i = 0; i < this->get_vec_size(); i ++) {
-            if(this->get_pos(i)) {
-                if(!ht->get_pos(i)) {
-                    return false;
-                }
+            if(this->get_pos(i) > ht->get_pos(i)) {
+                return false;
             }
         }
         return true;
     }
+
     bool hterm::is_suphterm_of(hterm* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
         for(int i = 0; i < this->get_vec_size(); i ++) {
-            if(!this->get_pos(i)) {
-                if(ht->get_pos(i)) {
-                    return false;
-                }
+            if(ht->get_pos(i) > this->get_pos(i)) {
+                return false;
             }
         }
         return true;
@@ -768,27 +810,68 @@ namespace smt {
 
     hterm* hterm::intersect_with(hterm* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
-        std::vector<bool> new_boolvec;
+        std::vector<int> new_count;
         for(int i = 0; i < this->get_vec_size(); i ++) {
-            new_boolvec[i] = true;
+            new_count[i] = 0;
         }
         for(int i = 0; i < this->get_vec_size(); i ++) {
-            if(this->get_pos(i) && ht->get_pos(i)) {
-                new_boolvec[i] = true;
+            if(this->get_pos(i) > 0 && ht->get_pos(i) > 0) {
+                int min = this->get_pos(i) > this->get_pos(j) ? this->get_pos(j) : this->get_pos(i);
+                new_count[i] = min;
             }
         }
-        hterm* intersected_hterm = alloc(hterm, this->get_atomic_hterm_vec(), new_boolvec);
+        hterm* intersected_hterm = alloc(hterm, this->get_atomic_hterm_vec(), new_count);
         return intersected_hterm;
     }
 
-    std::set<app*> hterm::get_atoms() {
-        std::set<app*> result;
+    std::vector<app*> hterm::get_atoms() {
+        std::vector<app*> result;
         for(int i = 0; i < this->get_vec_size(); i ++) {
             if(this->get_pos(i)) {
-                result.insert(this->atomic_hterms_vec[i]);
+                for(int j = 0; j < this->get_pos(i); j ++) {
+                    result.push_back(this->atomic_hterms_vec[i]);
+                }
             }
         }
         return result;
+    }
+
+    std::set<hterm*> hterm::get_subhterms() {
+        std::set<hterm*> result;
+        std::set<std::vector<int>> current_enum;
+        std::set<std::vector<int>> next_enum;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(i == 0) {
+                for(int j = 0; j <= this->get_pos(i); j ++) {
+                    std::vector<int> partial_vec;
+                    partial_vec.push_back(j);
+                    next_enum.insert(partial_vec);
+                }
+            } else {
+                for(std::vector<int> last_partial_vec : current_enum) {
+                    for(int j = 0; i <= this->get_pos(i); j ++) {
+                        last_partial_vec.push_back(j);
+                        next_enum.insert(last_partial_vec);
+                    }
+                }
+            }
+            current_enum = next_enum;
+            next_enum.clear();
+        }
+        for(std::vector<int> atoms_count : current_enum) {
+            hterm* subhterm = alloc(hterm, this->atomic_hterms_vec, atoms_count);
+            result.insert(subhterm);
+        }
+        return result;
+    }
+
+
+    void hterm::print(std::ostream& os) {
+        os << "hterm id: ";
+        for(int index = 0; index < this->get_vec_size(); index ++) {
+            os << " " << this->atomic_hterms_count[index] << " ";
+        }
+        os << std::endl;
     }
 
     // syntax maker

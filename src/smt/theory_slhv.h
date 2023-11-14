@@ -74,6 +74,9 @@ namespace smt
         bool is_locvar(app const* n) const {
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
+        bool is_atom_hterm(app const* n) const {
+            return (is_points_to(n) || is_hvar(n));
+        }
 
         bool is_datavar(app const* n) const {
             // TODO: maybe buggy here
@@ -470,12 +473,10 @@ namespace smt
     class hterm {
         private:
             std::vector<app*>& atomic_hterms_vec;
-            std::vector<bool> atomic_boolvec;
+            std::vector<int> atomic_hterms_count;
         public:
-            hterm(std::vector<app*>& atomics, std::set<app*> atoms);
-            hterm(std::vector<app*>& atomics, std::vector<bool> atoms_boolvec) {
-                this->atomic_hterms_vec = atomics;
-                this->atomic_boolvec = atoms_boolvec;
+            hterm(std::vector<app*>& atomics, std::vector<app*> atoms);
+            hterm(std::vector<app*>& atomics, std::vector<int> atoms_count): atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
             }
 
             bool is_subhterm_of(hterm* ht);
@@ -483,22 +484,22 @@ namespace smt
             hterm* intersect_with(hterm* ht);
             hterm* disj_union_with(hterm* ht);
 
-            std::set<app*> get_atoms();
+            std::vector<app*> get_atoms();
 
             std::vector<app*>& get_atomic_hterm_vec() {
                 return this->atomic_hterms_vec;
             }
-            std::vector<bool> get_atomic_appear() {
-                return this->atomic_boolvec;
+            std::vector<int> get_atomic_count() {
+                return this->atomic_hterms_count;
             }
             int get_vec_size() {
                 return this->atomic_hterms_vec.size();
             }
-            bool get_pos(int pos) {
-                return this->atomic_boolvec[pos];
+            int get_pos(int pos) {
+                return this->atomic_hterms_count[pos];
             }
-
-
+            std::set<hterm*>  get_subhterms();
+            void print(std::ostream& os);
     };
 
 
