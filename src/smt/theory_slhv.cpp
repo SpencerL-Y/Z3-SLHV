@@ -1154,17 +1154,32 @@ namespace smt {
         this->syntax_maker = this->th->syntax_maker;
 
         // create boolean variables
-        
-
+        for(int ht1_index = 0; ht1_index < this->hts.size(); ht1_index ++) {
+            for(int ht2_index = 0; ht2_index < this->hts.size(); ht2_index ++) {
+                if(ht1_index != ht2index_map || this->djrel_var_map.find({ht1_index, ht2_index}) == this->djrel_var_map.end()) {
+                    std::string idj_name_prefix = "idj";
+                    std::string ish_name_prefix = "ish";
+                    std::pair<int, int> key_pair = {ht1_index, ht2_index};
+                    app* idj_boolvar = this->syntax_maker->mk_boolvar(idj_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+                    app* ish_boolvar = this->syntax_maker->mk_boolvar(ish_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+                    this->djrel_var_map[key_pair] = idj_boolvar;
+                    this->shrel_var_map[key_pair] = ish_boolvar;
+                } 
+            }
+        }
     }
         
-    expr* formula_encoder::get_shrel_boolvar(app* subht, app* supht) {
+    app* formula_encoder::get_shrel_boolvar(app* subht, app* supht) {
+        int sub_index = this->ht2index_map[subht];
+        int sup_index = this->ht2index_map[supht];
 
     }
-    expr* formula_encoder::get_djrel_boolvar(app* firstht, app* secondht) {
+
+    app* formula_encoder::get_djrel_boolvar(app* firstht, app* secondht) {
 
     }
-    expr* formula_encoder::locvar2intvar(app* locvar) {
+    
+    app* formula_encoder::locvar2intvar(app* locvar) {
 
     }
     expr* formula_encoder::translate_locdata_formula() {

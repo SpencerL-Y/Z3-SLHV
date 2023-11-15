@@ -524,6 +524,9 @@ namespace smt
         std::map<std::pair<int, int>, app*> shrel_var_map;
         std::map<heap_term*, int> ht2index_map;
         std::vector<heap_term*> index2ht;
+
+        std::map<app*, app*> locvar2invar_map;
+
         std::set<heap_term*> hts;
         std::set<heap_term*> atom_hts;
         std::set<heap_term*> pt_hts;
@@ -537,9 +540,9 @@ namespace smt
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
-        expr* get_shrel_boolvar(app* subht, app* supht);
-        expr* get_djrel_boolvar(app* firstht, app* secondht);
-        expr* locvar2intvar(app* locvar);
+        app* get_shrel_boolvar(app* subht, app* supht);
+        app* get_djrel_boolvar(app* firstht, app* secondht);
+        app* locvar2intvar(app* locvar);
 
         expr* translate_locdata_formula();
         expr* generate_init_formula();
