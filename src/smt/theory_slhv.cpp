@@ -369,13 +369,18 @@ namespace smt {
                 continue;
             }
             // TODO: add reduction and solving
-            std::set<hterm*> all_hterms =  extract_all_hterms();
+            std::set<heap_term*> all_hterms = extract_all_hterms();
             #ifdef SLHV_DEBUG
             std::cout << "all hterms: " << std::endl;
-            for(hterm* ht : all_hterms) {
+            for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
+            }
+            std::cout << std::endl;
+            for(heap_term* ht : all_hterms) {
                 ht->print(std::cout);
             }
             #endif
+
         }
 
         #ifdef SLHV_DEBUG
@@ -586,6 +591,7 @@ namespace smt {
         for(app* hv : this->curr_hvars ) {
             this->curr_atomic_hterms.push_back(hv);
         }
+        this->curr_atomic_hterms.push_back(this->global_emp);
         #ifdef SLHV_DEBUG
         std::cout << "collect and analyze assignments end" << std::endl;
         #endif
@@ -719,47 +725,171 @@ namespace smt {
 
     // check_logic
 
-    std::set<hterm*> theory_slhv::extract_all_hterms() {
-        std::set<hterm*> eq_hterms;
+    std::set<heap_term*> theory_slhv::extract_all_hterms() {
+        #ifdef SLHV_DEBUG
+        std::cout << "begin extract all hterms" << std::endl;
+        #endif
+        std::set<heap_term*> eq_hterms;
         for(app* eq : this->curr_heap_cnstr) {
+            #ifdef SLHV_DEBUG
+            std::cout << "extract for " << mk_ismt2_pp(eq, this->m) << std::endl;
+            #endif
+            SASSERT(eq != nullptr);
             SASSERT(eq->is_app_of(basic_family_id, OP_EQ));
             app* lhs_hterm = to_app(eq->get_arg(0));
             app* rhs_hterm = to_app(eq->get_arg(1));
+            #ifdef SLHV_DEBUG
+            std::cout << "extract lhs hterm" << std::endl;
+            #endif
             if(this->is_atom_hterm(lhs_hterm)) {
                 std::vector<app*> atoms_contained;
                 atoms_contained.push_back(lhs_hterm);
-                hterm* lhs_atom_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
-                eq_hterms.insert(lhs_atom_hterm);
+            
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_vec_count);
+                    eq_hterms.insert(lhs_atom_hterm);
+                }
             } else {
                 SASSERT(this->is_uplus(lhs_hterm));
                 std::vector<app*> atoms_contained;
                 for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
                     atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
                 }
-                hterm* lhs_bunch_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
-                eq_hterms.insert(lhs_bunch_hterm);
+
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(lhs_bunch_hterm);
+                }
             }
+            #ifdef SLHV_DEBUG
+            std::cout << "extract lhs hterm end" << std::endl;
+            #endif
+            #ifdef SLHV_DEBUG
+            std::cout << "extract rhs hterm" << std::endl;
+            #endif
 
             if(this->is_atom_hterm(rhs_hterm)) {
                 std::vector<app*> atoms_contained;
                 atoms_contained.push_back(rhs_hterm);
-                hterm* rhs_atom_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
-                eq_hterms.insert(rhs_atom_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(rhs_atom_hterm);
+                }
             } else {
                 SASSERT(this->is_uplus(rhs_hterm));
                 std::vector<app*> atoms_contained;
                 for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
                     atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
                 }
-                hterm* rhs_bunch_hterm = alloc(hterm, this->curr_atomic_hterms, atoms_contained);
-                eq_hterms.insert(rhs_bunch_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(rhs_bunch_hterm);
+                }
+            }
+
+            #ifdef SLHV_DEBUG
+            std::cout << "extract rhs hterm end" << std::endl;
+            #endif
+        }
+        std::set<heap_term*> all_hterms;
+        for(heap_term* eq_hterm : eq_hterms) {
+            std::set<heap_term*> curr_heap_terms = eq_hterm->get_subhterms();
+            for(heap_term* ht : curr_heap_terms) {
+                bool found = false;
+                for(heap_term* eht : all_hterms) {
+                    if(ht->get_atomic_count() == eht->get_atomic_count()) {
+                        found = true;
+                        break;
+                    }
+                }
+                if(!found) {
+                    all_hterms.insert(ht);
+                }
             }
         }
-        std::set<hterm*> all_hterms;
-        for(hterm* eq_hterm : eq_hterms) {
-            all_hterms = slhv_util::setUnion(all_hterms, eq_hterm->get_subhterms());
-        }
+        #ifdef SLHV_DEBUG
+        std::cout << "end extract all hterms" << std::endl;
+        #endif
         return all_hterms;
+    }
+
+
+    void theory_slhv::print_all_hterms(std::ostream& os){
+        os << "current atomic hterms: " << std::endl;
+        for(app* ht : this->curr_atomic_hterms) {
+            os << mk_ismt2_pp(ht, this->m) << "\t";
+        }
+        os << std::endl;
     }
 
 
@@ -775,20 +905,23 @@ namespace smt {
     }
 
     // heap term
-    hterm::hterm(std::vector<app*>& atomics, std::vector<app*> atoms) : atomic_hterms_vec(atomics) {
+    heap_term::heap_term(std::vector<app*> atomics, std::vector<app*> atoms) {
+        this->atomic_hterms_vec = atomics;
         for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
-            this->atomic_hterms_count[i] = 0;
+            this->atomic_hterms_count.push_back(0);
         }
         for(app* atom_contained : atoms) {
             for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
                 if(this->atomic_hterms_vec[i] == atom_contained) {
                     this->atomic_hterms_count[i] ++;
+                    break;
                 }
+                SASSERT(false);
             }
         }
     }
 
-    bool hterm::is_subhterm_of(hterm* ht) {
+    bool heap_term::is_subhterm_of(heap_term* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
         for(int i = 0; i < this->get_vec_size(); i ++) {
             if(this->get_pos(i) > ht->get_pos(i)) {
@@ -798,7 +931,7 @@ namespace smt {
         return true;
     }
 
-    bool hterm::is_suphterm_of(hterm* ht) {
+    bool heap_term::is_suphterm_of(heap_term* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
         for(int i = 0; i < this->get_vec_size(); i ++) {
             if(ht->get_pos(i) > this->get_pos(i)) {
@@ -808,7 +941,7 @@ namespace smt {
         return true;
     }
 
-    hterm* hterm::intersect_with(hterm* ht) {
+    heap_term* heap_term::intersect_with(heap_term* ht) {
         SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
         std::vector<int> new_count;
         for(int i = 0; i < this->get_vec_size(); i ++) {
@@ -816,15 +949,15 @@ namespace smt {
         }
         for(int i = 0; i < this->get_vec_size(); i ++) {
             if(this->get_pos(i) > 0 && ht->get_pos(i) > 0) {
-                int min = this->get_pos(i) > this->get_pos(j) ? this->get_pos(j) : this->get_pos(i);
+                int min = this->get_pos(i) > this->get_pos(i) ? this->get_pos(i) : this->get_pos(i);
                 new_count[i] = min;
             }
         }
-        hterm* intersected_hterm = alloc(hterm, this->get_atomic_hterm_vec(), new_count);
+        heap_term* intersected_hterm = alloc(heap_term, this->get_atomic_hterm_vec(), new_count);
         return intersected_hterm;
     }
 
-    std::vector<app*> hterm::get_atoms() {
+    std::vector<app*> heap_term::get_atoms() {
         std::vector<app*> result;
         for(int i = 0; i < this->get_vec_size(); i ++) {
             if(this->get_pos(i)) {
@@ -836,8 +969,8 @@ namespace smt {
         return result;
     }
 
-    std::set<hterm*> hterm::get_subhterms() {
-        std::set<hterm*> result;
+    std::set<heap_term*> heap_term::get_subhterms() {
+        std::set<heap_term*> result;
         std::set<std::vector<int>> current_enum;
         std::set<std::vector<int>> next_enum;
         for(int i = 0; i < this->get_vec_size(); i ++) {
@@ -849,9 +982,10 @@ namespace smt {
                 }
             } else {
                 for(std::vector<int> last_partial_vec : current_enum) {
-                    for(int j = 0; i <= this->get_pos(i); j ++) {
-                        last_partial_vec.push_back(j);
-                        next_enum.insert(last_partial_vec);
+                    for(int j = 0; j <= this->get_pos(i); j ++) {
+                        std::vector<int>  next_partial_vec = last_partial_vec;
+                        next_partial_vec.push_back(j);
+                        next_enum.insert(next_partial_vec);
                     }
                 }
             }
@@ -859,20 +993,30 @@ namespace smt {
             next_enum.clear();
         }
         for(std::vector<int> atoms_count : current_enum) {
-            hterm* subhterm = alloc(hterm, this->atomic_hterms_vec, atoms_count);
-            result.insert(subhterm);
+            bool is_valid_hterm = false;
+            for(int hterm_num : atoms_count) {
+                if(hterm_num > 0) {
+                    is_valid_hterm = true;
+                    break;
+                }
+            }
+            if(is_valid_hterm) {
+                heap_term* subhterm = alloc(heap_term, this->atomic_hterms_vec, atoms_count);
+                result.insert(subhterm);
+            }
         }
         return result;
     }
 
 
-    void hterm::print(std::ostream& os) {
+    void heap_term::print(std::ostream& os) {
         os << "hterm id: ";
         for(int index = 0; index < this->get_vec_size(); index ++) {
             os << " " << this->atomic_hterms_count[index] << " ";
         }
         os << std::endl;
     }
+
 
     // syntax maker
 
@@ -890,6 +1034,26 @@ namespace smt {
         return this->fv_maker->mk_fresh_datavar();
     }
 
+    app* slhv_syntax_maker::mk_lia_intvar(std::string name) {
+        arith_util a(this->th->get_manager());
+        family_id arith_family_id = this->th->get_manager().mk_family_id("arith");
+        sort* range_sort = a.mk_int();
+        unsigned num_args = 0;
+        arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
+        app* lia_intvar = this->th->get_manager().mk_const(name, range_sort);
+        #ifdef SLHV_DEBUG
+        std::cout << "lia intvar made: " << name << std::endl;
+        #endif
+        return lia_intvar;
+    }
+
+
+    app* slhv_syntax_maker::mk_boolvar(std::string name) {
+        sort* bool_sort = this->th->get_manager().mk_bool_sort();
+        app* boolvar = this->th->get_manager().mk_const(name, bool_sort);
+        return boolvar;
+    }
+
     app* slhv_syntax_maker::mk_fresh_hvar() {
         return this->fv_maker->mk_fresh_hvar();
     }
@@ -897,6 +1061,8 @@ namespace smt {
     app* slhv_syntax_maker::mk_fresh_locvar() {
         return this->fv_maker->mk_fresh_locvar();
     }
+
+
 
     app* slhv_syntax_maker::mk_read_formula(app* from_hvar, app* read_addr, app* read_data) {
         SASSERT(this->th->is_hvar(from_hvar));

@@ -13,7 +13,7 @@
 #include <tuple>
 namespace smt
 {
-    class hterm;
+    class heap_term;
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
     class theory_slhv : public theory {
@@ -159,8 +159,9 @@ namespace smt
         void reset_configs();
         // checking logic
 
-        std::set<hterm*> extract_all_hterms();
+        std::set<heap_term*> extract_all_hterms();
 
+        void print_all_hterms(std::ostream& os);
         public:
         theory_slhv(context& ctx);
         
@@ -470,36 +471,55 @@ namespace smt
 
 // heap term class
 
-    class hterm {
+    class heap_term {
         private:
-            std::vector<app*>& atomic_hterms_vec;
+            std::vector<app*> atomic_hterms_vec;
             std::vector<int> atomic_hterms_count;
         public:
-            hterm(std::vector<app*>& atomics, std::vector<app*> atoms);
-            hterm(std::vector<app*>& atomics, std::vector<int> atoms_count): atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
+            heap_term(std::vector<app*> atomics, std::vector<app*> atoms);
+            heap_term(std::vector<app*> atomics, std::vector<int> atoms_count): atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
             }
 
-            bool is_subhterm_of(hterm* ht);
-            bool is_suphterm_of(hterm* ht);
-            hterm* intersect_with(hterm* ht);
-            hterm* disj_union_with(hterm* ht);
+            bool is_subhterm_of(heap_term* ht);
+            bool is_suphterm_of(heap_term* ht);
+            heap_term* intersect_with(heap_term* ht);
+            heap_term* disj_union_with(heap_term* ht);
 
             std::vector<app*> get_atoms();
 
-            std::vector<app*>& get_atomic_hterm_vec() {
+            std::vector<app*> get_atomic_hterm_vec() const{
                 return this->atomic_hterms_vec;
             }
-            std::vector<int> get_atomic_count() {
+            std::vector<int> get_atomic_count() const{
                 return this->atomic_hterms_count;
             }
             int get_vec_size() {
                 return this->atomic_hterms_vec.size();
             }
-            int get_pos(int pos) {
+            int get_pos(int pos) const{
                 return this->atomic_hterms_count[pos];
             }
-            std::set<hterm*>  get_subhterms();
+            std::set<heap_term*>  get_subhterms();
             void print(std::ostream& os);
+    };
+// encoder from slhv to lia
+    class formula_encoder {
+        private:
+        std::map<std::pair<int, int>, app*> djrel_var_map;
+        std::map<std::pair<int, int>, app*> shrel_var_map;
+        std::map<app*, int> atom2index_map;
+        int pt_num;
+        
+
+        public:
+        
+        formula_encoder(std::vector<app*> curr_atomic_hterms);
+        
+        app* get_shrel_boolvar(app* subht, app* supht);
+        app* get_djrel_boolvar(app* firstht, app* secondht);
+        app* locvar2intvar(app* locvar);
+
+        app* encode();
     };
 
 
@@ -694,6 +714,8 @@ namespace smt
         app* mk_points_to_new(app* addr_loc, app* record_loc); 
 
         app* mk_fresh_datavar(); 
+        app* mk_lia_intvar(std::string name);
+        app* mk_boolvar(std::string name);
         std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); 
         app* mk_addr_in_hterm_new(app* hterm, app* addr); 
         app* mk_addr_notin_hterm_new(app *hterm, app* addr);
