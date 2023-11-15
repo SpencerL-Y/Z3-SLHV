@@ -763,7 +763,7 @@ namespace smt {
                     }
                 }
                 if(!found) {
-                    heap_term* lhs_atom_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_vec_count);
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_vec_count);
                     eq_hterms.insert(lhs_atom_hterm);
                 }
             } else {
@@ -791,7 +791,7 @@ namespace smt {
                     }
                 }
                 if(!found) {
-                    heap_term* lhs_bunch_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(lhs_bunch_hterm);
                 }
             }
@@ -824,7 +824,7 @@ namespace smt {
                 }
 
                 if(!found) {
-                    heap_term* rhs_atom_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(rhs_atom_hterm);
                 }
             } else {
@@ -852,7 +852,7 @@ namespace smt {
                 }
 
                 if(!found) {
-                    heap_term* rhs_bunch_hterm = alloc(heap_term, this->curr_atomic_hterms, atoms_contained);
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(rhs_bunch_hterm);
                 }
             }
@@ -877,6 +877,8 @@ namespace smt {
                 }
             }
         }
+
+        
         #ifdef SLHV_DEBUG
         std::cout << "end extract all hterms" << std::endl;
         #endif
@@ -905,7 +907,8 @@ namespace smt {
     }
 
     // heap term
-    heap_term::heap_term(std::vector<app*> atomics, std::vector<app*> atoms) {
+    heap_term::heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<app*> atoms) {
+        this->th = th;
         this->atomic_hterms_vec = atomics;
         for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
             this->atomic_hterms_count.push_back(0);
@@ -953,7 +956,7 @@ namespace smt {
                 new_count[i] = min;
             }
         }
-        heap_term* intersected_hterm = alloc(heap_term, this->get_atomic_hterm_vec(), new_count);
+        heap_term* intersected_hterm = alloc(heap_term, this->th, this->get_atomic_hterm_vec(), new_count);
         return intersected_hterm;
     }
 
@@ -964,6 +967,49 @@ namespace smt {
                 for(int j = 0; j < this->get_pos(i); j ++) {
                     result.push_back(this->atomic_hterms_vec[i]);
                 }
+            }
+        }
+        return result;
+    }
+
+
+
+    bool heap_term::is_emp() {
+        if(this->get_pos(this->get_vec_size() - 1) != 1) {
+            return false;
+        }
+        for(int i = 0; i < this->get_vec_size() - 1; i ++) {
+            if(this->get_pos(i) > 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    bool heap_term::is_atom_pt() {
+        return this->get_pt_num() == 1 && this->get_hvar_num() == 0 && !this->is_emp();
+    }
+
+    bool heap_term::is_atom_hvar() {
+        return this->get_pt_num() == 0 && this->get_hvar_num() == 1 && !this->is_emp();
+    }
+
+    int heap_term::get_pt_num() {
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i++) {
+            if(this->th->is_points_to(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
+            }
+        }
+        return result;
+    }
+
+    int heap_term::get_hvar_num() {
+        
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i++) {
+            if(this->th->is_hvar(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
             }
         }
         return result;
@@ -1001,8 +1047,70 @@ namespace smt {
                 }
             }
             if(is_valid_hterm) {
-                heap_term* subhterm = alloc(heap_term, this->atomic_hterms_vec, atoms_count);
+                heap_term* subhterm = alloc(heap_term, this->th, this->atomic_hterms_vec, atoms_count);
                 result.insert(subhterm);
+            }
+        }
+        return result;
+    }
+
+
+    std::set<std::pair<std::vector<int>, std::vector<int>>> heap_term::get_splitted_subpairs() {
+        SASSERT(!this->is_atom_hvar() && !this->is_atom_pt() && !this->is_emp());
+        std::set<std::vector<int>> curr_enum;
+        std::set<std::vector<int>> next_enum;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(i == 0) {
+                for(int j = 0; j <= this->get_pos(i); j ++) {
+                    std::vector<int> partial_vec;
+                    partial_vec.push_back(j);
+                    next_enum.insert(partial_vec);
+                }
+            } else {
+                for(std::vector<int> last_partial_vec : curr_enum) {
+                    for(int j = 0; j <= this->get_pos(i); j ++) {
+                        std::vector<int> next_partial_vec = last_partial_vec;
+                        next_partial_vec.push_back(j);
+                        next_enum.insert(next_partial_vec);
+                    }
+                }
+            }
+            curr_enum = next_enum;
+            next_enum.clear();
+        }
+
+
+        for(std::vector<int> atoms_count : curr_enum) {
+            bool is_valid_hterm = false;
+            for(int i = 0; i < this->get_vec_size(); i ++) {
+                if(atoms_count[i] > 0) {
+                    is_valid_hterm = true;
+                    break;
+                }
+            }
+            if(is_valid_hterm) {
+                next_enum.insert(atoms_count);
+            }
+        }
+        curr_enum = next_enum;
+
+        std::set<std::pair<std::vector<int>, std::vector<int>>> result;
+        for(std::vector<int> first_elem_vector : curr_enum) {
+            std::vector<int> whole_vec = this->get_atomic_count();
+            std::vector<int> remnant_vec = whole_vec;
+            for(int i = 0; i < this->get_vec_size(); i ++) {
+                remnant_vec[i] -= first_elem_vector[i];
+            }
+            bool pair_exists = false;
+            for(auto p : result) {
+                if(p.second == first_elem_vector && p.first == remnant_vec || 
+                   p.first == first_elem_vector && p.second == remnant_vec) {
+                    pair_exists = true;
+                    break;
+                }
+            }
+            if(!pair_exists) {
+                result.insert({first_elem_vector, remnant_vec});
             }
         }
         return result;
@@ -1016,7 +1124,92 @@ namespace smt {
         }
         os << std::endl;
     }
+    
+    // encoder
+    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms) {
+        // record all kinds of hts
+        this->th = th;
+        this->emp_ht = nullptr;
+        int i = 0;
+        for(heap_term* ht : all_hterms) {
+            this->ht2index_map[ht] = i;
+            this->index2ht.push_back(ht);
+            i ++;
+        }
+        this->hts = all_hterms;
+        for(heap_term* ht : this->hts) {
+            if(ht->is_emp()) {
+                SASSERT(this->emp_ht == nullptr);
+                this->emp_ht = ht;
+            } else if(ht->is_atom_pt()) {
+                this->atom_hts.insert(ht);
+                this->pt_hts.insert(ht);
+            } else if(ht->is_atom_hvar()) {
+                this->atom_hts.insert(ht);
+                this->hvar_hts.insert(ht);
+            } else {
+                // compound ht
+            }
+        }
+        this->syntax_maker = this->th->syntax_maker;
 
+        // create boolean variables
+        
+
+    }
+        
+    expr* formula_encoder::get_shrel_boolvar(app* subht, app* supht) {
+
+    }
+    expr* formula_encoder::get_djrel_boolvar(app* firstht, app* secondht) {
+
+    }
+    expr* formula_encoder::locvar2intvar(app* locvar) {
+
+    }
+    expr* formula_encoder::translate_locdata_formula() {
+
+    }
+    expr* formula_encoder::generate_init_formula() {
+
+    }
+    expr* formula_encoder::generate_pto_formula() {
+
+    }
+    expr* formula_encoder::generate_iso_formula() {
+
+    }
+    expr* formula_encoder::generate_idj_formula() {
+
+    }
+    expr* formula_encoder::generate_final_formula() {
+
+    }
+
+
+    expr* formula_encoder::encode() {
+
+    }
+
+
+    std::pair<heap_term*, heap_term*> formula_encoder::get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair) {
+        heap_term* first_ht = nullptr;
+        heap_term* second_ht = nullptr;
+        for(heap_term* ht : this->hts) {
+            if(ht->get_atomic_count() == vec_pair.first) {
+                SASSERT(first_ht == nullptr);
+                first_ht = ht;
+            }
+            if(ht->get_atomic_count() == vec_pair.second) {
+                SASSERT(second_ht == nullptr);
+                second_ht = ht;
+            }
+            if(first_ht != nullptr && second_ht != nullptr) {
+                break;
+            }
+        }
+        return {first_ht, second_ht};
+    }
 
     // syntax maker
 

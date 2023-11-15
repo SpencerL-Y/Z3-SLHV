@@ -473,11 +473,12 @@ namespace smt
 
     class heap_term {
         private:
+            theory_slhv* th;
             std::vector<app*> atomic_hterms_vec;
             std::vector<int> atomic_hterms_count;
         public:
-            heap_term(std::vector<app*> atomics, std::vector<app*> atoms);
-            heap_term(std::vector<app*> atomics, std::vector<int> atoms_count): atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
+            heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<app*> atoms);
+            heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<int> atoms_count): th(th), atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
             }
 
             bool is_subhterm_of(heap_term* ht);
@@ -499,27 +500,58 @@ namespace smt
             int get_pos(int pos) const{
                 return this->atomic_hterms_count[pos];
             }
+
+            bool is_emp();
+
+            bool is_atom_pt();
+
+            bool is_atom_hvar();
+
+            int get_pt_num();
+
+            int get_hvar_num();
+
             std::set<heap_term*>  get_subhterms();
             void print(std::ostream& os);
+
+            std::set<std::pair<std::vector<int>, std::vector<int>>> get_splitted_subpairs();
+
     };
 // encoder from slhv to lia
     class formula_encoder {
         private:
         std::map<std::pair<int, int>, app*> djrel_var_map;
         std::map<std::pair<int, int>, app*> shrel_var_map;
-        std::map<app*, int> atom2index_map;
-        int pt_num;
-        
+        std::map<heap_term*, int> ht2index_map;
+        std::vector<heap_term*> index2ht;
+        std::set<heap_term*> hts;
+        std::set<heap_term*> atom_hts;
+        std::set<heap_term*> pt_hts;
+        std::set<heap_term*> hvar_hts;
+        heap_term* emp_ht;
 
+        theory_slhv* th;
+        slhv_syntax_maker* syntax_maker;
+        
         public:
         
-        formula_encoder(std::vector<app*> curr_atomic_hterms);
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
-        app* get_shrel_boolvar(app* subht, app* supht);
-        app* get_djrel_boolvar(app* firstht, app* secondht);
-        app* locvar2intvar(app* locvar);
+        expr* get_shrel_boolvar(app* subht, app* supht);
+        expr* get_djrel_boolvar(app* firstht, app* secondht);
+        expr* locvar2intvar(app* locvar);
 
-        app* encode();
+        expr* translate_locdata_formula();
+        expr* generate_init_formula();
+        expr* generate_pto_formula();
+        expr* generate_iso_formula();
+        expr* generate_idj_formula();
+        expr* generate_final_formula();
+
+        expr* encode();
+
+
+        std::pair<heap_term*, heap_term*> get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair);
     };
 
 
