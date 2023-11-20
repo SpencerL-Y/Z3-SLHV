@@ -1229,6 +1229,29 @@ namespace smt {
     }
 
 
+    std::set<heap_term*> formula_encoder::get_sub_atom_hts(heap_term* orig_ht) {
+        std::vector<int> ht_atom_vec = orig_ht->get_atomic_count();
+        std::set<std::vector<int>> atom_counts;
+        for(int i = 0; i < orig_ht->get_vec_size(); i ++) {
+            if(ht_atom_vec[i] != 0) {
+                std::vector<int> atom_count(orig_ht->get_vec_size(), 0);
+                atom_count[i] = 1;
+                atom_counts.insert(atom_count);
+            }
+        }
+        // find atoms 
+        std::set<heap_term*> result;
+        for(std::vector<int> id_vec : atom_counts) {
+            for(heap_term* aht : this->atom_hts) {
+                if(aht->get_atomic_count() == id_vec) {
+                    result.insert(aht);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
     app* formula_encoder::translate_locterm_to_liaterm(app* locterm) {
         arith_util a(this->th->get_manager());
         if(this->th->is_locvar(locterm)) {
@@ -1370,16 +1393,64 @@ namespace smt {
                 );
 
                 for(heap_term* ht : this->hts) {
-                    // TODO
+                    second_conj = this->th->get_manager().mk_implies(
+                        this->th->get_manager().mk_and(
+                            this->get_shrel_boolvar(pt, ht),
+                            this->get_shrel_boolvar(ptp, ht)
+                        ),
+                        this->th->get_manager().mk_or(
+                            this->get_shrel_boolvar(pt, ptp),
+                            this->get_djrel_boolvar(pt, ptp)
+                        )
+                    )
                 }
             }
             
         }
 
-        
+        return this->th->get_manager().mk_and(first_conj, second_conj);
     }
 
     expr* formula_encoder::generate_iso_formula() {
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        expr* third_conj = this->th->get_manager().mk_true();
+
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ht : this->hts) {
+                if(ht != this->emp_ht) {
+                    expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
+                    expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
+                    for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                        first_conj_ipl_rhs = this->th->get_manager().mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, a));
+                    }
+                    first_conj = this->th->get_manager().mk_and(
+                        first_conj,
+                        this->th->get_manager().mk_implies(first_conj_ipl_lhs, first_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                for(heap_term* ht3 : this->hts) {
+                    expr* second_conj_ipl_lhs = this->th->get_manager().mk_and(
+                        this->get_shrel_boolvar(ht1, ht2),
+                        this->get_shrel_boolvar(ht2, ht3)
+                    );
+                    expr* second_conj_ipl_rhs =  this->get_shrel_boolvar(ht1, ht3);
+                    second_conj = this->th->get_manager().mk_and(
+                        second_conj, 
+                        this->th->get_manager().mk_implies(second_conj_ipl_lhs, second_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        
+
+
 
     }
 

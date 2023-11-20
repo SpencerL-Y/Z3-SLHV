@@ -548,6 +548,7 @@ namespace smt
         theory_slhv* th;
         slhv_syntax_maker* syntax_maker;
         
+        std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
         expr* translate_locdata_formula(expr* formula);
         app* translate_locterm_to_liaterm(app* locterm);
