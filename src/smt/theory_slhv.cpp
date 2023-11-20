@@ -1448,18 +1448,74 @@ namespace smt {
             }
         }
 
-        
+        for(heap_term* compound_ht1 : this->hts) {
+            for(heap_term* compound_ht2 : this->hts) {
+                if(compound_ht1 != this->emp_ht && compound_ht2 != this->emp_ht) {
+                    std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht1_split_counts = compound_ht1->get_splitted_subpairs();
+                    std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht2_split_counts = compound_ht2->get_splitted_subpairs();
+                    for(auto ht1ht2_vec : compound_ht1_split_counts) {
+                        auto ht1ht2 = this->get_ht_pair_by_vec_pair(ht1ht2_vec);
+                        if(ht1ht2.first != this->emp_ht && ht1ht2.second != this->emp_ht) {
+                            for(auto ht1pht2p_vec : compound_ht2_split_counts) {
+                                auto ht1pht2p = this->get_ht_pair_by_vec_pair(ht1pht2p_vec);
+                                if(ht1pht2p.first != this->emp_ht && ht1pht2p.first != this->emp_ht) {
+                                    expr* third_conj_impl_lhs = this->th->get_manager().mk_and(
+                                        this->get_shrel_boolvar(ht1ht2.first, ht1pht2p.first),
+                                        this->get_shrel_boolvar(ht1ht2.second, ht1pht2p.second)
+                                    );
+                                    expr* third_conj_impl_rhs =  this->get_shrel_boolvar(compound_ht1, compound_ht2);
+                                    third_conj = this->th->get_manager().mk_and(
+                                        third_conj,
+                                        this->th->get_manager().mk_implies(third_conj_impl_lhs, third_conj_impl_rhs);
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
-
-
+        expr* result = this->th->get_manager().mk_and(first_conj, second_conj, third_conj);
+        return result;
     }
 
     expr* formula_encoder::generate_idj_formula() {
-
+        expr* result = this->th->get_manager().mk_true();
+        for(heap_term* ht1 : this->hts) {
+            if(ht1 == this->emp_ht) {break;}
+            for(heap_term* ht2 : this->hts) {
+                if(ht2 == this->emp_ht) {break;}
+                for(heap_term* ht3 : this->hts) {
+                    if(ht3 == this->emp_ht) {break;}
+                    for(heap_term* ht4 : this->hts) {
+                        if(ht4 == this->emp_ht) {break;}
+                        expr* impl_lhs = this->th->get_manager().mk_and(
+                            this->get_shrel_boolvar(ht1, ht3),
+                            this->get_shrel_boolvar(ht2, ht4),
+                            this->get_djrel_boolvar(ht3, ht4)
+                        );
+                        expr* impl_rhs = this->get_djrel_boolvar(ht1, ht2);
+                        result = this->th->get_manager().mk_and(
+                            result,
+                            this->th->get_manager().mk_implies(impl_lhs, impl_rhs)
+                        );
+                    }
+                }
+            }
+        }
+        return result;
     }
 
     expr* formula_encoder::generate_final_formula() {
-
+        expr* result = this->th->get_manager().mk_true();
+        for(heap_term* pt : this->pt_hts) {
+            result = this->th->get_manager().mk_and(
+                result,
+                this->th->get_manager().mk_not(this->get_shrel_boolvar(pt, this->emp_ht))
+            );
+        }
+        return result;
     }
 
     expr* formula_encoder::generate_loc_var_constraints() {
