@@ -77,6 +77,13 @@ namespace smt
         bool is_atom_hterm(app const* n) const {
             return (is_points_to(n) || is_hvar(n));
         }
+        bool is_locadd(app const* n) const {
+            if(n->is_app_of(get_id(), OP_LOCADD)) {
+                SASSERT(this->is_locvar(n) && this->is_dataterm(n));
+                return true;
+            }
+            return false;
+        }
 
         bool is_datavar(app const* n) const {
             // TODO: maybe buggy here
@@ -159,7 +166,7 @@ namespace smt
         void reset_configs();
         // checking logic
 
-        std::set<heap_term*> extract_all_hterms();
+        std::pair<std::set<std::pair<hterm*, hterm*>>, std::set<heap_term*>>  extract_all_hterms();
 
         void print_all_hterms(std::ostream& os);
         public:
@@ -507,9 +514,13 @@ namespace smt
 
             bool is_atom_hvar();
 
+            bool is_uplus_hterm();
+
             int get_pt_num();
 
             int get_hvar_num();
+
+            int get_emp_num();
 
             std::set<heap_term*>  get_subhterms();
             void print(std::ostream& os);
@@ -528,6 +539,7 @@ namespace smt
         std::map<app*, app*> locvar2invar_map;
 
         std::set<heap_term*> hts;
+        std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
         std::set<heap_term*> atom_hts;
         std::set<heap_term*> pt_hts;
         std::set<heap_term*> hvar_hts;
@@ -536,20 +548,25 @@ namespace smt
         theory_slhv* th;
         slhv_syntax_maker* syntax_maker;
         
+
+        expr* translate_locdata_formula(expr* formula);
+        app* translate_locterm_to_liaterm(app* locterm);
+
         public:
         
-        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*>> eq_hterm_pairs);
         
-        app* get_shrel_boolvar(app* subht, app* supht);
-        app* get_djrel_boolvar(app* firstht, app* secondht);
+        app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
+        app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
         app* locvar2intvar(app* locvar);
 
-        expr* translate_locdata_formula();
+        expr* generate_ld_formula();
         expr* generate_init_formula();
         expr* generate_pto_formula();
         expr* generate_iso_formula();
         expr* generate_idj_formula();
         expr* generate_final_formula();
+        expr* generate_loc_var_constraints();
 
         expr* encode();
 
@@ -729,6 +746,7 @@ namespace smt
         theory_slhv* th;
         slhv_decl_plugin* slhv_decl_plug;
         slhv_fresh_var_maker* fv_maker;
+        arith_util* a;
 
         public: 
         void reset_fv_maker();
@@ -750,6 +768,7 @@ namespace smt
 
         app* mk_fresh_datavar(); 
         app* mk_lia_intvar(std::string name);
+        app* mk_lia_intconst(int constval);
         app* mk_boolvar(std::string name);
         std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); 
         app* mk_addr_in_hterm_new(app* hterm, app* addr); 

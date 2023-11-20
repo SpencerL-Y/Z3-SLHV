@@ -369,14 +369,14 @@ namespace smt {
                 continue;
             }
             // TODO: add reduction and solving
-            std::set<heap_term*> all_hterms = extract_all_hterms();
+            std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
             #ifdef SLHV_DEBUG
             std::cout << "all hterms: " << std::endl;
             for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
                 std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
             }
             std::cout << std::endl;
-            for(heap_term* ht : all_hterms) {
+            for(heap_term* ht : all_hterms.second) {
                 ht->print(std::cout);
             }
             #endif
@@ -725,12 +725,16 @@ namespace smt {
 
     // check_logic
 
-    std::set<heap_term*> theory_slhv::extract_all_hterms() {
+    std::pair<std::set<std::pair<hterm*, hterm*>>, std::set<heap_term*>> theory_slhv::extract_all_hterms() {
         #ifdef SLHV_DEBUG
         std::cout << "begin extract all hterms" << std::endl;
         #endif
         std::set<heap_term*> eq_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
         for(app* eq : this->curr_heap_cnstr) {
+            heap_term* eq_lhs = nullptr;
+            heap_term* eq_rhs = nullptr;
+
             #ifdef SLHV_DEBUG
             std::cout << "extract for " << mk_ismt2_pp(eq, this->m) << std::endl;
             #endif
@@ -765,6 +769,7 @@ namespace smt {
                 if(!found) {
                     heap_term* lhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_vec_count);
                     eq_hterms.insert(lhs_atom_hterm);
+                    eq_lhs = lhs_atom_hterm;
                 }
             } else {
                 SASSERT(this->is_uplus(lhs_hterm));
@@ -793,6 +798,7 @@ namespace smt {
                 if(!found) {
                     heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(lhs_bunch_hterm);
+                    eq_lhs = lhs_bunch_hterm;
                 }
             }
             #ifdef SLHV_DEBUG
@@ -826,6 +832,7 @@ namespace smt {
                 if(!found) {
                     heap_term* rhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(rhs_atom_hterm);
+                    eq_rhs = rhs_atom_hterm;
                 }
             } else {
                 SASSERT(this->is_uplus(rhs_hterm));
@@ -854,9 +861,11 @@ namespace smt {
                 if(!found) {
                     heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
                     eq_hterms.insert(rhs_bunch_hterm);
+                    eq_rhs = rhs_bunch_hterm;
                 }
             }
 
+            eq_pair_hterms.insert({eq_lhs, eq_rhs});
             #ifdef SLHV_DEBUG
             std::cout << "extract rhs hterm end" << std::endl;
             #endif
@@ -882,7 +891,7 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "end extract all hterms" << std::endl;
         #endif
-        return all_hterms;
+        return {eq_pair_hterms, all_hterms};
     }
 
 
@@ -1004,11 +1013,28 @@ namespace smt {
         return result;
     }
 
+
+    bool heap_term::is_uplus_hterm() {
+        if(this->get_hvar_num() + this->get_pt_num() > 1) {
+            return true;
+        }
+        return false;
+    }
+
     int heap_term::get_hvar_num() {
-        
         int result = 0;
         for(int i = 0; i < this->get_vec_size(); i++) {
             if(this->th->is_hvar(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
+            }
+        }
+        return result;
+    }
+
+    int heap_term::get_emp_num() {
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->th->is_emp(this->atomic_hterms_vec[i])) {
                 result += this->get_pos(i);
             }
         }
@@ -1126,7 +1152,7 @@ namespace smt {
     }
     
     // encoder
-    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms) {
+    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*>> eq_hterm_pairs) {
         // record all kinds of hts
         this->th = th;
         this->emp_ht = nullptr;
@@ -1137,6 +1163,7 @@ namespace smt {
             i ++;
         }
         this->hts = all_hterms;
+        this->eq_ht_pairs = eq_hterm_pairs;
         for(heap_term* ht : this->hts) {
             if(ht->is_emp()) {
                 SASSERT(this->emp_ht == nullptr);
@@ -1167,40 +1194,206 @@ namespace smt {
                 } 
             }
         }
+        // create intvar for locvar
+        for(app* lv : this->th->curr_locvars) {
+            SASSERT(this->th->is_locvar(lv));
+            std::string name = lv->get_name();
+            std::string int_name = name + "_intvar";
+            app* intvar = this->syntax_maker->mk_lia_intvar(int_name);
+            SASSERT(this->locvar2invar_map.find(lv) == this->locvar2invar_map.end());
+            this->locvar2intvar_map[lv] = intvar;
+        }
     }
         
-    app* formula_encoder::get_shrel_boolvar(app* subht, app* supht) {
+    app* formula_encoder::get_shrel_boolvar(heap_term* subht, heap_term* supht) {
         int sub_index = this->ht2index_map[subht];
         int sup_index = this->ht2index_map[supht];
 
+        std::pair<int, int> key = {sub_index, sup_index};
+        return this->shrel_var_map[key];
     }
 
-    app* formula_encoder::get_djrel_boolvar(app* firstht, app* secondht) {
+    app* formula_encoder::get_djrel_boolvar(heap_term* firstht, heap_term* secondht) {
+        int first_index = this->ht2index_map[firstht];
+        int second_index = this->ht2index_map[secondht];
 
+        std::pair<int, int> key = {first_index, second_index};
+        return this->djrel_var_map[key];
     }
     
     app* formula_encoder::locvar2intvar(app* locvar) {
-
+        if(this->locvar2invar_map.find(locvar) == this->locvar2invar_map.end()) {
+            return nullptr;
+        }
+        return this->locvar2invar_map[locvar];
     }
-    expr* formula_encoder::translate_locdata_formula() {
 
+
+    app* formula_encoder::translate_locterm_to_liaterm(app* locterm) {
+        arith_util a(this->th->get_manager());
+        if(this->th->is_locvar(locterm)) {
+            return this->locvar2intvar(locterm);
+        } else if(this->th->is_nil(locterm)) {
+            return this->syntax_maker->mk_lia_intconst(0);
+        } else if(this->th->is_locadd(locterm)){
+            SASSERT(locterm->get_num_args() == 2);
+            app* arg1 = locterm->get_arg(0);
+            app* arg2 = locterm->get_arg(1);
+            app* first = this->translate_locterm_to_liaterm(arg1);
+            SASSERT(this->th->is_dataterm(arg2));
+            app* result = a.mk_add(first, arg2);
+            return result;
+        } else {
+            return locterm;
+        }
     }
+
+    expr* formula_encoder::translate_locdata_formula(expr* formula) {
+        app* apped_formula = to_app(formula);
+        if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = apped_formula->get_arg(0);
+            expr* inner_translated = this->translate_locdata_formula(inner);
+            return this->th->get_manager().mk_not(inner_translated);
+        } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
+            app* inner_first = apped_formula->get_arg(0);
+            app* inner_second = apped_formula->get_arg(1);
+            app* translated_inner_first = this->translate_locterm_to_liaterm(inner_first);
+            app* translated_inner_second = this->translate_locterm_to_liaterm(inner_second);
+            return this->th->get_manager().mk_distinct(translated_inner_first, translated_inner_second);
+        } else if(apped_formula->is_app_of(basic_family_id, OP_EQ)) {
+            app* inner_lhs = apped_formula->get_arg(0);
+            app* inner_rhs = apped_formula->get_arg(1);
+            app* translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
+            app* translated_inner_rhs = this->translate_locterm_to_liaterm(inner_rhs);
+            return this->th->get_manager().mk_eq(translated_inner_lhs, translated_inner_rhs);
+        } else {
+            return formula;
+        }
+    }
+
+    expr* formula_encoder::generate_ld_formula() {
+        expr* result = this->th->get_manager().mk_true();
+        for(app* loc_constraint : this->th->curr_loc_cnstr) {
+            result = this->th->get_manager().mk_and(result, this->translate_locdata_formula(loc_constraint));
+        }
+        for(app* data_constraint : this->th->curr_data_cnstr) {
+            result = this->th->get_manager().mk_and(result, data_constraint);
+        }
+        return result;
+    }
+
     expr* formula_encoder::generate_init_formula() {
 
-    }
-    expr* formula_encoder::generate_pto_formula() {
+        expr* disj_form = this->th->get_manager().mk_true();
+        for(heap_term* uplus_ht : this->hts) {
+            if(uplus_ht->is_uplus_hterm()) {
+                for(auto vec_pair : uplus_ht->get_splitted_subpairs()) {
+                    std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);
+                    disj_form = this->th->get_manager().mk_and(disj_form, this->get_djrel_boolvar(htp.first, htp.second));
+                }
+            }
+        }
+        expr* emp_subsume_form = this->th->get_manager().mk_true();
+        for(heap_term* ht : this->hts) {
+            emp_subsume_form = this->th->get_manager().mk_and(this->get_shrel_boolvar(this->emp_ht, ht));
+        }
 
+        expr* sub_ht_form = this->th->get_manager().mk_true();
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                if(!(ht1->is_emp() || ht2->is_emp()) && ht1->is_subhterm_of(ht2)) {
+                    sub_ht_form = this->th->get_manager().mk_and(sub_ht_form, this->get_shrel_boolvar(ht1, ht2));
+                }
+            }
+        }
+
+        expr* eq_induced_subht_form = this->th->get_manager().mk_true();
+        for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
+            eq_induced_subht_form = this->th->get_manager().mk_and(
+                eq_induced_subht_form,
+                this->get_shrel_boolvar(p.first),
+                this->get_shrel_boolvar(p.second)
+            );
+        }
+
+        expr* result = this->th->get_manager().mk_and(disj_form, emp_subsume_form, sub_ht_form, eq_induced_subht_form);
+        return result;
     }
+
+    expr* formula_encoder::generate_pto_formula() {
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ptp : this->pt_hts) {
+                std::vector<app*> pt_atom = pt->get_atoms();
+                SASSERT(pt_atom.size() == 1);
+                app* pt_addr = pt_atom[0]->get_arg(0);
+                app* pt_content = pt_atom[0]->get_arg(1);
+                std::vector<app*> ptp_atom = ptp->get_atoms();
+                SASSERT(ptp_atom.size() == 1);
+                app* ptp_addr = ptp_atom[0]->get_arg(0);
+                app* ptp_content = ptp_atom[0]->get_arg(1);
+
+                expr* disj_temp_form = this->th->get_manager().mk_implies(
+                    this->get_djrel_boolvar(pt, ptp),
+                    this->th->get_manager().mk_not(
+                        this->th->get_manager().mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        )
+                    )
+                );
+                expr* content_eq_temp_form = nullptr;
+                if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                    content_eq_temp_form = this->th->get_manager().mk_eq(
+                        this->translate_locterm_to_liaterm(pt_content),
+                        this->translate_locterm_to_liaterm(ptp_content)
+                    );
+                } else {
+                    content_eq_temp_form = this->th->get_manager().mk_false();
+                }
+                expr* sh_temp_form = this->th->get_manager().mk_implies(
+                    this->get_shrel_boolvar(pt, ptp),
+                    this->th->get_manager().mk_and(
+                        this->th->get_manager().mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        ),
+                        content_eq_temp_form
+                    )
+                );
+
+                first_conj = this->th->get_manager().mk_and(
+                    first_conj,
+                    disj_temp_form,
+                    sh_temp_form
+                );
+
+                for(heap_term* ht : this->hts) {
+                    // TODO
+                }
+            }
+            
+        }
+
+        
+    }
+
     expr* formula_encoder::generate_iso_formula() {
 
     }
+
     expr* formula_encoder::generate_idj_formula() {
 
     }
+
     expr* formula_encoder::generate_final_formula() {
 
     }
 
+    expr* formula_encoder::generate_loc_var_constraints() {
+        // generate locvar constraints
+    }
 
     expr* formula_encoder::encode() {
 
@@ -1255,6 +1448,10 @@ namespace smt {
         return lia_intvar;
     }
 
+    app* slhv_syntax_maker::mk_lia_intconst(int constval) {
+        arith_util a(this->th->get_manager());
+        return a.mk_int(const_val);
+    }
 
     app* slhv_syntax_maker::mk_boolvar(std::string name) {
         sort* bool_sort = this->th->get_manager().mk_bool_sort();
