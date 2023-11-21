@@ -7,6 +7,7 @@
 #include "model/numeral_factory.h"
 #include "model/locvar_factory.h"
 #include "model/model_core.h"
+#include "model/model_smt2_pp.h"
 #include "smt/smt_model_generator.h"
 #include "util/params.h"
 #include <bitset>
@@ -267,7 +268,7 @@ namespace smt {
         // reset all theory attribute for new final check
         #ifdef SLHV_DEBUG
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
-        std::cout << "================= current assignment ==============" << std::endl;
+        std::cout << "================= current outside assignment ==============" << std::endl;
         #endif
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
@@ -276,14 +277,8 @@ namespace smt {
         for(expr* e : assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-        std::cout << "===================== current assignment end ==================" << std::endl;  
+        std::cout << "===================== current outside assignment end ==================" << std::endl;  
         #endif
-        std::vector<expr*> heap_cnstr_core;
-        for(expr* e : assignments) {
-            if(!this->is_arith_formula(to_app(e))) {
-                heap_cnstr_core.push_back(e);
-            }
-        }
 
         // use the datatype to initialize pt field info
         this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
@@ -292,7 +287,6 @@ namespace smt {
         for(auto item : this->slhv_plug->pt_record_map) {
             std::cout << "record type name: " << item.first << std::endl;
             item.second->print(std::cout);
-
         }
         #endif
         
@@ -354,10 +348,6 @@ namespace smt {
             }
             std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
             #endif
-            std::vector<expr*> numeral_cnstr_core;
-            for(expr* e : numeral_cnstr_assignments) {
-                numeral_cnstr_core.push_back(e);
-            }
             if(result == l_false) {
                 // this->set_conflict_slhv(true, numeral_cnstr_core);
                 this->check_status = slhv_unsat;
@@ -379,145 +369,44 @@ namespace smt {
                 this->check_status = slhv_unknown;
                 continue;
             }
- 
-            // [[ OLD LOGIC ********************************* 
-            // enumerate all possible loc eqs
-            // std::vector<std::map<enode*, std::set<app*>>> loc_eqs_raw = this->get_feasible_locvars_eq();
-            // #ifdef  SLHV_DEBUG
-            // std::cout << "feasible locvars eq num: " << loc_eqs_raw.size() << std::endl;
-            // #endif
-            //   ********************************* OLD LOGIC ]]
-
-            // establish coarse hvar eq 
-            coarse_hvar_eq* curr_hvar_eq = alloc(coarse_hvar_eq, this);
-            if(!this->check_hterm_distinct_hvar_eq_consistency(curr_hvar_eq)) {
-                continue;
+            // TODO: add reduction and solving
+            std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
+            #ifdef SLHV_DEBUG
+            std::cout << "all hterms: " << std::endl;
+            for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
             }
-            // initialize locvar eq searching
-            this->init_locvars_eq_boolvec();
+            std::cout << std::endl;
+            for(heap_term* ht : all_hterms.second) {
+                ht->print(std::cout);
+            }
+            #endif
+            formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
+            expr* encoded_form  = fec->encode();
+            #ifdef SLHV_DEBUG
+            std::cout << "============= encoded formula ========== " << std::endl;
+            std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
+            std::cout << "======================================== " << std::endl;
+            #endif
             
-            bool still_has_loc_eq = true;
-            while(still_has_loc_eq) {
-                auto loc_search_result = this->get_locvar_eq_next();
-                still_has_loc_eq = loc_search_result.first;
-                std::map<enode*, std::set<app*>> loc_eq_data = loc_search_result.second;
-                if(!still_has_loc_eq) {
-                    break;
-                }
-
-                locvar_eq* curr_loc_eq = alloc(locvar_eq, this, loc_eq_data);
-                // if there is no next locvar eq
-                if(this->temp_loceq_bits.size() == 0) {
-                    still_has_loc_eq = false;
-                }
-                
-
-                // TODO: implement CDCL framework here
-                if(!this->check_locvar_eq_feasibility_in_assignments(curr_loc_eq)) {
-                    #ifdef SLHV_DEBUG
-                    std::cout << "curr_loc_eq not feasible" << std::endl;
-                    #endif
-                    continue;
-                }
-                #ifdef SLHV_DEBUG
-                    std::cout << "---------------" << std::endl;
-                    std::cout << "current loc_eq_data: " << std::endl;
-                    int i = 0;
-                    for(auto p : loc_eq_data) {
-                        std::cout << "loc partition " << i << ":" << std::endl;
-                        for(app* e : p.second) {
-                            std::cout << mk_ismt2_pp(e, this->m) << ", ";
-                        }
-                        std::cout << std::endl;
-                        i += 1;
-                    }
-                    i = 0;
-                    std::cout << "---------------" << std::endl;
-                    auto coarse_hvar_eq_data = curr_hvar_eq->get_coarse_data();
-                    for(auto p : coarse_hvar_eq_data) {
-                        std::cout << "hvar partition " << i << ":" << std::endl;
-                        for(app* e : p.second) {
-                            std::cout << mk_ismt2_pp(e, this->m) << ", ";
-                        }
-                        std::cout << std::endl;
-                        i += 1;
-                    }
-                    std::cout << "---------------" << std::endl;
-                #endif
-                // TODO: add data constraint enumeration  here
-
-                this->init_dataterm_boolvec(curr_loc_eq);
-
-                bool still_has_pt_eq = true;
-                while(still_has_pt_eq) {
-                    auto pt_search_result = this->get_pt_eq_next(curr_loc_eq);
-                    still_has_pt_eq = pt_search_result.first;
-                    pt_eq* curr_pt_eq = pt_search_result.second;
-                    if(!still_has_pt_eq) {
-                        break;
-                    }
-                    if(this->temp_data_cnstr_bits.size() == 0) {
-                        still_has_pt_eq = false;
-                    }
-                    // check current numeral constraint
-                    bool numeral_check_result = check_temp_neq_pairs_data_constraint(numeral_solver);
-                    if(!numeral_check_result) {
-                        continue;
-                    }
-                    curr_pt_eq->print(std::cout);
-
-                    
-                    edge_labelled_dgraph* orig_graph = alloc(edge_labelled_dgraph, this, curr_loc_eq, curr_hvar_eq, curr_pt_eq);
-
-                    #ifdef SLHV_DEBUG   
-                        std::cout << "original graph: " << std::endl;
-                        orig_graph->print(std::cout);
-                    #endif
-                    edge_labelled_dgraph* simplified_graph = orig_graph->check_and_simplify();
-                    if(simplified_graph == nullptr) {
-                        // simplify check unsat
-                        continue;
-                    }
-                    #ifdef SLHV_DEBUG   
-                        std::cout << "simplified graph: " << std::endl;
-                        simplified_graph->print(std::cout);
-                    #endif
-                    std::pair<bool, edge_labelled_dgraph*> curr_result = simplified_graph->check_and_saturate();
-
-                    if(curr_result.first && this->check_status != slhv_unsat) {
-                        #ifdef SLHV_DEBUG
-                        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-                        #endif
-                        this->check_status = slhv_sat;
-                        this->model_graph = curr_result.second;
-                        return true;
-                    }
-                    #ifdef OLD_LOGIC
-                    // infer hterm inclusion
-                    // first compute the node2subgraphs mapping 
-                    std::set<dgraph_node*> roots = simplified_graph->get_sources();
-                    std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>> node2subgraphs;
-                    for(dgraph_node* n : roots) {
-                        simplified_graph->extract_all_rooted_disjoint_labelcomplete_subgraphs(n, node2subgraphs);
-                    }
-                    #ifdef SLHV_DEBUG
-                    std::cout << "subgraphs extracted" << std::endl;
-                    #endif
-                    // deduce subheap relation for each node
-                    std::pair<std::map<dgraph_node*, subheap_relation*>, bool> curr_result = this->check_and_deduce_subheap_relation(simplified_graph, node2subgraphs);
-                    // the subheap deduction find a feasible subheap relation for satisfiability
-                    
-
-                    if(curr_result.second && this->check_status != slhv_unsat) {
-                                #ifdef SLHV_DEBUG
-                                std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-                                #endif
-                        this->check_status = slhv_sat;
-                        return true;
-                    }
-                    #endif
-                }
+            solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+            final_sovler->assert_expr(encoded_form);
+            lbool final_result = final_sovler->check_sat();
+            SASSERT(false);
+            std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
+            if(final_result == l_true) {
+                std::cout << " translated SAT " << std::endl;
+                model_ref md;
+                final_sovler->get_model(md);
+                std::cout << "translated model: " << std::endl;
+                model_smt2_pp(std::cout, this->m, *md, 0);
+                return true;
+            } else if(final_result == l_false) { 
+                std::cout << " translated UNSAT " << std::endl;
+            } else {    
+                std::cout << " translated UNKNOWN " << std::endl;
             }
+
         }
 
         #ifdef SLHV_DEBUG
@@ -534,26 +423,8 @@ namespace smt {
         std::cout << "slhv preprocessing" << std::endl;
         #endif
         this->collect_and_analyze_assignments(assigned_literals);
-        this->record_distinct_locterms_in_assignments(assigned_literals);
-        // collect heap constraints in the assigned literals
-        expr_ref_vector heap_cnstr(m);
-        for(expr* e : assigned_literals) {
-            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
-                app* inner = to_app(to_app(e)->get_arg(0));
-                if(this->is_heapterm(to_app(inner->get_arg(0)))) {
-                    heap_cnstr.push_back(e);
-                }
-            } else {
-                if(this->is_heapterm(to_app(to_app(e)->get_arg(0)))) {
-                    heap_cnstr.push_back(e);
-                }
-            }
-        }
+        // collect different types of constraints
         this->collect_loc_heap_and_data_cnstr_in_assignments(assigned_literals);
-        this->infer_distinct_locterms_in_assignments(heap_cnstr);
-        this->infer_distinct_heapterms_in_assignments(heap_cnstr);
-        this->infer_emp_hterms();
-        // TODO: add the equivalence checking of nil
         #ifdef SLHV_DEBUG
         std::cout << "slhv preprocessing end" << std::endl;
         #endif
@@ -714,7 +585,7 @@ namespace smt {
                 app* ge = slhv_plugin->global_emp;
                 this->get_context().internalize(ge, false);
                 std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
-                this->curr_hvars.insert(ge);
+                // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
                 SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
@@ -740,6 +611,13 @@ namespace smt {
         } else {
             this->get_context().internalize(this->global_nil, false);
         }
+        for(app* pt : this->curr_pts) {
+            this->curr_atomic_hterms.push_back(pt);
+        }
+        for(app* hv : this->curr_hvars ) {
+            this->curr_atomic_hterms.push_back(hv);
+        }
+        this->curr_atomic_hterms.push_back(this->global_emp);
         #ifdef SLHV_DEBUG
         std::cout << "collect and analyze assignments end" << std::endl;
         #endif
@@ -811,66 +689,15 @@ namespace smt {
 
     
 
-    void theory_slhv::record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
-        // refcord in literals all distinct locterms where constraints are explicitly given
-        #ifdef SLHV_DEBUG
-        std::cout << "record distinct locterms in assignments" << std::endl;
-        #endif
-        for(auto e : assigned_literals) {
-            this->record_distinct_locterms(to_app(e));
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "record distinc locterms in assignments end" << std::endl;
-        #endif
-    }
-
-    void theory_slhv::record_distinct_locterms(app* atom) {
-        // record all locterm enode that are explicitly distinct
-        #ifdef SLHV_DEBUG
-        std::cout << "record distinct locvars: "<< mk_ismt2_pp(atom, m) << std::endl; 
-        #endif
-        if(atom->is_app_of(basic_family_id, OP_DISTINCT)) {
-            expr* lhs_expr = atom->get_arg(0);
-            expr* rhs_expr = atom->get_arg(1);
-            SASSERT(lhs_expr->get_sort()->get_name() == rhs_expr->get_sort()->get_name());
-            if(this->is_locterm(to_app(lhs_expr))) {
-                enode* lhs_node = this->ctx.get_enode(lhs_expr);
-                enode* rhs_node = this->ctx.get_enode(rhs_expr);
-                this->curr_distinct_locterm_pairs.insert({lhs_node->get_root(), rhs_node->get_root()});
-
-                #ifdef SLHV_DEBUG
-                std::cout << "record distinct locvars: " << mk_ismt2_pp(lhs_expr, m) << ", " <<  mk_ismt2_pp(rhs_expr, m)  << std::endl;
-                #endif
-            }
-            
-        } else if(atom->is_app_of(basic_family_id, OP_NOT)) {
-            expr* negated = atom->get_arg(0);
-            SASSERT(to_app(negated)->is_app_of(basic_family_id, OP_EQ));
-            expr* lhs_expr = to_app(negated)->get_arg(0);
-            expr* rhs_expr = to_app(negated)->get_arg(1);
-            SASSERT(lhs_expr->get_sort()->get_name() == rhs_expr->get_sort()->get_name());
-            if(this->is_locterm(to_app(lhs_expr))) {
-                enode* lhs_node = this->ctx.get_enode(lhs_expr);
-                enode* rhs_node = this->ctx.get_enode(rhs_expr);
-                this->curr_distinct_locterm_pairs.insert({lhs_node->get_root(), rhs_node->get_root()});
-
-                #ifdef SLHV_DEBUG
-                std::cout << "record distinct locvars: " << mk_ismt2_pp(lhs_expr, m) << ", " <<  mk_ismt2_pp(rhs_expr, m)  << std::endl;
-                #endif
-            }
-        } else {
-            //PASS
-        }
-    }
-
     
     void theory_slhv::collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals){
-        // collect all constrainst imposed on heap and loc
+        // collect all constrainst imposed on heap, loc and data
         for(auto e : assigned_literals) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
                 expr* negated = to_app(e)->get_arg(0);
                 expr* negated_arg0 = to_app(negated)->get_arg(0);
                 if(is_heapterm(to_app(negated_arg0))) {
+                    SASSERT(false);
                     this->curr_heap_cnstr.insert(to_app(e));
                 } else if(is_locterm(to_app(negated_arg0))) {
                     this->curr_loc_cnstr.insert(to_app(e));
@@ -886,6 +713,7 @@ namespace smt {
                    to_app(e)->is_app_of(basic_family_id, OP_EQ) ){
                     expr* arg = to_app(e)->get_arg(0);
                     if(is_heapterm(to_app(arg))) {
+                        SASSERT(!to_app(e)->is_app_of(basic_family_id, OP_DISTINCT));
                         this->curr_heap_cnstr.insert(to_app(e));
                     } else if(is_locterm(to_app(arg))) {
                         this->curr_loc_cnstr.insert(to_app(e));
@@ -908,14 +736,12 @@ namespace smt {
         this->curr_disj_unions.clear();
         this->curr_hvars.clear();
         this->curr_locvars.clear();
+        this->curr_atomic_hterms.clear();
 
-        this->curr_distinct_locterm_pairs.clear();
         this->curr_loc_cnstr.clear();
         this->curr_heap_cnstr.clear();
         this->curr_data_cnstr.clear();
 
-        this->curr_distinct_locterm_pairs.clear();
-        this->curr_emp_hterm_enodes.clear();
         this->curr_notnil_locterms_enodes.clear();
         this->check_status = slhv_unknown;
         
@@ -925,1497 +751,196 @@ namespace smt {
 
     // check_logic
 
-    std::map<enode*, std::set<app*>> theory_slhv::get_coarse_locvar_eq() {
+    std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>> theory_slhv::extract_all_hterms() {
         #ifdef SLHV_DEBUG
-        std::cout << "slhv get_coarse_locvar_eq" << std::endl;
+        std::cout << "begin extract all hterms" << std::endl;
         #endif
-        std::map<enode*, std::set<app*>> unique_node_map;
-        for(app* locvar : this->curr_locvars) {
-            enode* lnode =  this->ctx.get_enode(locvar)->get_root();
-            if(unique_node_map.find(lnode) != unique_node_map.end()) {
-                unique_node_map[lnode].insert(locvar);
-            } else {
-                std::set<app*> newSet;
-                newSet.insert(locvar);
-                unique_node_map[lnode] = newSet;
-            }
-        }
-        return unique_node_map;
-    }
+        std::set<heap_term*> eq_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
+        for(app* eq : this->curr_heap_cnstr) {
+            heap_term* eq_lhs = nullptr;
+            heap_term* eq_rhs = nullptr;
 
-    std::vector<enode_pair> theory_slhv::get_unassigned_locvar_pairs(){
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv get_unassigned_locvar_pairs" << std::endl;
-        #endif
-        std::map<enode*, std::set<app*>> unique_node_map = this->get_coarse_locvar_eq();
-        std::vector<enode*> nodes;
-        for(auto record : unique_node_map) {
-            nodes.push_back(record.first);
-        }
-
-        std::vector<enode_pair> result;
-        for(int i = 0; i < nodes.size(); i ++ ) {
-            for(int j = i + 1; j < nodes.size(); j ++) {
-                if(this->curr_distinct_locterm_pairs.find({nodes[i], nodes[j]}) == this->curr_distinct_locterm_pairs.end() && 
-                   this->curr_distinct_locterm_pairs.find({nodes[j], nodes[i]}) == this->curr_distinct_locterm_pairs.end() ) {
-                        result.push_back({nodes[i], nodes[j]});
-                }
-            }
-        }
-        return result;
-    }
-
-
-    std::map<enode*, std::set<app*>> theory_slhv::get_fine_locvar_eq(std::set<enode_pair> &assigned_pairs, std::map<enode*, std::set<app*>>& existing_data){
-        auto unique_node_map = existing_data;
-        std::map<enode*, std::set<app*>> result = unique_node_map;
-        std::set<std::set<enode*>> enodes_partition;
-        for(auto p : existing_data) {
-            std::set<enode*> singleton;
-            singleton.insert(p.first);
-            enodes_partition.insert(singleton);
-        }
-        for(enode_pair p : assigned_pairs) {
-            SASSERT(p.first != nullptr && p.second != nullptr);
-            std::set<enode*> first_set, second_set;
-            bool first_found = false, second_found = false;
-            for(auto s : enodes_partition) {
-                if(s.find(p.first) != s.end() && s.find(p.second) != s.end()) {
-                    first_found = true; second_found = true;
-                    first_set = s;
-                    second_set = s;
-                    break;
-                }
-                if(s.find(p.first) != s.end() && !first_found) {
-                    first_found = true;
-                    first_set = s;
-                }
-                if(s.find(p.second) != s.end() && !second_found) {
-                    second_found = true;
-                    second_set = s;
-                }
-                if(first_found && second_found) {
-                    break;
-                }
-            }
-            SASSERT(first_found && second_found);
-            if(slhv_util::setEqual(first_set, second_set)) { 
-                continue;
-            } else {
-                enodes_partition.erase(first_set);
-                enodes_partition.erase(second_set);
-                std::set<enode*> merged_set = slhv_util::setUnion(first_set, second_set);
-                enodes_partition.insert(merged_set);
-            }
-        }
-
-        #ifdef SLHV_DEBUG
-        #endif
-        for(std::set<enode*> s : enodes_partition) {
-            std::set<app*> merged_app_set;
-            for(enode* e : s) {
-                merged_app_set = slhv_util::setUnion(merged_app_set, existing_data[e]);
-            }
-            for(enode* e : s) {
-                result[e] = merged_app_set;
-            }
-        }
-        return result;
-    }
-
-    std::vector<std::map<enode*, std::set<app*>>> theory_slhv::get_feasible_locvars_eq() {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv get_feasible_locvars_eq" << std::endl;
-        #endif
-        // enumerate all feasible assignment to assignable locvar enode pairs
-        // the result is a vector of map, where each map represents a way to do the partition of locvar eq
-        std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
-        #ifdef SLHV_DEBUG
-        std::cout << "unassigned pairs: " << std::endl;
-        for(enode_pair p : unassigned_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        std::cout << "distinct pairs: " << std::endl;
-        for(enode_pair p : this->curr_distinct_locterm_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        #endif
-        std::vector<enode_pair> assignable_pairs;
-        for(auto p : unassigned_pairs) {
-            for(auto conflict : this->curr_distinct_locterm_pairs) {
-                if(conflict.first == p.first && conflict.second == p.second ||
-                   conflict.first == p.second && conflict.second == p.first) {
-                    break;
-                } 
-            }
-            assignable_pairs.push_back(p);
-        }
-        std::vector<std::set<enode_pair>> all_assigned_situations;
-        std::vector<std::vector<bool>> assigned_bits_situations;
-        for(int i = 0; i < assignable_pairs.size(); i ++) {
-            if(i == 0) {
-                std::vector<bool> firstAssigned; firstAssigned.push_back(true);
-                std::vector<bool> firstNotAssigned; firstNotAssigned.push_back(false);
-                assigned_bits_situations.push_back(firstAssigned);
-                assigned_bits_situations.push_back(firstNotAssigned);
-            } else {
-                std::vector<std::vector<bool>> result;
-                for(std::vector<bool> curr : assigned_bits_situations) {
-                    std::vector<bool> currAssigned = curr;
-                    std::vector<bool> currNotAssigned = curr;
-                    currAssigned.push_back(true);
-                    currNotAssigned.push_back(false);
-                    result.push_back(currAssigned);
-                    result.push_back(currNotAssigned);
-                }
-                assigned_bits_situations = std::move(result);
-            }
-        }
-        for(std::vector<bool> & bits : assigned_bits_situations) {
-            std::set<enode_pair> assigned_pairs;
-            for(int i = 0; i < assignable_pairs.size(); i ++) {
-                if(bits[i]) {
-                    assigned_pairs.insert(assignable_pairs[i]);
-                }
-            }
-            all_assigned_situations.push_back(assigned_pairs);
-        }
-
-        std::vector<std::map<enode*, std::set<app*>>> result_maps;
-        std::map<enode*, std::set<app*>> existing_loc_eq_data = std::move(this->get_coarse_locvar_eq());
-        #ifdef SLHV_DEBUG
-        for(auto p : existing_loc_eq_data) {
-            std::cout << "coarse partition x: " << std::endl;
-            for(app* e : p.second) {
-                std::cout << mk_ismt2_pp(e, this->get_manager()) << ", ";
-            }
-            std::cout << std::endl;
-        }
-        #endif
-        for(auto e : all_assigned_situations) {
-            result_maps.push_back(this->get_fine_locvar_eq(e, existing_loc_eq_data));
-        }
-        return result_maps;
-    }
-
-
-    void theory_slhv::init_locvars_eq_boolvec(){
-        this->temp_loc_zero_enumerated = false;
-        this->temp_loceq_bits.clear();
-        this->indexed_assignable_loc_pairs.clear();
-        #ifdef SLHV_DEBUG
-        std::cout << "init locvars eq boolvec" << std::endl;
-        #endif
-        // enumerate all feasible assignment to assignable locvar enode pairs  
-        // the result is a vector of map, where each map represents a way to do the partition of locvar eq
-        std::vector<enode_pair> unassigned_pairs = this->get_unassigned_locvar_pairs();
-        #ifdef SLHV_DEBUG
-        std::cout << "unassigned pairs: " << std::endl;
-        for(enode_pair p : unassigned_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        std::cout << "distinct pairs: " << std::endl;
-        for(enode_pair p : this->curr_distinct_locterm_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        #endif
-        std::vector<enode_pair> assignable_pairs;
-        for(auto p : unassigned_pairs) {
-            for(auto conflict : this->curr_distinct_locterm_pairs) {
-                if(conflict.first == p.first && conflict.second == p.second ||
-                   conflict.first == p.second && conflict.second == p.first) {
-                    break;
-                } 
-            }
-            assignable_pairs.push_back(p);
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "assignable pairs: " << std::endl;
-        for(enode_pair p : assignable_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        #endif
-        for(int i = 0; i < assignable_pairs.size(); i ++) {
-            this->temp_loceq_bits.push_back(false);
-            this->indexed_assignable_loc_pairs[i] = assignable_pairs[i];
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "init locvars eq boolvec over" << std::endl;
-        #endif
-    }
-
-
-    void theory_slhv::init_dataterm_boolvec(locvar_eq* loc_eq) {
-        this->temp_data_zero_enumerated = false;
-        this->temp_data_cnstr_bits.clear();
-        this->indexed_assignable_data_pairs.clear();
-        this->temp_data_term_pair2set.clear();
-        #ifdef SLHV_DEBUG
-        std::cout << "initialize dataterm constraint boolvector" << std::endl;
-        #endif
-
-        std::vector<assignable_dataterm_pair*> all_assignable_app_eq_pairs = this->extract_influential_data_constraints(loc_eq);
-        
-        #ifdef SLHV_DEBUG
-        std::cout << "assignable dataterm constraints: num: " << all_assignable_app_eq_pairs.size() << std::endl;
-        for(int i = 0; i < all_assignable_app_eq_pairs.size(); i ++) {
-            all_assignable_app_eq_pairs[i]->extract_constraint();
-            std::cout << "here" << std::endl;
-            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->extract_constraint(), this->get_manager()) << std::endl;
-            std::cout << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_first(), this->get_manager()) << " = " << mk_ismt2_pp(all_assignable_app_eq_pairs[i]->get_last(), this->get_manager()) << std::endl;
-        }
-        #endif
-        int index = 0;
-        std::vector<enode_pair> all_assignable_enode_pairs;
-        for(assignable_dataterm_pair* p : all_assignable_app_eq_pairs) {
-            bool pair_exists_left = false;
-            bool pair_exists_right = false;
-            std::vector<enode*> computed_enode;
-            
-            computed_enode.push_back(this->get_context().get_enode(p->get_first())->get_root());
-            computed_enode.push_back(this->get_context().get_enode(p->get_last())->get_root());
-            
-            for(auto ex_p : all_assignable_enode_pairs) {
-                if(ex_p.first == computed_enode[0] && ex_p.second == computed_enode[1]) {
-                    pair_exists_left = true;
-                    break;    
-                } 
-                if(ex_p.first == computed_enode[1] && ex_p.second == computed_enode[0]) {
-                    pair_exists_right = true;
-                    break;
-                }
-            }
-            if(!pair_exists_left && ! pair_exists_right){
-                enode_pair curr_pair = {computed_enode[0], computed_enode[1]};
-                all_assignable_enode_pairs.push_back(curr_pair);
-                std::set<assignable_dataterm_pair*> new_app_pair_set;
-                new_app_pair_set.insert(p);
-                this->temp_data_term_pair2set[curr_pair] = new_app_pair_set;
-            } else {
-                if(pair_exists_left) {
-                    enode_pair curr_pair = {computed_enode[0], computed_enode[1]};
-                    this->temp_data_term_pair2set[curr_pair].insert(p);
-                } else if(pair_exists_right) {
-                    enode_pair curr_pair = {computed_enode[1], computed_enode[0]};
-                    this->temp_data_term_pair2set[curr_pair].insert(p);
-                } else {
-                    SASSERT(false);
-                }
-            }
-        }
-
-        for(int i = 0; i < all_assignable_enode_pairs.size(); i ++) {
-            this->indexed_assignable_data_pairs[i] = all_assignable_enode_pairs[i];
-        }
-
-        for(int i = 0; i < this->indexed_assignable_data_pairs.size(); i++) {
-            this->temp_data_cnstr_bits.push_back(false);
-        }
-    }
-
-    void simulation_add(std::vector<bool>& bits) {
-        if(bits.size() == 0) {
-            return;
-        }
-        bool adding_consumed = false;
-        int curr_idx = 0;
-        while(!adding_consumed && curr_idx < bits.size()) {
-            if(bits[curr_idx]) {
-                bits[curr_idx] = false;
-                curr_idx ++;
-            } else {
-                adding_consumed = true;
-                bits[curr_idx] = true;
-            }
-        }
-    }
-
-    std::pair<bool, std::map<enode*, std::set<app*>>> theory_slhv::get_locvar_eq_next() {
-        #ifdef SLHV_DEBUG
-        std::cout << "get locvars eq next" << std::endl;
-        std::cout << "current loc bits: ";
-        for(int idx; idx < this->temp_loceq_bits.size(); idx ++) {
-            std::cout << this->temp_loceq_bits[idx];
-        }
-        std::cout << std::endl;
-        #endif
-        std::set<enode_pair> assigned_pairs;
-        if(this->temp_loceq_bits.size() > 0) {
-            if(this->temp_loc_zero_enumerated) {
-                bool true_found = false;
-                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                    if(this->temp_loceq_bits[idx]) {
-                        true_found = true;
-                        break;
-                    }
-                }
-                if(!true_found) {
-                    std::map<enode*, std::set<app*>> empty_result;
-                    return {false, empty_result};
-                }
-                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                    if(this->temp_loceq_bits[idx]) {
-                        assigned_pairs.insert(this->indexed_assignable_loc_pairs[idx]);
-                    }
-                }
-                simulation_add(this->temp_loceq_bits);
-            } else {
-                for(int idx = 0; idx < this->temp_loceq_bits.size(); idx ++) {
-                    if(this->temp_loceq_bits[idx]) {
-                        assigned_pairs.insert(this->indexed_assignable_loc_pairs[idx]);
-                    }
-                }
-                simulation_add(this->temp_loceq_bits);
-                this->temp_loc_zero_enumerated = true;
-            } 
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "current assigned pairs: " << std::endl;
-        for(enode_pair p : assigned_pairs) {
-            std::cout << mk_ismt2_pp(p.first->get_expr(), this->m) << ", " << mk_ismt2_pp(p.second->get_expr(), this->m) << std::endl;
-        }
-        #endif
-        std::map<enode*, std::set<app*>> existing_loc_eq_data = std::move(this->get_coarse_locvar_eq());
-        #ifdef SLHV_DEBUG
-        for(auto p : existing_loc_eq_data) {
-            std::cout << "coarse partition x: " << std::endl;
-            for(app* e : p.second) {
-                std::cout << mk_ismt2_pp(e, this->get_manager()) << ", ";
-            }
-            std::cout << std::endl;
-        }
-        #endif
-        return {true, this->get_fine_locvar_eq(assigned_pairs, existing_loc_eq_data)};
-    }
-
-
-    std::pair<bool, pt_eq*> theory_slhv::get_pt_eq_next(locvar_eq* loc_eq) {
-        #ifdef SLHV_DEBUG
-        std::cout << "get pt eq next" << std::endl;
-        std::cout << "current pt bits: ";
-        for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++) {
-            std::cout << this->temp_data_cnstr_bits[idx];
-        }
-        std::cout << std::endl;
-        #endif
-        pt_eq* curr_pt_eq = nullptr;
-        auto coarse_data_result = this->construct_pt_coarse_eq(loc_eq);
-        #ifdef SLHV_DEBUG
-
-        std::cout << "coarse pt data result:" << std::endl;
-        for(std::set<app*> s : coarse_data_result) {
-            std::cout << "-------------" << std::endl;
-            for(app* pt : s) {
-                std::cout << mk_ismt2_pp(pt, this->m) << std::endl;
-            }
-        }
-        std::cout << "-------------" << std::endl;
-        #endif
-        if(this->temp_data_zero_enumerated) {
-            bool has_true = false;
-            for(bool b : this->temp_data_cnstr_bits) {
-                if(b) {
-                    has_true = true;
-                    break;
-                }
-            }
-            if(!has_true) {
-                return {false, curr_pt_eq};
-            } 
-            std::set<assignable_dataterm_pair*> neq_pairs;
-            for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++ ) {
-                if(this->temp_data_cnstr_bits[idx]) {
-                    enode_pair ep = this->indexed_assignable_data_pairs[idx];
-                    for(assignable_dataterm_pair* adp : this->temp_data_term_pair2set[ep]) {
-                        neq_pairs.insert(adp);
-                    }
-                }
-            }
             #ifdef SLHV_DEBUG
-            std::cout << "neq pairs: " << std::endl;
-            for(auto p : neq_pairs) {
-                std::cout << mk_ismt2_pp(p->get_first(), this->get_manager()) << " not eq " << mk_ismt2_pp(p->get_last(), this->get_manager()) << std::endl;
-            }
+            std::cout << "extract for " << mk_ismt2_pp(eq, this->m) << std::endl;
             #endif
-            curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
-            simulation_add(this->temp_data_cnstr_bits);
-            this->temp_data_neq_pairs = neq_pairs;
-            return {true, curr_pt_eq};
-        } else {
-            std::set<assignable_dataterm_pair*> neq_pairs;
-            for(int idx = 0; idx < this->temp_data_cnstr_bits.size(); idx ++ ) {
-                if(this->temp_data_cnstr_bits[idx]) {
-                    enode_pair ep = this->indexed_assignable_data_pairs[idx];
-                    for(assignable_dataterm_pair* adp : this->temp_data_term_pair2set[ep]) {
-                        neq_pairs.insert(adp);
-                    }
-                }
-            }
+            SASSERT(eq != nullptr);
+            SASSERT(eq->is_app_of(basic_family_id, OP_EQ));
+            app* lhs_hterm = to_app(eq->get_arg(0));
+            app* rhs_hterm = to_app(eq->get_arg(1));
+            #ifdef SLHV_DEBUG
+            std::cout << "extract lhs hterm" << std::endl;
+            #endif
+            if(this->is_atom_hterm(lhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(lhs_hterm);
             
-            curr_pt_eq = alloc(pt_eq, this, loc_eq, this->refine_pt_coarse_eq(coarse_data_result, neq_pairs, loc_eq)) ;
-            simulation_add(this->temp_data_cnstr_bits);
-            this->temp_data_zero_enumerated = true;
-            this->temp_data_neq_pairs = neq_pairs;
-            return {true, curr_pt_eq};
-        }
-    }
-
-
-    std::set<std::set<app*>> theory_slhv::construct_pt_coarse_eq(locvar_eq* loc_eq) {
-        std::set<std::set<app*>> pt_loc_partition;
-        std::map<app*, bool> pt_documented;
-        for(app* pt : this->curr_pts) {
-            pt_documented[pt] = false;
-        }
-
-        for(app* pt : this->curr_pts) {
-            if(pt_documented[pt]) {
-                continue;
-            }
-            std::set<app*> pt_set;
-            pt_set.insert(pt);
-            pt_documented[pt] = true;
-            for(app* pt1 : this->curr_pts) {
-                if(pt_documented[pt1]) {
-                    continue;
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
                 }
-                app* pt_r = to_app(pt->get_arg(1));
-                app* pt1_r = to_app(pt1->get_arg(1));
-                if((this->analyze_pt_record_type(pt_r) == this->analyze_pt_record_type(pt1_r))) {
-                    if(!this->is_points_to_loc_inequal(pt, pt1, loc_eq)) {
-                        pt_set.insert(pt1);
-                        pt_documented[pt1] = true;
-                    }
-                } 
-            } 
-            pt_loc_partition.insert(pt_set);
-        }
-        return pt_loc_partition;
-    }
-
-    std::map<app*, std::vector<app*>> theory_slhv::refine_pt_coarse_eq
-    (std::set<std::set<app*>> pt_coarse_eq, 
-    std::set<assignable_dataterm_pair*> neq_pairs, locvar_eq* loc_eq) {
-        std::map<app*, std::vector<app*>> final_result;
-        for(std::set<app*> pts : pt_coarse_eq) {
-            std::map<app*, std::set<app*>> refined_pts;
-            for(app* cpt : pts) {
-                std::set<app*> init_set;
-                init_set.insert(cpt);
-                refined_pts[cpt] = init_set;
-                for(app* the_other_pt : pts) {
-                    bool inequal_found = false;
-                    if(the_other_pt != cpt) {
-                        for(assignable_dataterm_pair* ne_p : neq_pairs) {
-                            SASSERT(!this->is_points_to_loc_inequal(cpt, the_other_pt, loc_eq));
-
-                            if(ne_p->contain_data_constraint(cpt, the_other_pt, loc_eq)) {
-                                inequal_found = true;
-                                break;
-                            }
-                        }
-                        if(!inequal_found) {
-                            refined_pts[cpt].insert(the_other_pt);
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
                         }
                     }
                 }
-            }
-            for(app* cpt : pts) {
-                for(app* rep_pt : refined_pts[cpt]) {
-                    if(rep_pt != cpt) {
-                        refined_pts[rep_pt] = refined_pts[cpt];
-                    }
-                }
-            }
-            for(app* cpt : pts) {
-                if(final_result.find(cpt) == final_result.end()) {
-                    std::vector<app*> fresh_vec;
-                    for(app* item : refined_pts[cpt]) {
-                        fresh_vec.push_back(item);
-                    }
-                    for(app* item : refined_pts[cpt]) {
-                        final_result[item] = fresh_vec;
-                    }
-                }
-            }
-        }
-        return final_result;
-    }
-
-    std::vector<assignable_dataterm_pair*>  theory_slhv::extract_influential_data_constraints(locvar_eq* loc_eq) {
-        std::vector<assignable_dataterm_pair*> final_result;
-
-        bool has_data_record = false;
-        for(pt_record* r : this->slhv_plug->get_all_pt_records()) {
-            std::cout << "record num: " << this->slhv_plug->get_all_pt_records().size() << "pt_record_map size: " << this->slhv_plug->pt_record_map.size() << std::endl;
-            for(auto item : this->slhv_plug->pt_record_map) {
-                std::cout << "record name: " << item.first << std::endl;
-                item.second->print(std::cout);
-            }
-            SASSERT(r != nullptr);
-            if(r->get_data_num() > 0) {
-                has_data_record = true;
-                break;
-            }
-        }
-
-        if(!has_data_record) {
-            // points-to does not contain any data field
-            std::cout << "have no record with data" << std::endl;
-            return final_result;
-        } 
-        std::cout << "have record with data" << std::endl;
-        std::map<app*, std::vector<app*>> addr2pts;
-        std::set<app*> addr_appeared;
-        for(app* pt : this->curr_pts) {
-            SASSERT(this->is_points_to(pt));
-            app* addr = to_app(pt->get_arg(0));
-            SASSERT(this->is_locvar(addr));
-            app* addr_leader_var = loc_eq->get_leader_locvar(addr);
-            addr_appeared.insert(addr_leader_var);
-            if(addr2pts.find(addr_leader_var) != addr2pts.end()) {
-                addr2pts[addr_leader_var].push_back(pt);
-            } else {
-                std::vector<app*> new_pt_vec;
-                new_pt_vec.push_back(pt);
-                addr2pts[addr_leader_var] = new_pt_vec;
-            }
-        }
-        for(app* leader_var : addr_appeared) {
-            std::vector<app*> addr_pts = addr2pts[leader_var];
-            for(int i = 0; i < addr_pts.size(); i ++) {
-                for(int j = i + 1; j < addr_pts.size(); j ++) {
-                    app* pt1 = addr_pts[i];
-                    app* pt2 = addr_pts[j];
-                    if(this->get_context().get_enode(pt1)->get_root() != this->get_context().get_enode(pt2)->get_root()) {
-                        app* pt1_record = to_app(pt1->get_arg(1));
-                        app* pt2_record = to_app(pt2->get_arg(1));
-                        if(this->analyze_pt_record_type(pt1_record) != this->analyze_pt_record_type(pt2_record)) {
-                            continue;
-                        }
-                        pt_record* curr_rec = this->analyze_pt_record_type(pt1_record);
-                        if(this->is_points_to_loc_inequal(pt1, pt2, loc_eq)) {
-                            continue;
-                        } 
-                        int curr_pt_locfield_num = curr_rec->get_loc_num();
-                        int curr_pt_datafield_num = curr_rec->get_data_num();
-                        for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
-                            app* pt1_temp_data = to_app(pt1_record->get_arg(i));
-                            app* pt2_temp_data = to_app(pt2_record->get_arg(i));
-                            
-                            enode* pt1_temp_data_node = this->get_context().get_enode(pt1_temp_data)->get_root();
-                            enode* pt2_temp_data_node = this->get_context().get_enode(pt2_temp_data)->get_root();
-                            if(!(pt1_temp_data_node == pt2_temp_data_node)) {
-                                assignable_dataterm_pair* dtp = alloc(assignable_dataterm_pair, pt1_temp_data, pt2_temp_data, this);
-                                std::cout << "add pair: " << mk_ismt2_pp(pt1_temp_data, this->m) << " " << mk_ismt2_pp(pt2_temp_data, this->m) << std::endl;
-                                final_result.push_back(dtp);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        return final_result;
-    }
-
-
-    bool theory_slhv::is_points_to_loc_inequal(app* pt1, app* pt2, locvar_eq* loc_eq) {
-        app* pt1_addr = to_app(pt1->get_arg(0));
-        app* pt2_addr = to_app(pt2->get_arg(0));
-        SASSERT(this->is_locvar(pt1_addr) && this->is_locvar(pt2_addr));
-        if(!loc_eq->is_in_same_class(pt1_addr, pt2_addr)) {
-            return true;
-        }
-
-        app* pt1_record = to_app(pt1->get_arg(1));
-        app* pt2_record = to_app(pt2->get_arg(1));
-        pt_record* pt1_record_type = this->analyze_pt_record_type(pt1_record);
-        pt_record* pt2_record_type = this->analyze_pt_record_type(pt2_record);
-        if(pt1_record_type != pt2_record_type) {
-            return true;
-        }
-        int curr_pt_locfield_num = pt1_record_type->get_loc_num();
-        for(int i = 0; i < curr_pt_locfield_num; i ++) {
-            app* pt1_temp_loc = to_app(pt1_record->get_arg(i));
-            app* pt2_temp_loc = to_app(pt2_record->get_arg(i));
-            SASSERT((this->is_locvar(pt1_temp_loc) || this->is_nil(pt1_temp_loc)) && this->is_locvar(pt2_temp_loc) || this->is_nil(pt2_temp_loc));
-            if(!loc_eq->is_in_same_class(pt1_temp_loc, pt2_temp_loc)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-
-    bool theory_slhv::check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq) {
-        for(auto p : this->curr_distinct_hterm_pairs) {
-            if(p.first == p.second) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-
-    void theory_slhv::infer_emp_hterms() {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer emp hterms" << std::endl;
-        #endif
-        enode* emp_root = this->ctx.get_enode(this->global_emp);
-        this->curr_emp_hterm_enodes.insert(emp_root);
-        for(app* disju : this->curr_disj_unions) {
-            SASSERT(this->is_uplus(disju));
-            for(int i = 0; i < disju->get_num_args(); i ++) {
-                for(int j = i + 1; j < disju->get_num_args(); j ++) {
-                    enode* node_i = ctx.get_enode(disju->get_arg(i));
-                    enode* node_j = ctx.get_enode(disju->get_arg(j));
-                    if(node_i->get_root() == node_j->get_root()) {
-                        this->curr_emp_hterm_enodes.insert(node_j->get_root());
-                        if(this->enode_contains_points_to(node_j->get_root())){
-                            // UNSAT
-                            // reason: infered emp hterm is a points-to
-                            this->check_status = slhv_unsat;
-                            this->set_conflict_slhv(false);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    void theory_slhv::infer_distinct_locterms_in_assignments(expr_ref_vector assigned_literals) {
-
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer distinct locterms in assignments" << std::endl;
-        #endif
-        for(auto e : assigned_literals) {
-            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
-                // PASS because the heap term can be \bot
-            } else {
-                this->infer_distinct_locterms(to_app(e));
-            }
-        }
-    }
-
-    void theory_slhv::infer_distinct_locterms(app* e) {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer_distinct_locterms: " << mk_ismt2_pp(e, m) << std::endl;
-        #endif
-        SASSERT(!e->is_app_of(basic_family_id, OP_NOT));
-        if(is_uplus(e)) {
-            std::vector<app*> disj_pts;
-            for(int i = 0; i < e->get_num_args(); i ++) {
-                if(is_points_to(to_app(e->get_arg(i)))) {
-                    disj_pts.push_back(to_app(e->get_arg(i)));
-                }
-            }
-            for(int i = 0; i < disj_pts.size(); i ++) {
-                for(int j = i + 1; j < disj_pts.size(); j ++) {
-                    #ifdef SLHV_DEBUG
-                    std::cout << "pts: " << mk_pp(disj_pts[i], this->m) << " " << mk_pp(disj_pts[j], this->m) << std::endl;
-                    #endif
-                    expr* addr_i = disj_pts[i]->get_arg(0);
-                    expr* addr_j = disj_pts[j]->get_arg(0);
-                    enode* node_addr_i = ctx.get_enode(addr_i);
-                    enode* node_addr_j = ctx.get_enode(addr_j);
-                    enode* nil_root = this->ctx.get_enode(this->global_nil)->get_root();
-                    #ifdef SLHV_DEBUG
-                    std::cout << "get nil root node" << std::endl;
-                    #endif
-                    if(node_addr_i->get_root() == node_addr_j->get_root() ||
-                       node_addr_i->get_root() == nil_root || 
-                       node_addr_j->get_root() == nil_root) {
-                        // UNSAT
-                        // reason: two identical addr in one disj_union term
-                        // or one of them is equal to nil
-                        this->check_status = slhv_unsat;
-                        this->set_conflict_slhv(false);
-                    } else {
-                        this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), node_addr_j->get_root()});
-                        this->curr_distinct_locterm_pairs.insert({node_addr_i->get_root(), nil_root});
-                        this->curr_distinct_locterm_pairs.insert({node_addr_j->get_root(), nil_root});
-                    }
-                }
-            }
-        } else {
-            for(int i = 0; i < e->get_num_args(); i ++ ) {
-                this->infer_distinct_locterms(to_app(e->get_arg(i)));
-            }
-        }
-    }
-
-    void theory_slhv::infer_notnil_locterms_in_assignments(expr_ref_vector assigned_literals) {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer notnil locterms in assignments" << std::endl;
-        #endif
-        for(auto e : assigned_literals) {
-            if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
-                // PASS because the heap term can be \bot
-            } else {
-                this->infer_notnil_locterms(to_app(e));
-            }
-        }
-    }
-
-
-    void theory_slhv::infer_notnil_locterms(app* expr) {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer_notnil_locterms: " << mk_ismt2_pp(expr, m) << std::endl;
-        #endif
-        SASSERT(!expr->is_app_of(basic_family_id, OP_NOT));
-        if(is_points_to(expr)) {
-            this->curr_notnil_locterms_enodes.insert(ctx.get_enode(expr)->get_root());
-        } else {
-            for(int i = 0; i < expr->get_num_args(); i ++) {
-                this->infer_notnil_locterms(to_app(expr->get_arg(i)));
-            }
-        }
-    }
-
-    void theory_slhv::infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs) {
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer distinct heap terms in assignments" << std::endl;
-        #endif
-        for(expr * atom : assigned_hcnstrs) {
-            app* possibly_neg = to_app(atom);
-            if(!possibly_neg->is_app_of(basic_family_id, OP_NOT)) {
-                #ifdef SLHV_DEBUG
-                std::cout << "infer distinct heapterm of eq: " << mk_ismt2_pp(possibly_neg, this->m) << std::endl;
-                #endif
-                this->infer_distinct_heapterms(to_app(possibly_neg));
-            }
-        }
-    };
-
-    void theory_slhv::infer_distinct_heapterms(app* atom){
-
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv infer distinct heap terms: " << mk_ismt2_pp(atom, m) << std::endl;
-        #endif
-        SASSERT(atom->is_app_of(basic_family_id, OP_EQ));
-        app* left_var = to_app(atom->get_arg(0));
-        SASSERT(this->is_hvar(left_var) || this->is_emp(left_var));
-        app* right_expr = to_app(atom->get_arg(1));
-        if(this->is_uplus(right_expr)) {
-            enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
-            enode* left_var_root_node = this->ctx.get_enode(left_var)->get_root();
-            bool contain_points_to = false;
-            for(int i = 0; i < right_expr->get_num_args(); i ++) {
-                app* arg = to_app(right_expr->get_arg(i));
-                if(this->is_points_to(arg)) {
-                    contain_points_to = true;
-                    break;
-                }
-            }
-            if(contain_points_to) {
-                this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root_node});
-                for(int i = 0; i < right_expr->get_num_args(); i ++) {
-                    app* arg = to_app(right_expr->get_arg(i));
-                    if(this->is_hvar(arg)) {
-                        enode* rhs_var_root_node = this->ctx.get_enode(arg)->get_root();
-                        this->curr_distinct_hterm_pairs.insert({left_var_root_node, rhs_var_root_node});
-                    }
-                }
-            }
-        } else if(this->is_points_to(right_expr)) {
-            // left var is distinct with emp
-            enode* emp_root = this->ctx.get_enode(this->global_emp)->get_root();
-            enode* left_var_root = this->ctx.get_enode(left_var)->get_root();
-            this->curr_distinct_hterm_pairs.insert({emp_root, left_var_root});
-        } else if(this->is_emp(right_expr)) {
-            // PASS
-        } else if(this->is_hvar(right_expr)) {
-            // PASS
-        } else {
-            SASSERT(false);
-            // this should not happen
-        }
-    }
-
-    bool theory_slhv::check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq) {
-        for(app* pt : this->curr_pts) {
-            SASSERT(this->is_points_to(pt));
-            app* addr = to_app(pt->get_arg(0));
-            if(loc_eq->get_leader_locvar(addr) == this->global_nil) {
-                return false;
-            } 
-        }
-        return true;
-    }
-
-    bool theory_slhv::check_temp_neq_pairs_data_constraint(solver* numeral_solver) {
-        solver* new_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
-        for(assignable_dataterm_pair* dtp : this->temp_data_neq_pairs) {
-            expr* pc = dtp->extract_constraint();
-            new_solver->assert_expr(pc);
-        }
-        for(auto e : numeral_solver->get_assertions()) {
-            new_solver->assert_expr(e);
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "numeral constraint with neq_pairs =========" << std::endl;
-        for(auto e : new_solver->get_assertions()) {
-            std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-        }
-        std::cout << "=========" << std::endl;
-        #endif
-        lbool result = new_solver->check_sat();
-        if(result == l_true) {
-            #ifdef SLHV_DEBUG
-            std::cout << "XXXXXXXXXXXX DATA CONSTRAINT RESULT(with neq) XXXXXXXXXXXX" << std::endl;
-            std::cout << "SAT" << std::endl;
-            #endif
-            return true;
-        } else if(result == l_false) {
-            #ifdef SLHV_DEBUG
-            std::cout << "XXXXXXXXXXXX DATA CONSTRAINT RESULT(with neq) XXXXXXXXXXXX" << std::endl;
-            std::cout << "UNSAT" << std::endl;
-            #endif
-            return false;
-        } else {
-            SASSERT(false);
-            return false;
-        }
-    }
-
-    std::set<hterm*> theory_slhv::construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs) {
-        // collect hterm from subgraphs:
-        std::set<hterm*> result;
-        coarse_hvar_eq* curr_eq = nullptr;
-        for(edge_labelled_subgraph* sb : all_subgraphs) {
-            if(curr_eq != nullptr) {
-                if(curr_eq != sb->get_hvar_eq()) {
-                    SASSERT(false);
-                }
-            } else {
-                curr_eq = sb->get_hvar_eq();
-            }
-            result.insert(sb->obtain_graph_hterm());
-        }
-        return result;
-    }
-
-
-    std::pair<equiheap_relation*, bool> theory_slhv::check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs) {
-        // RULE1: graph hterm self equal
-        std::set<hterm*> all_hterms;
-        std::set<hterm*> graph_hterms;
-        std::set<std::pair<hterm*, hterm*>> hterm_pairs;
-        for(std::pair<dgraph_node*, std::vector<edge_labelled_subgraph*>> ngs : all_subgraphs) {
-            for(edge_labelled_subgraph* g : ngs.second) {
-                hterm* ght = g->obtain_graph_hterm();
-                graph_hterms.insert(ght);
-                hterm_pairs.insert({ght, ght});
-            }
-        }
-        // RULE2: equal hterms between graphs
-        for(dgraph_node* n : orig_graph->get_nodes()) {
-            std::vector<edge_labelled_subgraph*> node_subgraphs = all_subgraphs[n];
-            edge_labelled_subgraph* first_subgraph = node_subgraphs[0];
-            hterm* first_subgraph_hterm = first_subgraph->obtain_graph_hterm();
-            for(int i = 1; i < node_subgraphs.size(); i ++) {
-                hterm_pairs.insert({first_subgraph_hterm, node_subgraphs[i]->obtain_graph_hterm()});
-            } 
-        }
-
-        equiheap_relation* rel = alloc(equiheap_relation, graph_hterms, hterm_pairs);
-        if(!rel->get_is_feasible()) {
-            return {rel, false};
-        }
-
-        // TODO: extend the pairs here
-        std::set<std::pair<hterm*, hterm*>> all_pairs;
-        std::set<std::set<hterm*>> distinct_equiv_set;
-        for(auto record : rel->get_equiv_class()) {
-            if(distinct_equiv_set.find(record.second) == distinct_equiv_set.end()) {
-                distinct_equiv_set.insert(record.second);
-            }
-        }
-        for(std::set<hterm*> s : distinct_equiv_set) {
-            for(hterm* ht1 : s) {
-                for(hterm* ht2 : s) {
-                    all_pairs.insert({ht1, ht2});
-                }
-            }
-        }
-        all_hterms = graph_hterms;
-        // RULE 3 and RULE 4
-        std::set<std::pair<hterm*, hterm*>> new_deduced_hterm_pairs;
-        do {    
-            //RULE 3
-            new_deduced_hterm_pairs.clear();
-            std::set<std::pair<hterm*, hterm*>> temp_new_pairs;
-            for(std::pair<hterm*, hterm*> p1 : all_pairs) {
-                for(std::pair<hterm*, hterm*> p2 : all_pairs) {
-                    if(p1 != p2) {
-                        if(p2.first->is_sub_hterm_of(p1.second)) {
-                            hterm* first = p1.first;
-                            hterm* second = p1.second->replace_subhterm(p2.first, p2.second);
-                            all_hterms.insert(second);
-                            temp_new_pairs.insert({first, second});
-                        } 
-                        if(p2.second->is_sub_hterm_of(p1.second)) {
-                            hterm* first = p1.first;
-                            hterm* second = p1.second->replace_subhterm(p2.second, p2.first);
-                            all_hterms.insert(second);
-                            temp_new_pairs.insert({first, second});
-                        }
-                        if(p2.first->is_sub_hterm_of(p1.first)) {
-                            hterm* first = p1.second;
-                            hterm* second = p1.first->replace_subhterm(p2.first, p2.second);
-                            all_hterms.insert(second);
-                            temp_new_pairs.insert({first, second});
-                        }
-                        if(p2.second->is_sub_hterm_of(p1.first)) {
-                            hterm* first = p1.second;
-                            hterm* second = p1.first->replace_subhterm(p2.second, p2.first);
-                            all_hterms.insert(second);
-                            temp_new_pairs.insert({first, second});
-                        }
-                    }
-                }
-            }
-            for(auto temp_p : temp_new_pairs) {
                 bool found = false;
-                for(auto ep : all_pairs) {
-                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_vec_count);
+                    eq_hterms.insert(lhs_atom_hterm);
+                    eq_lhs = lhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(lhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
+                }
+
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(lhs_bunch_hterm);
+                    eq_lhs = lhs_bunch_hterm;
+                }
+            }
+            #ifdef SLHV_DEBUG
+            std::cout << "extract lhs hterm end" << std::endl;
+            #endif
+            #ifdef SLHV_DEBUG
+            std::cout << "extract rhs hterm" << std::endl;
+            #endif
+
+            if(this->is_atom_hterm(rhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(rhs_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(rhs_atom_hterm);
+                    eq_rhs = rhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(rhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
+                }
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+                        if(atom == this->curr_atomic_hterms[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->curr_atomic_hterms, atoms_contained);
+                    eq_hterms.insert(rhs_bunch_hterm);
+                    eq_rhs = rhs_bunch_hterm;
+                }
+            }
+
+            eq_pair_hterms.insert({eq_lhs, eq_rhs});
+            #ifdef SLHV_DEBUG
+            std::cout << "extract rhs hterm end" << std::endl;
+            #endif
+        }
+        std::set<heap_term*> all_hterms;
+        for(heap_term* eq_hterm : eq_hterms) {
+            std::set<heap_term*> curr_heap_terms = eq_hterm->get_subhterms();
+            for(heap_term* ht : curr_heap_terms) {
+                bool found = false;
+                for(heap_term* eht : all_hterms) {
+                    if(ht->get_atomic_count() == eht->get_atomic_count()) {
                         found = true;
                         break;
                     }
                 }
                 if(!found) {
-                    new_deduced_hterm_pairs.insert(temp_p);
+                    all_hterms.insert(ht);
                 }
             }
-            temp_new_pairs.clear();
+        }
 
-            // RULE4
-            for(std::pair<hterm*, hterm*> p1 : all_pairs) {
-                for(std::pair<hterm*, hterm*> p2 : all_pairs) {
-                    if(p1 != p2) {
-                        if(p2.first->is_sub_hterm_of(p1.first) && p2.second->is_sub_hterm_of(p1.second)) {
-                            hterm* left = p1.first->substract_hterm(p2.first);
-                            hterm* right = p1.second->substract_hterm(p2.second);
-                            all_hterms.insert(left);
-                            all_hterms.insert(right);
-                            temp_new_pairs.insert({left, right});
-                        }
-                        if(p2.second->is_sub_hterm_of(p1.first) && p2.first->is_sub_hterm_of(p1.second)) {
-                            hterm* left = p1.first->substract_hterm(p2.second);
-                            hterm* right = p1.second->substract_hterm(p2.first);
-                            all_hterms.insert(left);
-                            all_hterms.insert(right);
-                            temp_new_pairs.insert({left, right});
-                        }
-                    }
-                }
-            }
-
-            
-            for(auto temp_p : temp_new_pairs) {
-                bool found = false;
-                for(auto ep : all_pairs) {
-                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
-                        found = true;
-                        break;
-                    }
-                }
-                for(auto ep : new_deduced_hterm_pairs) {
-                    if(found) {
-                        break;
-                    }
-                    if(*temp_p.first == *ep.first && *temp_p.second == *ep.second) {
-                        found = true;
-                        break;
-                    }
-                }
-                if(!found) {
-                    new_deduced_hterm_pairs.insert(temp_p);
-                }
-            }
-            temp_new_pairs.clear();
-            all_pairs = slhv_util::setUnion(all_pairs, new_deduced_hterm_pairs);
-        } while(new_deduced_hterm_pairs.size() > 0);
-        
-        return {rel, rel->get_is_feasible()};
-    }
-
-    std::pair<std::map<dgraph_node*, subheap_relation*>, bool>  theory_slhv::check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs){
-        #ifdef SLHV_DEBUG
-        std::cout << "check and deduce subheap relation" << std::endl;
-        #endif
-        std::map<dgraph_node*, subheap_relation*> root2relation;
-        SASSERT(orig_graph->get_simplified());
-        std::set<dgraph_node*> visited;
-        // first construct subheap relation for leaf nodes
-        for(dgraph_node* leaf : orig_graph->get_dest_nodes() ) {
-            for(edge_labelled_subgraph* sb : all_subgraphs[leaf]) {
-                SASSERT(sb->get_root_node() == leaf);
-                hterm* leaf_term = sb->obtain_graph_hterm();
-                subheap_relation* rel = alloc(subheap_relation);
-                // TODO debug here
-                rel->add_hterm(leaf_term);
-                rel->add_equal(leaf_term, leaf_term);
-                root2relation[leaf] = rel;
-                visited.insert(leaf);
+        std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
+        emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
+        for(heap_term* eht : all_hterms) {
+            if(eht->get_atomic_count() == emp_hterm_count) {
                 break;
-            }
-        }
-
-        #ifdef SLHV_DEBUG
-        std::cout << "relation for leaf node computed" << std::endl;
-        #endif
-        
-        std::set<dgraph_node*> frontier_nodes;
-        std::set<dgraph_node*> next_frontier_nodes;
-        for(dgraph_node* n : orig_graph->get_nodes()) {
-            bool abandoned = false;
-            if(visited.find(n) != visited.end()) {
-                abandoned = true;
-            }
-            for(dgraph_edge* e : orig_graph->get_edges()) {
-                if(abandoned) break;
-                if(e->get_from() == n && visited.find(e->get_to()) == visited.end()) {
-                    abandoned = true;
-                    break;
-                }
-            }
-            if(!abandoned) {
-                frontier_nodes.insert(n);
-            }
-        }
-        while(frontier_nodes.size() > 0) {
-            #ifdef SLHV_DEBUG
-            std::cout << "curr visited: " << std::endl;
-            for(dgraph_node* n : visited) {
-                n->print(std::cout);
-                std::cout << std::endl;
-            }
-            std::cout << "curr frontiers" << std::endl;
-            for(dgraph_node* n : frontier_nodes) {
-                n->print(std::cout);
-                std::cout << std::endl;
-            }
-            #endif
-            // check and deduce subheap relation for each frontier node
-            for(dgraph_node* n : frontier_nodes) {
-                std::set<edge_labelled_subgraph*> root_n_subgraphs;
-                for(edge_labelled_subgraph* g : all_subgraphs[n]) {
-                    root_n_subgraphs.insert(g);
-                } 
-                // check and deduce subheap relation for node
-                std::pair<subheap_relation*, bool> n_relation = this->check_and_deduce_subheap_relation_for_node(n, root2relation, root_n_subgraphs);
-                if(!n_relation.second) {
-                    return {root2relation, false};
-                }
-                root2relation[n] = n_relation.first;
-                visited.insert(n);
-                // frontier_nodes.erase(n);
-            }
-            #ifdef SLHV_DEBUG
-            std::cout << "compute new frontier nodes" << std::endl;
-            #endif
-            // compute new frontier nodes
-            for(dgraph_node* n : orig_graph->get_nodes()) {
-                bool abandoned = false;
-                if(visited.find(n) != visited.end()) {
-                    abandoned = true;
-                }
-                for(dgraph_edge* e : orig_graph->get_edges()) {
-                    if(abandoned) break;
-                    if(e->get_from() == n && visited.find(e->get_to()) == visited.end()) {
-                        abandoned = true;
-                        break;
-                    }
-                }
-                if(!abandoned) {
-                    next_frontier_nodes.insert(n);
-                }
-            }
-            frontier_nodes = next_frontier_nodes;
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "check and deduce subheap relation end" << std::endl;
-        #endif
-        return {root2relation, true};
-    }
-
-
-    std::pair<subheap_relation*, bool>  theory_slhv::check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs) {
-        //TODO: relation_hterm may repeat
-        // merge all hterms rooted node
-        #ifdef SLHV_DEBUG
-        std::cout << "check and deduce subheap relation for node " ; 
-        node->print(std::cout);
-        std::cout << std::endl;
-        std::cout << "rooted node subgraphs: " << std::endl;
-        for(auto g : rooted_node_subgraphs) {
-            g->print(std::cout);
-            std::cout << std::endl;
-            std::cout << "--------" << std::endl;
-        }
-        #endif
-        std::set<hterm*> relation_hterms;
-        std::set<std::pair<hterm*, hterm*>> new_subheap_pairs;
-        std::set<std::pair<hterm*, hterm*>> equivalent_pairs;
-        
-        // gathering existing hterms
-        for(edge_labelled_dgraph* sb : rooted_node_subgraphs) {
-            for(dgraph_edge* e : sb->get_edges_from_node(node)) {
-                subheap_relation* to_relation = root2relation[e->get_to()];
-                for(hterm* ht : to_relation->get_hterm_set()) {
-                    relation_hterms.insert(ht);
-                }
+            } else {
+                heap_term* emp_hterm = alloc(heap_term, this, this->curr_atomic_hterms, emp_hterm_count);
+                all_hterms.insert(emp_hterm);
             }
         }
         
-        // generate remaining hterms
-        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            hterm* total_hterm = sb->obtain_graph_hterm();
-            std::set<hterm*> total_hterm_subterms = total_hterm->generate_all_subhterms();
-            for(hterm* ht : total_hterm_subterms) {
-                bool found = false;
-                for(hterm* eht : relation_hterms) {
-                    if(*ht == *eht) {
-                        found = true;
-                        break;
-                    }
-                }
-                if(!found) {relation_hterms.insert(ht);};
-            }
-        }
         #ifdef SLHV_DEBUG
-        std::cout << "gathering existing hterms and remaining hterms: " << std::endl;
-        for(hterm* ht : relation_hterms) {
-            ht->print(std::cout);
-            std::cout << std::endl;
-        }
-        std::cout << "---- subheap pairs before rules: " << std::endl;
-        for(auto p : new_subheap_pairs) {
-            p.first->print(std::cout);
-            std::cout << " <= " ;
-            p.second->print(std::cout);
-            std::cout << std::endl;
-        }
+        std::cout << "end extract all hterms" << std::endl;
         #endif
-        // RULE1
-        std::set<hterm*> graph_hterms;
-        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            hterm* graph_hterm = sb->obtain_graph_hterm();
-            bool found = false;
-            for(hterm* ht : relation_hterms) {
-                if(*graph_hterm == *ht) {
-                    graph_hterm = ht;
-                    found = true;
-                    break;
-                }
-            }
-            if(!found) {
-                relation_hterms.insert(graph_hterm);
-            }
-            graph_hterms.insert(graph_hterm);
-            new_subheap_pairs.insert({graph_hterm, graph_hterm});
-            if(!this->check_new_subheap_pair(graph_hterm, graph_hterm)) {
-                return {nullptr, false};
-            }
-            equivalent_pairs.insert({graph_hterm, graph_hterm});
-        }
-
-        #ifdef SLHV_DEBUG
-        std::cout << "---- RULE 1 applied subheap pairs: " << std::endl;
-        for(auto p : new_subheap_pairs) {
-            p.first->print(std::cout);
-            std::cout << " <= " ;
-            p.second->print(std::cout);
-            std::cout << std::endl;
-        }
-        #endif
-
-        // RULE2
-        for(edge_labelled_subgraph* sb1 : rooted_node_subgraphs) {
-            for(edge_labelled_subgraph* sb2 : rooted_node_subgraphs) {
-                if(sb1 != sb2) {
-                    hterm* ht1 = sb1->obtain_graph_hterm();
-                    hterm* ht2 = sb2->obtain_graph_hterm();
-                    bool found1 = false, found2 = false;
-                    for(hterm* ht : relation_hterms) {
-                        if(found1 && found2) {
-                            break;
-                        }
-                        if(*ht == *ht1 && !found1) {
-                            ht1 = ht;
-                            found1 = true;
-                        }
-                        if(*ht == *ht2 && !found2) {
-                            ht2 = ht;
-                            found2 = true;
-                        }
-                    }
-                    if(!found1) {
-                        relation_hterms.insert(ht1);
-                    }
-                    if(!found2) {
-                        relation_hterms.insert(ht2);
-                    }
-
-                    new_subheap_pairs.insert({ht1, ht2});
-                    new_subheap_pairs.insert({ht2, ht1});
-
-                    if(!this->check_new_subheap_pair(ht1, ht2) || !this->check_new_subheap_pair(ht2, ht1)) {
-                        return {nullptr, false};
-                    }
-                    equivalent_pairs.insert({ht1, ht2});
-                }
-            }
-        }
-
-
-        #ifdef SLHV_DEBUG
-        std::cout << "---- RULE 2 applied subheap pairs: " << std::endl;
-        for(auto p : new_subheap_pairs) {
-            p.first->print(std::cout);
-            std::cout << " <= " ;
-            p.second->print(std::cout);
-            std::cout << std::endl;
-        }
-        #endif
-
-        for(edge_labelled_subgraph* sb : rooted_node_subgraphs) {
-            for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
-                dgraph_node* child_node = e->get_to();
-                subheap_relation* child_relation = root2relation[child_node];
-                    // merge the hterms
-                relation_hterms = slhv_util::setUnion(relation_hterms, child_relation->get_hterm_set());
-                    // merge subheap pairs
-                new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, child_relation->get_subheap_pairs());
-            }
-        }
-        std::set<std::pair<hterm*, hterm*>> curr_iter_new_pairs;
-        do {
-            curr_iter_new_pairs.clear();
-            // RULE 5: deduce ht1 < ht2 and ht2 < ht3 -> ht1 < ht3 and collect more equivalent pairs
-            for(auto p1 : new_subheap_pairs) {
-                for(auto p2 : new_subheap_pairs) {
-                    if(p1 != p2 && p1.second == p2.first) {
-                        std::pair<hterm*, hterm*> new_pair = {p1.first, p2.second};
-                        if(!slhv_util::pairSetHasElement(new_subheap_pairs, new_pair)) {
-                            curr_iter_new_pairs.insert(new_pair);
-                        }
-                    }
-                }
-            }
-            new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, curr_iter_new_pairs);
-
-            for(auto p1 : new_subheap_pairs) {
-                for(auto p2 : new_subheap_pairs) {
-                    if(p1.first == p2.second && p2.second == p1.first) {
-                        std::pair<hterm*, hterm*> new_pair = {p1.first, p2.second};
-                        bool equi_pair_found = false;
-                        for(auto p : equivalent_pairs) {
-                            if(p.first == new_pair.first && p.second == new_pair.second || 
-                            p.first == new_pair.second && p.second == new_pair.first) {
-                                equi_pair_found = true;
-                                break;
-                            }
-                        }
-                        if(!equi_pair_found) {
-                            equivalent_pairs.insert(new_pair);
-                        }
-                    }
-                }
-            }
-
-            // RULE 3&4 DO equivalence replacement when simply merging the existing subheap relation for child node
-            for(edge_labelled_subgraph*  sb : rooted_node_subgraphs) {
-                for(dgraph_edge* e : sb->get_edges_from_node(sb->get_root_node())) {
-                    dgraph_node* child_node = e->get_to();
-                    subheap_relation* child_relation = root2relation[child_node];
-
-                    std::set<std::pair<hterm*, hterm*>> child_eq_pairs = child_relation->extract_equivalent_hterms();
-                    if(equivalent_pairs.size() == 0) {
-                        equivalent_pairs = child_eq_pairs;
-                    } else {
-                        std::set<std::pair<hterm*, hterm*>> new_eq_pairs = this->deduce_replaced_equivalent_pairs(relation_hterms, equivalent_pairs, child_eq_pairs);
-                        for(std::pair<hterm*, hterm*> p : new_eq_pairs) {
-                            if(!slhv_util::pairSetHasElement(new_subheap_pairs, p)) {
-                                curr_iter_new_pairs.insert(p);
-                            }
-                            if(!slhv_util::pairSetHasElement(new_subheap_pairs, {p.second, p.first})) {
-                                curr_iter_new_pairs.insert({p.second, p.first});
-                            }
-                            new_subheap_pairs.insert(p);
-                            new_subheap_pairs.insert({p.second, p.first});
-                            if(!this->check_new_subheap_pair(p.first, p.second) || !this->check_new_subheap_pair(p.second, p.first)) {
-                                return {nullptr, false};
-                            }
-                        }
-                        equivalent_pairs = slhv_util::setUnion(equivalent_pairs, new_eq_pairs);
-                        equivalent_pairs = slhv_util::setUnion(equivalent_pairs, child_eq_pairs);
-                    }
-                }
-            }
-            new_subheap_pairs = slhv_util::setUnion(new_subheap_pairs, curr_iter_new_pairs);
-            #ifdef SLHV_DEBUG
-            std::cout << "curr iteration new pairs: " << std::endl;
-            for(auto p : curr_iter_new_pairs) {
-                std::cout << "(";
-                p.first->print(std::cout);
-                std::cout << ", ";
-                p.second->print(std::cout);
-                std::cout << ")";
-            }
-            #endif
-        } while (curr_iter_new_pairs.size() > 0);
-        #ifdef SLHV_DEBUG
-        std::cout << "---- RULE 3&4&5 applied subheap pairs: " << std::endl;
-        for(auto p : new_subheap_pairs) {
-            p.first->print(std::cout);
-            std::cout << " <= " ;
-            p.second->print(std::cout);
-            std::cout << std::endl;
-        }
-        #endif
-        subheap_relation* result_relation = alloc(subheap_relation, relation_hterms, new_subheap_pairs);
-        #ifdef SLHV_DEBUG
-        std::cout << "----- result relation generated" << std::endl;
-        result_relation->print(std::cout);
-        #endif
-        return {result_relation, true};
-    }
-
-    // RULE3 RULE4
-    std::set<std::pair<hterm*, hterm*>> theory_slhv::deduce_replaced_equivalent_pairs(std::set<hterm*>& existing_hterms, std::set<std::pair<hterm*, hterm*>> curr_eqs, std::set<std::pair<hterm*, hterm*>> child_eqs) {
-        std::set<std::pair<hterm*, hterm*>> result;
-        std::set<std::pair<hterm*, hterm*>> curr_new;
-        for(auto cp : child_eqs) {
-            for(auto p : curr_eqs) {
-                hterm* ht1 = cp.first; hterm* ht2 = cp.second;
-                hterm* ht1_p = p.first; hterm* ht2_p = p.second;
-                if(*ht1 == *ht1_p && *ht2 == *ht2_p) {
-                    continue;
-                }
-                //RULE3
-                if(ht2->is_super_hterm_of(ht1_p) && !ht1->is_super_hterm_of(ht1_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht1, ht2, ht1_p, ht2_p);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_super_hterm_of(ht1_p) && !ht2->is_super_hterm_of(ht1_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht2, ht1, ht1_p, ht2_p);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_sub_hterm_of(ht1_p) && !ht1->is_sub_hterm_of(ht2_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht2_p, ht1_p, ht1, ht2);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_sub_hterm_of(ht2_p) && !ht1->is_sub_hterm_of(ht1_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht1_p, ht2_p, ht1, ht2);
-                    curr_new.insert(result_pair);
-                } else if(ht2->is_super_hterm_of(ht2_p) && !ht1->is_super_hterm_of(ht2_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht1, ht2, ht2_p, ht1_p);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_super_hterm_of(ht2_p) && !ht2->is_super_hterm_of(ht2_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht2, ht1, ht2_p, ht1_p);
-                    curr_new.insert(result_pair);
-                } else if(ht2->is_sub_hterm_of(ht1_p) && !ht2->is_sub_hterm_of(ht2_p)) {    
-                    auto result_pair = this->replace_and_find(existing_hterms, ht2_p, ht1_p, ht2, ht1);
-                    curr_new.insert(result_pair);
-                } else if(ht2->is_sub_hterm_of(ht2_p) && !ht2->is_sub_hterm_of(ht1_p)) {
-                    auto result_pair = this->replace_and_find(existing_hterms, ht1_p, ht2_p, ht2, ht1);
-                    curr_new.insert(result_pair);
-                } else {
-                    //RULE3 not applied
-                }
-
-                //RULE4
-                if(ht1->is_super_hterm_of(ht1_p) && ht2->is_super_hterm_of(ht2_p)) {
-                    auto result_pair = this->substract_and_find(existing_hterms, ht1, ht2, ht1_p, ht2_p);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_super_hterm_of(ht2_p) && ht2->is_super_hterm_of(ht1_p) ) {
-                    auto result_pair = this->substract_and_find(existing_hterms, ht1, ht2, ht2_p, ht1_p);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_sub_hterm_of(ht1_p) && ht2->is_sub_hterm_of(ht2_p)) {
-                    auto result_pair = this->substract_and_find(existing_hterms, ht1_p, ht2_p, ht1, ht2);
-                    curr_new.insert(result_pair);
-                } else if(ht1->is_sub_hterm_of(ht2_p) && ht2->is_sub_hterm_of(ht1_p)) {
-                    auto result_pair = this->substract_and_find(existing_hterms, ht1_p, ht2_p, ht2, ht1);
-                    curr_new.insert(result_pair);
-                } else {
-                    // RULE4 not applied
-                }
-            }
-        }
-        //TODO: recursion maybe needed
-        return curr_new;
+        return {eq_pair_hterms, all_hterms};
     }
 
 
-    std::pair<hterm*, hterm*> theory_slhv::replace_and_find(std::set<hterm*>& existing_hterms, hterm* unchanged_orig, hterm* changed_orig, hterm* changed_frag, hterm* replacer) {
-        std::set<std::pair<app*, app*>> changed_atoms = changed_orig->get_h_atoms();
-        std::set<std::pair<app*, app*>> replaced_atoms = changed_frag->get_h_atoms();
-        std::set<std::pair<app*, app*>> replacer_atoms = replacer->get_h_atoms();
-
-        std::set<std::pair<app*, app*>> new_atoms = slhv_util::setUnion(
-            slhv_util::setSubstract(changed_atoms, replaced_atoms),
-            replacer_atoms
-        );
-        for(hterm* existing : existing_hterms) {
-            if(existing->get_h_atoms() == new_atoms) {
-                return {unchanged_orig, existing};
-            }
+    void theory_slhv::print_all_hterms(std::ostream& os){
+        os << "current atomic hterms: " << std::endl;
+        for(app* ht : this->curr_atomic_hterms) {
+            os << mk_ismt2_pp(ht, this->m) << "\t";
         }
-        hterm* new_hterm = alloc(hterm, new_atoms, unchanged_orig->get_h_eq(), unchanged_orig->get_loc_eq());
-        return {unchanged_orig, new_hterm};
+        os << std::endl;
     }
 
 
-    std::pair<hterm*, hterm*> theory_slhv::substract_and_find(std::set<hterm*>& existing_hterms, hterm* large1, hterm* large2, hterm* small1, hterm* small2) {
-        // eq_pair1 is the larger pair
-        std::set<std::pair<app*, app*>> large1_atoms = large1->get_h_atoms();
-        std::set<std::pair<app*, app*>> large2_atoms = large2->get_h_atoms();
-        std::set<std::pair<app*, app*>> small1_atoms = small1->get_h_atoms();
-        std::set<std::pair<app*, app*>> small2_atoms = small2->get_h_atoms();
-        std::set<std::pair<app*, app*>> substract1_atoms = slhv_util::setSubstract(large1_atoms, small1_atoms);
-        std::set<std::pair<app*, app*>> substract2_atoms = slhv_util::setSubstract(large2_atoms, small2_atoms);
-        hterm* result_first = nullptr;
-        hterm* result_second = nullptr;
-        bool result1_found = false, result2_found = false;
-        for(hterm* existing : existing_hterms) {
-            if(!result1_found && existing->get_h_atoms() == substract1_atoms) {
-                result_first = existing;
-                result1_found = true;
-            }
-            if(!result2_found && existing->get_h_atoms() == substract2_atoms) {
-                result_second = existing;
-                result2_found = true;
-            }   
-        }
-        if(!result1_found) {
-            result_first = alloc(hterm, substract1_atoms, large1->get_h_eq(), large1->get_loc_eq());
-            existing_hterms.insert(result_first);
-        }
-        if(!result2_found) {
-            result_second = alloc(hterm, substract2_atoms, large2->get_h_eq(), large2->get_loc_eq());
-            existing_hterms.insert(result_first);
-        }
-        return {result_first, result_second};
-    }
 
-    bool theory_slhv::check_new_subheap_pair(hterm* smaller, hterm* larger) {
-        std::set<std::pair<app*, app*>> smaller_atoms = smaller->get_h_atoms();
-        std::set<std::pair<app*, app*>> larger_atoms = larger->get_h_atoms();
-        // FIRST CHECK
-        for(auto sp : smaller_atoms) {
-            if(sp.second != nullptr) {
-                for(auto lp : larger_atoms) {
-                    if(lp.first == sp.first && lp.second != sp.second) {
-                        return false;
-                    } 
-                }
-            }
-        }
-        if(smaller->is_established() && larger->is_emp()) {
-            return false;
-        }
-        return true;
-    }
 
     theory_var theory_slhv::mk_var(enode* n) {
         SASSERT(!is_attached_to_var(n));
@@ -2426,1740 +951,590 @@ namespace smt {
         return v;
     }
 
-    locvar_eq::locvar_eq(theory_slhv* t, std::map<enode*, std::set<app*>>& fine_d) {
-        this->th = t;
-        for(auto pair : fine_d) {
-            std::vector<app*> varsvec;
-            for(app* v : pair.second) {
-                varsvec.push_back(v);
-            }
-            this->fine_data[pair.first] = varsvec;
-        }
-    }
-
-    bool locvar_eq::is_in_same_class(app* loc1, app* loc2) {
-        if(this->fine_data[th->get_context().get_enode(loc1)->get_root()] == 
-           this->fine_data[th->get_context().get_enode(loc2)->get_root()]) {
-                return true;
-           } else {
-                return false;
-           }
-    }
-
-    app* locvar_eq::get_leader_locvar(app* loc) {
-        if(this->is_nil(loc)) {
-            return this->th->global_nil;
-        } else {
-            return this->fine_data[th->get_context().get_enode(loc)->get_root()][0];
-        }
-    }
-
-    bool locvar_eq::is_nil(app* loc) {
-        enode* loc_root = this->th->get_context().get_enode(loc)->get_root();
-        for(app* l : this->fine_data[loc_root]) {
-            if(l == this->th->global_nil) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-    std::vector<app*> locvar_eq::get_leader_locvars() {
-        std::vector<app*> result;
-        result.push_back(this->th->global_nil);
-        for(auto pair : fine_data) {
-            if(this->is_nil(pair.second[0])) {
-                
-            } else {
-                result.push_back(pair.second[0]);
-            }
-        }
-        return result;
-    }
-
-    coarse_hvar_eq::coarse_hvar_eq(theory_slhv* t) {
-        this->th = t;
-        for(app* hvar : this->th->curr_hvars) {
-            enode* hvar_enode_root = this->th->get_context().get_enode(hvar)->get_root();
-            if(coarse_data.find(hvar_enode_root) != coarse_data.end()) {
-                coarse_data[hvar_enode_root].push_back(hvar);
-            } else {
-                std::vector<app*> varsvec;
-                varsvec.push_back(hvar);
-                coarse_data[hvar_enode_root] = varsvec;
-            }
-        }
-        for(auto pair : this->coarse_data) {
-            enode* rt_node = pair.first;
-            if(this->th->curr_emp_hterm_enodes.find(rt_node) != this->th->curr_emp_hterm_enodes.end()) {
-                bool has_emp = false;
-                for(app* e : this->coarse_data[rt_node]) {
-                    if(e == this->th->global_emp) {
-                        has_emp = true;
-                        break;
-                    }
-                }
-                if(!has_emp) {
-                    this->coarse_data[rt_node].insert(this->coarse_data[rt_node].begin(), this->th->global_emp);
-                }
-            }
-        }
-    }
-
-    coarse_hvar_eq* coarse_hvar_eq::merge_hvar_nodes(std::vector<std::set<enode*>> nodes_sets) {
-        coarse_hvar_eq* new_eq = alloc(coarse_hvar_eq, this->th);
-        for(std::set<enode*> nodes : nodes_sets) {
-            new_eq->merge_enodes(nodes);
-        }
-        return new_eq;
-    }
-
-    void coarse_hvar_eq::merge_enodes(std::set<enode*> nodes) {
-        std::set<app*> merged_hvars;
-        bool is_emp = false;
-        for(enode* rt_node : nodes) {
-            SASSERT(coarse_data.find(rt_node) != coarse_data.end());
-            std::vector<app*> temp_hvars = this->coarse_data[rt_node];
-            for(app* hvar : temp_hvars) {
-                if(merged_hvars.find(hvar) == merged_hvars.end()) {
-                    merged_hvars.insert(hvar);
-                }
-                if(hvar == this->th->global_emp) {
-                    is_emp = true;
-                }
-            }
-        }
-        
-        std::vector<app*> merged_result;
-        if(is_emp) {
-            merged_result.push_back(this->th->global_emp);
-        }
-        for(app* hvar : merged_hvars) {
-            if(hvar != this->th->global_emp) {
-                merged_result.push_back(hvar);
-            }
-        }
-        for(enode* rt_node : nodes) {
-            this->coarse_data[rt_node] = merged_result;
-        }
-    }
-
-    int coarse_hvar_eq::is_in_same_class(app* hvar1, app* hvar2) {
-        enode* hvar1_root_node = this->th->get_context().get_enode(hvar1)->get_root();
-        enode* hvar2_root_node = this->th->get_context().get_enode(hvar2)->get_root();
-        if(hvar1_root_node == hvar2_root_node) {
-            return 1;
-        } else  {
-            return -1;
-        }
-    }
-
-
-    app* coarse_hvar_eq::get_leader_hvar(app* hvar) {
-        enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
-        if(this->is_emp_hvar(hvar) == 1) {
-            return this->th->global_emp;
-        } else {
-            return this->coarse_data[hvar_root_node][0];
-        }
-    }
-
-    int coarse_hvar_eq::is_emp_hvar(app* hvar) {
-        enode* hvar_root_node = this->th->get_context().get_enode(hvar)->get_root();
-        if(this->th->curr_emp_hterm_enodes.find(hvar_root_node) != this->th->curr_emp_hterm_enodes.end() || 
-           this->th->get_context().get_enode(this->th->global_emp)->get_root() == hvar_root_node || 
-           this->th->global_emp == hvar) {
-            return 1;
-        } else {
-            return -1;
-        }
-    }
-
-
-    std::vector<app*> coarse_hvar_eq::get_leader_hvars() {
-        std::vector<app*> result;
-        result.push_back(this->th->global_emp);
-        for(auto pair : this->coarse_data) {
-            bool pair_is_emp = false;
-            for(app* temp_hvar : pair.second) {
-                if(this->is_emp_hvar(temp_hvar) == 1) {
-                    pair_is_emp = true;
-                    continue;
-                }
-            }
-            if(!pair_is_emp) {
-                result.push_back(pair.second[0]);
-            }
-        }
-        return result;
-    }
-
-    bool pt_eq::is_in_same_class(app* pt1, app* pt2) {
-        SASSERT(this->fine_data.find(pt1) != this->fine_data.end());
-        SASSERT(this->fine_data.find(pt2) != this->fine_data.end());
-        std::vector<app*> pt1_part = this->fine_data[pt1];
-        for(app* pt : pt1_part) {
-            if(pt == pt1) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
-    app* pt_eq::get_representative_pt(app* pt) {
-        SASSERT(this->fine_data.find(pt) != this->fine_data.end());
-        return this->fine_data[pt][0];
-    }
-
-
-    void pt_eq::print(std::ostream& os) {
-        os << "---------- pt_eq data -----------" << std::endl;
-        for(auto item : this->fine_data) {
-            os << "pt: " << mk_ismt2_pp(item.first, this->th->get_manager()) << std::endl;
-            os << "partition: " << std::endl;
-            for(auto i : item.second) {
-                os << mk_ismt2_pp(i, this->th->get_manager()) << ", ";
-            }
-            os << std::endl;
-            os << "---------------------------------" << std::endl;
-        }
-    }
-
-    assignable_dataterm_pair::assignable_dataterm_pair(app* t1, app* t2, theory_slhv* th) {
+    // heap term
+    heap_term::heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<app*> atoms) {
         this->th = th;
-        SASSERT(this->th->is_dataterm(t1) && this->th->is_dataterm(t2));
-        SASSERT(t1 != t2);
-        this->pair.insert(t1);
-        this->pair.insert(t2);
-        SASSERT(this->pair.size() == 2);
-    }
-
-    bool assignable_dataterm_pair::contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq) {
-        // TODO: need debug
-        SASSERT(this->th->is_points_to(pt1) && this->th->is_points_to(pt2));
-        app* addr_var1 = to_app(pt1->get_arg(0));
-        app* addr_var2 = to_app(pt2->get_arg(0));
-        app* pt_record1 = to_app(pt1->get_arg(1));
-        app* pt_record2 = to_app(pt2->get_arg(1));
-        pt_record* pt1_record_type = this->th->analyze_pt_record_type(pt_record1);
-        pt_record* pt2_record_type = this->th->analyze_pt_record_type(pt_record2);
-        SASSERT(this->th->is_locvar(addr_var1) && this->th->is_locvar(addr_var2));
-        SASSERT(pt1_record_type == pt2_record_type);
-        SASSERT(loc_eq->is_in_same_class(addr_var1, addr_var2));
-        int curr_pt_locfield_num = pt1_record_type->get_loc_num();
-        int curr_pt_datafield_num = pt1_record_type->get_data_num();
-        if(!loc_eq->is_in_same_class(addr_var1, addr_var2)) {
-            return  false;
-        } else {
-            for(int i = 0; i < curr_pt_locfield_num; i ++) {
-                app* temp_loc1 = to_app(pt_record1->get_arg(i));
-                app* temp_loc2 = to_app(pt_record2->get_arg(i));
-                SASSERT(this->th->is_locvar(temp_loc1) && this->th->is_locvar(temp_loc2));
-                if(!loc_eq->is_in_same_class(temp_loc1, temp_loc2)) {
-                    return false;
-                } 
-            }
-            for(int i = curr_pt_locfield_num; i < curr_pt_locfield_num + curr_pt_datafield_num; i ++) {
-                app* temp_data1 = to_app(pt_record1->get_arg(i));
-                app* temp_data2 = to_app(pt_record2->get_arg(i));
-                if(temp_data1 == temp_data2) {
-                    continue;
-                } else {
-                    if(this->pair.find(temp_data1) != this->pair.end() &&
-                       this->pair.find(temp_data2) != this->pair.end()) {
-                        return true;
-                    }
-                }
-            }
-            return false;
+        this->atomic_hterms_vec = atomics;
+        for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
+            this->atomic_hterms_count.push_back(0);
         }
-
-    }
-
-
-    expr* assignable_dataterm_pair::extract_constraint() {
-        expr_ref_vector distinct_pair(this->th->get_manager());
-        SASSERT(this->pair.size() == 2);
-        for(app* e : this->pair) {
-            distinct_pair.push_back(e);
-        }
-        expr* constr = this->th->get_manager().mk_distinct(2, distinct_pair.data());
-        return constr;
-    }
-
-    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq) {
-        this->th = t;
-        this->loc_eq = l;
-        this->hvar_eq = h;
-        this->pt_term_eq = pteq;
-        this->construct_graph_from_theory();
-        this->simplified = false;
-        this->saturated = false;
-    }
-
-    edge_labelled_dgraph::edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified, bool saturated) {
-        this->th = t;
-        this->loc_eq = l;
-        this->hvar_eq = h;
-        this->pt_term_eq = pteq;
-        this->edges = es;
-        this->nodes = ns;
-        this->simplified = simplified;
-        this->saturated = saturated;
-    }
-
-
-
-    void edge_labelled_dgraph::construct_graph_from_theory() {
-        // construct nodes
-        #ifdef SLHV_DEBUG
-        std::cout << "construct nodes" << std::endl;
-        #endif
-        std::map<app*, dgraph_node*> node_map;
-        std::vector<app*> leader_hvars = this->hvar_eq->get_leader_hvars();
-        #ifdef SLHV_DEBUG
-        for(app* e : leader_hvars) {
-            std::cout << "leader var: " << mk_ismt2_pp(e, this->th->get_manager()) << std::endl;
-        }
-        #endif
-        for(int i = 0; i < leader_hvars.size(); i ++) {
-            SASSERT(!node_map[leader_hvars[i]]);
-            dgraph_node* new_node = alloc(hvar_dgraph_node, this, leader_hvars[i]);
-            node_map[leader_hvars[i]] = new_node;
-            this->nodes.push_back(new_node);
-        }
-
-        std::set<std::pair<app*, app*>> addr_record_pairs;
-        
-        std::set<app*> leader_points_to;
-
-        for(app* pt : this->th->curr_pts) {
-            app* leader_pt = this->pt_term_eq->get_representative_pt(pt);
-            leader_points_to.insert(leader_pt);
-            #ifdef SLHV_DEBUG
-            std::cout << "leader points to: " << mk_ismt2_pp(leader_pt, this->th->get_manager()) << std::endl;
-            #endif
-        }
-
-
-        
-        for(app* pt : this->th->curr_pts) {
-            app* addr_loc_leader = this->loc_eq->get_leader_locvar(to_app(pt->get_arg(0)));
-            app* pt_leader = this->pt_term_eq->get_representative_pt(pt);
-            dgraph_node* new_node = alloc(pt_dgraph_node, this, addr_loc_leader, pt_leader);
-            this->nodes.push_back(new_node);
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "construct edges" << std::endl;
-        #endif
-        // construct edges
-        for(app* heap_equality : this->th->curr_heap_cnstr) {
-            SASSERT(is_app_of(heap_equality, basic_family_id, OP_EQ));
-            std::cout << "heap_equality: " << mk_ismt2_pp(heap_equality, this->th->get_manager()) << std::endl;
-            app* left_hvar = to_app(heap_equality->get_arg(0));
-            dgraph_node* from_dgraph_node = this->get_hvar_node(left_hvar);
-            app* label =  to_app(heap_equality->get_arg(1));
-            if(this->th->is_uplus(label)) {
-                #ifdef SLHV_DEBUG
-                std::cout << "left hvar: " << mk_ismt2_pp(left_hvar, this->th->get_manager()) << " right label: " << mk_ismt2_pp(label, this->th->get_manager()) << std::endl;
-                #endif
-                // add edge if rhs of the equality is a uplus, since otherwise 
-                // the equivalent class of hvar has already dealed with it
-                for(int i = 0; i < label->get_num_args(); i ++) {
-                    app* dst = to_app(label->get_arg(i));
-                    dgraph_node* temp_to_dgraph_node = nullptr;
-                    if(this->th->is_hvar(dst) || this->th->is_emp(dst)) {
-                        temp_to_dgraph_node = this->get_hvar_node(dst);
-                    } else if(this->th->is_points_to(dst)){
-                        temp_to_dgraph_node = this->get_pt_node(dst);
-                    } else {
-                        SASSERT(false);
-                        std::cout << "create dgraph edge: Currently unsupport !!" << std::endl;
-                    }
-
-                    dgraph_edge* new_edge = alloc(dgraph_edge, this, from_dgraph_node, temp_to_dgraph_node, label);
-                    if(!this->has_edge(new_edge)) {
-                        this->edges.push_back(new_edge);
-                    }
-                }
-            } else if(this->th->is_points_to(label)) {
-                dgraph_node* to_dgraph_node = this->get_pt_node(label);
-                dgraph_edge* new_edge = alloc(dgraph_edge, this, from_dgraph_node, to_dgraph_node, label);
-                if(!this->has_edge(new_edge)) {
-                    this->edges.push_back(new_edge);
-                }
-            } else {
-                //pass
-            }
-        }
-    }
-
-
-    hvar_dgraph_node* edge_labelled_dgraph::get_hvar_node(app* orig_hvar){
-        app* leader_hvar = this->hvar_eq->get_leader_hvar(orig_hvar);
-        for(dgraph_node* n : nodes) {
-            if(n->is_hvar()) {
-                if(((hvar_dgraph_node *) n)->get_hvar_label() == leader_hvar) {
-                    return (hvar_dgraph_node *) n;
-                }
-            }
-        }
-        std::cout << "get_hvar_dgraph_node error!!" << std::endl;
-        return nullptr;
-    }
-
-    pt_dgraph_node* edge_labelled_dgraph::get_pt_node(app* orig_pt){
-        app* leader_pt = this->pt_term_eq->get_representative_pt(orig_pt);
-        for(dgraph_node* n : nodes) {
-            if(n->is_points_to()) {
-                if(((pt_dgraph_node*)n)->get_pt_leader() == leader_pt) {
-                    return (pt_dgraph_node*) n;
-                }
-            }
-        }
-        std::cout << "get_pt_dgraph_node error!!" << std::endl;
-        return nullptr;
-    }
-
-    edge_labelled_dgraph* edge_labelled_dgraph::check_and_simplify() {
-        SASSERT(!this->is_scc_computed());
-        std::set<dgraph_node*> sources = this->get_sources();
-        this->tarjanSCC(sources);
-        #ifdef SLHV_DEBUG
-
-        std::cout << "tarjan over and SCC infos: " << std::endl;
-        for(dgraph_node* n : this->nodes) {
-            n->print(std::cout);
-            std::cout << std::endl;
-        } 
-        #endif
-        std::map<int, int> nontrivial_SCC_ids;
-        for(dgraph_node* n : this->nodes) {
-            if(nontrivial_SCC_ids.find(n->get_low_index()) != nontrivial_SCC_ids.end()) {
-                nontrivial_SCC_ids[n->get_low_index()] += 1;
-            } else {
-                nontrivial_SCC_ids[n->get_low_index()] = 0;
-            }
-        }
-        std::set<int> nontrivial_ids;
-        for(auto pair : nontrivial_SCC_ids) {
-            if(pair.second > 0) {
-                nontrivial_ids.insert(pair.first);
-            }
-        }
-        // check whether some nontrivial scc can reach established node
-        bool estab_reached = this->check_established_reachable(nontrivial_ids);
-        if(estab_reached) {
-            return nullptr;
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "established reachable checked" << std::endl;
-        #endif
-        // compute the hvar eq after merging
-        coarse_hvar_eq* new_hvar_eq = this->check_and_merge_scc_hvars(nontrivial_ids);
-        if(new_hvar_eq == nullptr) {
-            return nullptr;
-        }
-        #ifdef SLHV_DEBUG
-        std::cout << "coarse hvar_eq computed after merging" << std::endl;
-        #endif
-        // compute the nodes that can be reached from some nontrivial scc
-        std::set<dgraph_node*> deleted_nodes = this->get_simplified_nodes(nontrivial_ids);
-        // compute the remaining node scc ids
-        std::set<int> remained_nontrivial_ids = nontrivial_ids;
-        for(dgraph_node* n : deleted_nodes) {
-            remained_nontrivial_ids.erase(n->get_low_index());
-        }
-
-        #ifdef SLHV_DEBUG
-        std::cout << "remained nontrivial ids: " << std::endl;
-        for(int i : remained_nontrivial_ids) {
-            std::cout << i << ",";
-        }
-        std::cout << std::endl;
-        #endif
-        // compute the remaining edges by deleting edges related to deleted nodes
-        std::set<dgraph_edge*> remained_edges;
-        for(dgraph_edge* e : this->edges) {
-            if(deleted_nodes.find(e->get_from()) == deleted_nodes.end() &&
-               deleted_nodes.find(e->get_to()) == deleted_nodes.end()) {
-                    remained_edges.insert(e);
-               }
-        }
-        std::vector<dgraph_node*> ns;
-        std::vector<dgraph_edge*> es;
-        edge_labelled_dgraph* new_graph = alloc(edge_labelled_dgraph, this->th, this->loc_eq, new_hvar_eq, this->pt_term_eq, ns, es, true, false);
-        // create nodes for new graph
-        for(dgraph_node* n : this->nodes) {
-            if(nontrivial_ids.find(n->get_low_index()) == nontrivial_ids.end()) {
-                if(n->is_points_to()) {
-                    pt_dgraph_node* old_node = (pt_dgraph_node*)n;
-                    pt_dgraph_node* new_node = alloc(pt_dgraph_node, new_graph, old_node->get_addr_leader(), old_node->get_pt_leader());
-                    new_node->set_dfs_index(old_node->get_dfs_index());
-                    new_node->set_low_index(old_node->get_low_index());
-                    new_graph->add_node(new_node);
-                } else if(n->is_hvar()) {
-                    hvar_dgraph_node* old_node = (hvar_dgraph_node*)n;
-                    hvar_dgraph_node* new_node = alloc(hvar_dgraph_node, new_graph, old_node->get_hvar_label());
-                    new_node->set_dfs_index(old_node->get_dfs_index());
-                    new_node->set_low_index(old_node->get_low_index());
-                    new_graph->add_node(new_node);
-                } else {
-                    SASSERT(false);
-                }
-            } 
-        }
-
-        for(int id : remained_nontrivial_ids) {
-            hvar_dgraph_node* id_node = nullptr;
-            for(dgraph_node* n : this->nodes) {
-                if(id == n->get_low_index()) {
-                    id_node = (hvar_dgraph_node*)n;
+        for(app* atom_contained : atoms) {
+            for(int i = 0; i < this->atomic_hterms_vec.size(); i ++) {
+                if(this->atomic_hterms_vec[i] == atom_contained) {
+                    this->atomic_hterms_count[i] ++;
                     break;
                 }
-            }
-            SASSERT(id_node->is_hvar());
-            app* leader_hvar = id_node->get_hvar_label();
-            app* leader_eq_repre = new_hvar_eq->get_leader_hvar(leader_hvar);
-            hvar_dgraph_node* scc_node = alloc(hvar_dgraph_node, new_graph, leader_eq_repre);
-            scc_node->set_dfs_index(0);
-            scc_node->set_low_index(id);
-            new_graph->add_node(scc_node);
-        }
-        // add edges for new graph
-        for(dgraph_edge* e : remained_edges) {
-            dgraph_node* new_from = new_graph->get_node_by_low(e->get_from()->get_low_index());
-            dgraph_node* new_to = new_graph->get_node_by_low(e->get_to()->get_low_index());
-            app* hterm_label = e->get_label();
-            dgraph_edge* new_edge = alloc(dgraph_edge, new_graph, new_from, new_to, hterm_label);
-            new_graph->add_edge(new_edge);
-        }
-        // TODO: add label complete here
-        return new_graph;
-    }
-
-    std::pair<bool, edge_labelled_dgraph*> edge_labelled_dgraph::check_and_saturate() {
-
-        #ifdef SLHV_DEBUG
-        std::cout << "check_and_saturate" << std::endl;
-        #endif
-        edge_labelled_dgraph* copied_graph = alloc(edge_labelled_dgraph, this->get_th(), this->get_locvar_eq(), this->get_hvar_eq(), this->pt_term_eq, this->get_nodes(), this->get_edges(), this->get_simplified(), this->get_saturated());
-
-        // collect sink nodes situations
-        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> node2sinks;
-        std::set<dgraph_node*> saturated;
-        for(dgraph_node* n : copied_graph->get_dest_nodes()) {
-            std::set<dgraph_node*> sinkset;
-            std::set<std::set<dgraph_node*>> sinksets;
-            sinkset.insert(n);
-            sinksets.insert(sinkset);
-            node2sinks[n] = sinksets;
-            saturated.insert(n);
-        }
-        std::set<dgraph_node*> to_be_saturated;
-        do {
-            #ifdef SLHV_DEBUG
-            std::cout << "enter saturating loop" << std::endl;
-            #endif
-            for(dgraph_node* n : copied_graph->get_nodes()) {
-                if(copied_graph->get_edges_from_node(n).size() != 0 ||
-                   copied_graph->get_edges_to_node(n).size() != 0) {
-                    to_be_saturated.insert(n);
-
-                }
-            }
-            for(dgraph_node* s : saturated) {
-                to_be_saturated.erase(s);
-            }
-            for(dgraph_edge* e : copied_graph->get_edges()) {
-                if(saturated.find(e->get_from()) != saturated.end()) {
-                    to_be_saturated.erase(e->get_from());
-                }
-                if(saturated.find(e->get_to()) != saturated.end()) {
-                    to_be_saturated.erase(e->get_to());
-                }
-                if(saturated.find(e->get_to()) == saturated.end()) {
-                    to_be_saturated.erase(e->get_from());
-                }
-            }
-            
-            #ifdef SLHV_DEBUG
-            std::cout << "current copied graph: " << std::endl;
-            copied_graph->print(std::cout);
-            std::cout << "current to_be_saturated: " << std::endl;
-            for(dgraph_node* n : to_be_saturated) {
-                n->print(std::cout);
-                std::cout << std::endl;
-            }
-
-            #endif
-            for(dgraph_node* todo : to_be_saturated) {
-                saturated.insert(todo);
-                std::map<app*, std::set<dgraph_edge*>> layer_subgraph_links;
-                for(dgraph_edge* e : copied_graph->get_edges()) {
-                    if(e->get_from() == todo) {
-                        if(layer_subgraph_links.find(e->get_label()) == layer_subgraph_links.end()) {
-                            std::set<dgraph_edge*> label_links;
-                            label_links.insert(e);
-                            layer_subgraph_links[e->get_label()] = label_links;
-                        } else {
-                            layer_subgraph_links[e->get_label()].insert(e);
-                        }
-                    }
-                }
-
-                // each labelled layer has children nodes 
-                // these nodes are saturated and each node has sets of dgraph_nodes representing how they are constructed
-                // 
-                std::set<std::set<dgraph_node*>> todo_node_sets;
-                for(auto r : layer_subgraph_links) {
-                    std::set<std::vector<std::set<dgraph_node*>>> concated;
-                    std::set<std::set<dgraph_node*>> curr_label_sinksets;
-                    for(dgraph_edge* e : r.second) {
-                        
-                        std::set<std::vector<std::set<dgraph_node*>>> next_concated;
-                        std::set<std::set<dgraph_node*>> curr_concat_sets = node2sinks[e->get_to()];
-                        if(concated.size() == 0) {
-                            for(std::set<dgraph_node*> s : curr_concat_sets) {
-                                std::vector<std::set<dgraph_node*>> init_node_vec;
-                                init_node_vec.push_back(s);
-                                next_concated.insert(init_node_vec);
-                            }
-                            concated = next_concated;
-                        } else {
-                            for(std::vector<std::set<dgraph_node*>> old_vec : concated) {
-                                for(std::set<dgraph_node*> s : curr_concat_sets) {
-                                    std::vector<std::set<dgraph_node*>> new_vec = old_vec;
-                                    new_vec.push_back(s);
-                                    next_concated.insert(new_vec);
-                                }
-                            }
-                            concated = next_concated;
-                        }
-                    }
-                // check and merge sinknodes for each label
-                    for(std::vector<std::set<dgraph_node*>> nv : concated) {
-                        std::set<dgraph_node*> result;
-                        for(std::set<dgraph_node*> o : nv) {
-                            for(dgraph_node* n : slhv_util::setIntersect(result, o)) {
-                                // repeated points to for disjoint terms
-                                if(n->is_points_to()) {
-                                    #ifdef SLHV_DEBUG
-                                    std::cout << "same points to below one label: ";
-                                    n->print(std::cout);
-                                    std::cout << std::endl;
-                                    #endif
-                                    return {false, copied_graph};
-                                }
-                            }
-                            result = slhv_util::setUnion(result, o);
-                        }
-                        todo_node_sets.insert(result);
-                    }
-                }
-                
-                // check points to inconsistency
-                std::set<dgraph_node*> todo_node_pts;
-                for(std::set<dgraph_node*> s : todo_node_sets) {
-                    for(dgraph_node* n : s) {
-                        if(n->is_points_to()) {
-                            #ifdef SLHV_DEBUG
-                            std::cout << "TODO node pt: ";
-                            n->print(std::cout);
-                            std::cout << std::endl; 
-                            #endif
-                            todo_node_pts.insert(n);
-                        }
-                    }
-                }
-                for(dgraph_node* ptn1 : todo_node_pts) {
-                    for(dgraph_node* ptn2 : todo_node_pts) {
-                        SASSERT(ptn1->is_points_to() && ptn2->is_points_to());
-                        pt_dgraph_node* ptnode1 = (pt_dgraph_node*) ptn1;
-                        pt_dgraph_node* ptnode2 = (pt_dgraph_node*) ptn2;
-                        #ifdef SLHV_DEBUG
-                        std::cout << "conflict judgement: " << std::endl;
-                        ptnode1->print(std::cout);
-                        ptnode2->print(std::cout);
-                        std::cout << " addr same: " << (ptnode1->get_addr_leader() == ptnode2->get_addr_leader()) << " pt_same: " << (ptnode1->get_pt_leader()== ptnode2->get_pt_leader()) << std::endl;
-
-                        #endif
-                        if(ptnode1->get_addr_leader() == ptnode2->get_addr_leader() && 
-                           ptnode1->get_pt_leader() != ptnode2->get_pt_leader()) {
-                            #ifdef SLHV_DEBUG
-                            std::cout << "conflict found: " << std::endl;
-                            ptnode1->print(std::cout);
-                            ptnode2->print(std::cout);
-                            #endif
-                            return {false, copied_graph};
-                        }
-                    }
-                }
-
-                // saturating
-                for(std::set<dgraph_node*> s1 : todo_node_sets) {
-                    for(std::set<dgraph_node*> s2 : todo_node_sets) {
-                        std::set<dgraph_node*> s1minuss2 = slhv_util::setSubstract(s1, s2);
-                        std::set<dgraph_node*> s2minuss1 = slhv_util::setSubstract(s2, s1);
-                        if(s1 != s2 && 
-                        slhv_util::setIntersect(s1, s2).size() > 0 &&
-                        s1minuss2.size() > 0 && s2minuss1.size() > 0
-                        ) {
-                            #ifdef SLHV_DEBUG
-                            std::cout << "saturating condition satisfied" << std::endl;
-                            #endif
-                            // both are heap var
-                            if(s1minuss2.size() == 1 && s2minuss1.size() == 1) {
-                                dgraph_node* s1_node = *s1minuss2.begin();
-                                dgraph_node* s2_node = *s2minuss1.begin();
-                                if(s1_node->is_hvar() && s2_node->is_hvar()) {
-                                    // move edges linked to s2_node
-
-                                    // merge hvar in equivalence class
-                                    std::set<enode*> enodes2merge;
-                                    std::vector<std::set<enode*>> sets2merge;
-                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s1_node)->get_hvar_label()));
-                                    enodes2merge.insert(copied_graph->th->get_context().get_enode(((hvar_dgraph_node*)s2_node)->get_hvar_label()));
-                                    if(enodes2merge.size() > 1) {
-                                        sets2merge.push_back(enodes2merge);
-                                        coarse_hvar_eq* new_h_eq = copied_graph->get_hvar_eq()->merge_hvar_nodes(sets2merge);
-                                        copied_graph->set_hvar_eq(new_h_eq);
-                                    }
-                                    dgraph_node* reserved_node = nullptr;
-                                    dgraph_node* del_node = nullptr;
-                                    app* new_hvar = copied_graph->get_hvar_eq()->get_leader_hvar(((hvar_dgraph_node*)s1_node)->get_hvar_label());
-                                    if(new_hvar == ((hvar_dgraph_node*)s1_node)->get_hvar_label()) {
-                                        reserved_node = s1_node;
-                                        del_node = s2_node;
-                                    } else {
-                                        reserved_node = s2_node;
-                                        del_node = s1_node;
-                                    }
-
-
-                                    for(dgraph_edge* e : copied_graph->edges) {
-                                        if(e->get_from() == del_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, reserved_node, e->get_to(), e->get_label());
-                                            copied_graph->del_edge(e);
-                                            copied_graph->add_edge(newE);
-                                        } else if(e->get_to() == del_node) {
-                                            dgraph_edge* newE = alloc(dgraph_edge, copied_graph, e->get_from(), reserved_node, e->get_label());
-                                            copied_graph->del_edge(e);
-                                            copied_graph->add_edge(newE);
-                                        } else {
-
-                                        }
-                                    }
-                                    copied_graph->del_node(del_node);
-                                    node2sinks[reserved_node] = slhv_util::setUnion(node2sinks[reserved_node], node2sinks[del_node]);
-                                    node2sinks.erase(del_node);
-                                } else {
-                                    #ifdef SLHV_DEBUG
-                                    std::cout << "minus both 1: " << std::endl;
-                                    s1_node->print(std::cout);
-                                    s2_node->print(std::cout);
-                                    #endif
-                                    return {false, copied_graph};
-                                }
-                            // one of them is hvar
-                            } else if(s1minuss2.size() == 1) {
-                                dgraph_node* hvar_node = *s1minuss2.begin();
-                                std::set<dgraph_node*> leaves = s2minuss1;
-                                if(node2sinks[hvar_node].find(leaves) ==  node2sinks[hvar_node].end()) {
-                                    std::vector<app*> uplus_args;
-                                    for(dgraph_node* ln : leaves) {
-                                        if(ln->is_hvar()) {
-                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
-                                            uplus_args.push_back(leader_hvar);
-                                        } else {
-                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
-                                            uplus_args.push_back(pt_label);
-                                        }set
-                                    }
-                                    SASSERT(leaves.size() == uplus_args.size());
-                                    app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
-                                    this->th->get_context().internalize(label, false);
-                                    for(dgraph_node* l : leaves) {
-                                        dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
-                                    }
-                                    saturated.erase(hvar_node);
-                                }
-                            } else if(s2minuss1.size() == 1) {
-                                dgraph_node* hvar_node = *s2minuss1.begin();
-                                std::set<dgraph_node*> leaves = s1minuss2;
-                                if(node2sinks[hvar_node].find(leaves) ==  node2sinks[hvar_node].end()) {
-                                    std::vector<app*> uplus_args;
-                                    for(dgraph_node* ln : leaves) {
-                                        if(ln->is_hvar()) {
-                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
-                                            uplus_args.push_back(leader_hvar);
-                                        } else {
-                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
-                                            uplus_args.push_back(pt_label);
-                                        }
-                                    }
-                                    SASSERT(leaves.size() == uplus_args.size());
-                                    app* label = this->th->syntax_maker->mk_uplus_app(leaves.size(), uplus_args);
-                                    this->th->get_context().internalize(label, false);
-                                    for(dgraph_node* l : leaves) {
-                                        dgraph_edge* newE = alloc(dgraph_edge, copied_graph, hvar_node, l, label);
-                                    }
-                                    saturated.erase(hvar_node);
-                                }
-                            // both are heap terms
-                            } else {
-                                std::set<dgraph_node*> leaves1 = s1minuss2;
-                                std::set<dgraph_node*> leaves2 = s2minuss1;
-                                bool hvar_node_found = false;
-                                for(auto r : node2sinks) {
-                                    if(r.second.find(leaves1) != r.second.end() &&
-                                       r.second.find(leaves2) != r.second.end()) {
-                                        hvar_node_found = true;
-                                        break;
-                                       }
-                                }
-                                if(!hvar_node_found) {
-                                    app* fresh_hvar = this->th->syntax_maker->mk_fresh_hvar();
-                                    this->th->get_context().internalize(fresh_hvar, false);
-                                    dgraph_node* newN = alloc(hvar_dgraph_node, copied_graph, fresh_hvar);
-                                    copied_graph->add_node(newN);
-                                    std::vector<app*> uplus_args1;
-                                    std::vector<app*> uplus_args2;
-                                    for(dgraph_node* ln : leaves1) {
-                                        if(ln->is_hvar()) {
-                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
-                                            uplus_args1.push_back(leader_hvar);
-                                        } else {
-                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
-                                            uplus_args1.push_back(pt_label);
-                                        }
-                                    }
-                                    SASSERT(leaves1.size() == uplus_args1.size());
-                                    app* label1 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args1);
-                                    this->th->get_context().internalize(label1, false);
-                                    for(dgraph_node* ln : leaves2) {
-                                        if(ln->is_hvar()) {
-                                            app* leader_hvar = ((hvar_dgraph_node*)ln)->get_hvar_label();
-                                            uplus_args2.push_back(leader_hvar);
-                                        } else {
-                                            app* pt_label = ((pt_dgraph_node*)ln)->get_pt_leader();
-                                            uplus_args2.push_back(pt_label);
-                                        }
-                                    }
-                                    SASSERT(leaves2.size() == uplus_args2.size());
-                                    app* label2 = this->th->syntax_maker->mk_uplus_app(leaves2.size(), uplus_args2);
-                                    this->th->get_context().internalize(label2, false);
-                                    for(dgraph_node* ln : leaves1) {
-                                        dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label1);
-                                        copied_graph->add_edge(temp_edge);
-                                    }
-                                    for(dgraph_node* ln : leaves2) {    
-                                        dgraph_edge* temp_edge = alloc(dgraph_edge, copied_graph, newN, ln, label2);
-                                        copied_graph->add_edge(temp_edge);
-                                    }
-                                }
-                            }
-                        } else if(s1minuss2.size() == 0 && s2minuss1.size() != 0) {
-                            for(dgraph_node* n : s2minuss1) {
-                                if(n->is_points_to()) {
-                                    #ifdef SLHV_DEBUG
-                                    std::cout << "s1minuss2 is empty, s2minuss1 contains: " << std::endl;
-                                    n->print(std::cout);
-                                    #endif
-
-                                    return {false, copied_graph};
-                                }
-                            }
-                        } else if(s2minuss1.size() == 0 && s1minuss2.size() != 0) {
-                            for(dgraph_node* n : s1minuss2) {
-                                if(n->is_points_to()) {
-                                    #ifdef SLHV_DEBUGset
-                                    std::cout << "s2minuss1 is empty, s1minuss2 contains: " << std::endl;
-                                    n->print(std::cout);
-                                    #endif
-                                    return {false, copied_graph};
-                                }
-                            }
-                        } else {
-
-                        }
-                    }
-                }
-
-            }
-        } while(to_be_saturated.size() > 0);
-        #ifdef SLHV_DEBUG
-        std::cout << "CHECK AND SATURATE SAT XXXXXX" << std::endl;
-        #endif
-        this->th->sat_node2sinks = node2sinks;
-        return {true, copied_graph};
-    }
-
-
-    std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> theory_slhv::infer_pt_belongingness(edge_labelled_dgraph* saturated_graph) {
-        // collect which pt in which hterm
-        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2belonging_hterms;
-        std::map<dgraph_node*, std::set<dgraph_node*>> pt2pt_not_in_set;
-        std::map<dgraph_node*, std::set<dgraph_node*>> root2sinkpts;
-        for(auto i : this->sat_node2sinks) {
-            // compute which dgraph node pt is not in
-            for(std::set<dgraph_node*> s : i.second) {
-                for(dgraph_node* n : s) {
-                    if(n->is_points_to()) {
-                        if(pt2pt_not_in_set.find(n) == pt2pt_not_in_set.end()) {
-                            std::set<dgraph_node*> new_set;
-                            for(dgraph_node* np : s) {
-                                if(np != n){
-                                    new_set.insert(np);
-                                }
-                            }
-                            pt2pt_not_in_set[n] = new_set;
-                        } else {
-                            for(dgraph_node* np : s) {
-                                if(np != n) {
-                                    pt2pt_not_in_set[n].insert(np);
-                                }
-                            }
-                        }
-
-                        if(root2sinkpts.find(i.first) == root2sinkpts.end()) {
-                            std::set<dgraph_node*> sinkpts;
-                            sinkpts.insert(n);
-                        } else {
-                            root2sinkpts[i.first].insert(n);
-                        }
-                    }
-                }
-            }
-        }
-        // all different points-tos are disj inclusive with each other
-        std::set<dgraph_node*> all_pt_nodes;
-        for(auto ptnot : pt2pt_not_in_set) {
-            all_pt_nodes.insert(ptnot.first);
-        }
-        for(dgraph_node* ptn : all_pt_nodes) {
-            for(dgraph_node* ptnp : all_pt_nodes) {
-                if(ptn != ptnp) {
-                    pt2pt_not_in_set[ptn].insert(ptnp);
-                }
-            }
-        }
-        // compute hterms pt belongs to
-        for(auto i : this->sat_node2sinks) {
-            for(std::set<dgraph_node*> s : i.second) {
-                for(dgraph_node* pt : root2sinkpts[i.first]) {
-                    if(s.find(pt) == s.end()) {
-                        std::set<dgraph_node*> containing_set = slhv_util::setSubstract(s, pt2pt_not_in_set[pt]);
-                        if(pt2belonging_hterms.find(pt) == pt2belonging_hterms.end()) {
-                            std::set<std::set<dgraph_node*>> belonging_set;
-                            belonging_set.insert(containing_set);
-                            pt2belonging_hterms[pt] = belonging_set;
-                        } else {
-                            pt2belonging_hterms[pt].insert(containing_set);
-                        }
-                    } 
-                }
-            }
-        }
-        // infer smaller pt belongingness for each pt node
-        for(dgraph_node* pt : all_pt_nodes) {
-            std::set<std::set<dgraph_node*>> current_hterms = pt2belonging_hterms[pt];
-            std::set<std::set<dgraph_node*>> next_hterms;
-            do {
-                next_hterms.clear();
-                for(std::set<dgraph_node*> ns1 : current_hterms) {
-                    for(std::set<dgraph_node*> ns2 : current_hterms) {
-                        if(ns1 != ns2 && !slhv_util::setIsSubset(ns1, ns2) && !slhv_util::setIsSubset(ns2, ns1)) {
-                            // size not greater than 0 means that pt is a subterm of emp
-                            std::set<dgraph_node*> new_hterm = slhv_util::setIntersect(ns1, ns2);
-                            SASSERT(new_hterm.size() > 0);
-                            next_hterms.insert(new_hterm);
-                        }
-                    }
-                }
-                next_hterms = slhv_util::setUnion(next_hterms, current_hterms);
-                pt2belonging_hterms[pt] = next_hterms;
-            } while(next_hterms.size() - current_hterms.size() > 0);
-        }
-        return pt2belonging_hterms;
-    }
-
-
-    std::map<dgraph_node*, std::set<dgraph_node*>>  theory_slhv::choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms) {
-        std::map<dgraph_node*, std::set<dgraph_node*>> result;
-        std::map<dgraph_node*, dgraph_node*> pt2container;
-        for(auto i : pt2hterms) {
-            bool cannot_choose = false;
-            for(std::set<dgraph_node*> ns : i.second) {
-                if(ns.size() == 1) {
-                    SASSERT((*ns.begin())->is_hvar());
-                    pt2container[i.first] = (*ns.begin());
-                    cannot_choose = true;
-                    break;
-                }
-            }
-            if(!cannot_choose) {
-                std::set<dgraph_node*>  first_set = *i.second.begin();
-                dgraph_node* choosed_node = *first_set.begin();
-                SASSERT(choosed_node->is_hvar());
-                pt2container[i.first] = choosed_node;
-            }
-        }
-        for(auto i : pt2container) {
-            if(result.find(i.second) == result.end()) {
-                std::set<dgraph_node*> hvar_pts;
-                hvar_pts.insert(i.first);
-                result[i.second] = hvar_pts;
-            } else {
-                result[i.second].insert(i.first);
-            }
-        }
-        return result;
-    }
-
-    bool edge_labelled_dgraph::is_scc_computed() {
-        for(dgraph_node* n : this->nodes) {
-            if(!n->is_tarjan_visited()) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    void edge_labelled_dgraph::add_node(dgraph_node* n)  {
-        if(std::find(this->nodes.begin(), this->nodes.end(), n) != nodes.end())  {
-            std::cout << "node already exists" << std::endl;
-        } else {
-            this->nodes.push_back(n);
-        }
-    }
-
-    void edge_labelled_dgraph::add_edge(dgraph_edge* e) {
-        for(dgraph_edge* ee : this->edges) {
-            if(ee->get_from() == e->get_from() &&
-               ee->get_to() == e->get_to() &&
-               ee->get_label() == e->get_label()) {
-                return;
-               }
-        }
-        this->edges.push_back(e);
-    }
-
-
-    void edge_labelled_dgraph::del_node(dgraph_node* n){
-        for(auto it = this->nodes.begin(); it != this->nodes.end();) {
-            if(*it == n) {
-                it = this->nodes.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-
-    void edge_labelled_dgraph::del_edge(dgraph_edge* e){
-        for(auto it = this->edges.begin(); it != this->edges.end();) {
-            if(*it == e) {
-                it = this->edges.erase(it);
-            } else {
-                ++it;
-            }
-        }
-    }
-
-    dgraph_node* edge_labelled_dgraph::get_node_by_low(int low_idx) {
-        for(dgraph_node* n : this->nodes) {
-            if(n->get_low_index() == low_idx) {
-                return n;
-            }
-        }
-        return nullptr;
-    }
-
-    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, 
-     std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraphs) {
-        // enumerate all subgraphs
-        #ifdef SLHV_DEBUG
-        std::cout << "extract all rooted disjoint label complete subgraphs for node ";
-        root->print(std::cout);
-        std::cout << std::endl;
-        #endif
-        // if computed
-        if(node2subgraphs.find(root) != node2subgraphs.end()) {
-            return node2subgraphs[root];
-        }
-        // if the node is leaf node:
-        if(!this->has_edge_from(root)) {
-            std::vector<edge_labelled_subgraph*> result;
-            std::vector<dgraph_node*> ns; ns.insert(ns.begin(), root);
-            std::vector<dgraph_edge*> es;
-            edge_labelled_subgraph* subgraph = alloc(edge_labelled_subgraph, 
-                this, ns, es
-            );
-            result.push_back(subgraph);
-            #ifdef SLHV_DEBUG
-            std::cout << "is leaf node" << std::endl;
-            subgraph->print(std::cout);
-            #endif
-            node2subgraphs[root] = result;
-            return result;
-        } else {
-            std::set<dgraph_edge*> root_edges;
-            std::set<app*> edge_labels;
-            for(dgraph_edge* e : this->edges) {
-                if(e->get_from() == root) {
-                    root_edges.insert(e);
-                    edge_labels.insert(e->get_label());
-                }
-            }
-            
-            std::vector<edge_labelled_subgraph*> subgraphs;
-            for(app* label : edge_labels) {
-                std::vector<dgraph_edge*> curr_es;
-                std::vector<dgraph_node*> curr_ns;
-                std::set<dgraph_edge*> edges2merge;
-                curr_ns.insert(curr_ns.begin(), root);
-                for(dgraph_edge* e : root_edges) {
-                    if(e->get_label() == label) {
-                        curr_es.insert(curr_es.begin(), e);
-                        if(node2subgraphs.find(e->get_to()) == node2subgraphs.end()) {
-                            node2subgraphs[e->get_to()] =  this->extract_all_rooted_disjoint_labelcomplete_subgraphs(e->get_to(), node2subgraphs);
-                        }
-                        edges2merge.insert(e);
-                    }
-                }
-                // TODO:  merge them
-                std::vector<edge_labelled_subgraph*> curr_result;
-                std::vector<edge_labelled_subgraph*> next_result;
-                curr_ns.push_back(root);
-                for(dgraph_edge* e : edges2merge) {
-                    curr_es.push_back(e);
-                    curr_ns.push_back(root);
-                }
-                edge_labelled_subgraph* stem_graph = alloc(edge_labelled_subgraph, this, curr_ns, curr_es);
-                curr_result.push_back(stem_graph);
-                for(dgraph_edge* e : edges2merge) {
-                    next_result = this->subgraphs_union(curr_result, node2subgraphs[e->get_to()]);
-                    curr_result = next_result;
-                }
-                for(edge_labelled_subgraph* sb : curr_result) {
-                    subgraphs.push_back(sb);
-                }
-            }
-            node2subgraphs[root] = subgraphs;
-            return subgraphs;
-        }
-    }
-
-    std::vector<edge_labelled_subgraph*> edge_labelled_dgraph::subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2) {
-        std::vector<edge_labelled_subgraph*> result;
-        for(edge_labelled_subgraph* sg1 : graphs1) {
-            for(edge_labelled_subgraph* sg2 : graphs2) {
-                SASSERT(sg1->get_parent() == sg2->get_parent());
-                edge_labelled_dgraph* parent = sg1->get_parent();
-                std::set<dgraph_node*> merged_nodes;
-                std::set<dgraph_edge*> merged_edges;
-                for(dgraph_node* n : sg1->get_nodes()) {
-                    merged_nodes.insert(n);
-                }
-                for(dgraph_node* n : sg2->get_nodes()) {
-                    merged_nodes.insert(n);
-                }
-                for(dgraph_edge* e : sg1->get_edges()) {
-                    merged_edges.insert(e);
-                }
-                for(dgraph_edge* e : sg2->get_edges()) {
-                    merged_edges.insert(e);
-                }
-                std::vector<dgraph_node*> curr_ns;
-                std::vector<dgraph_edge*> curr_es;
-                for(dgraph_node* n : merged_nodes) {
-                    curr_ns.push_back(n);
-                }
-                for(dgraph_edge* e : merged_edges) {
-                    curr_es.push_back(e);
-                }
-                edge_labelled_subgraph* merged_graph = alloc(edge_labelled_subgraph, parent, curr_ns, curr_es);
-                result.push_back(merged_graph);
-            }
-        }
-        return result;
-    }
-
-
-
-    edge_labelled_subgraph::edge_labelled_subgraph(edge_labelled_dgraph* g, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es) : edge_labelled_dgraph(g->get_th(), g->get_locvar_eq(), g->get_hvar_eq(), g->get_pt_term_eq(), ns, es, g->get_simplified(), g->get_saturated()){
-        for(dgraph_node* n : ns) {
-            SASSERT(n->get_dgraph() == g);
-        }
-        for(dgraph_edge* e : es) {
-            SASSERT(e->get_dgraph() == g);
-        }
-        this->parent = g;
-    }
-
-    hterm* edge_labelled_subgraph::obtain_graph_hterm() {
-        #ifdef SLHV_DEBUG
-        std::cout << "obtain graph hterm" << std::endl;
-        #endif
-        std::set<std::pair<app*, app*>> rep_hterm;
-        std::set<dgraph_node*> leaves = this->get_dest_nodes();
-        for(dgraph_node* n : leaves) {
-            if(n->is_hvar()) {
-                hvar_dgraph_node* hvar_node = (hvar_dgraph_node*) n;
-                if(rep_hterm.find({hvar_node->get_hvar_label(), nullptr}) != rep_hterm.end()) {
-                    rep_hterm.erase({hvar_node->get_hvar_label(), nullptr});
-                }
-                rep_hterm.insert({hvar_node->get_hvar_label(), nullptr});
-            } else if(n->is_points_to()) {
-                pt_dgraph_node* pt_node = (pt_dgraph_node*) n;
-                SASSERT(rep_hterm.find(pt_node->get_pt_pair_label()) == rep_hterm.end());
-                rep_hterm.insert(pt_node->get_pt_pair_label());
-            } else {
                 SASSERT(false);
             }
         }
-        if(rep_hterm.size() == 0) {
-            rep_hterm.insert({this->get_th()->global_emp, nullptr});
-        }
-        hterm* result = alloc(hterm, rep_hterm, this->get_hvar_eq(), this->get_locvar_eq());
-        return result;
     }
 
-    bool edge_labelled_subgraph::is_rooted_disjoint_labelcomplete() {
-        // single root
-        std::set<dgraph_node*> root = this->get_sources();
-        if(root.size() != 1) {
-            return false;
-        }
-        // each node can be reached from single root and no loop exists
-        std::set<dgraph_node*> visited_nodes; 
-        std::set<dgraph_node*> newly_visited;
-        newly_visited.insert(*root.begin());
-        while(newly_visited.size() > 0) {
-            std::set<dgraph_node*> next_newly_visited;
-            for(dgraph_node* frontier : newly_visited) {
-                for(dgraph_edge* e : this->get_edges()) {
-                    if(e->get_from() == *root.begin()) {
-                        if(visited_nodes.find(e->get_to()) !=  visited_nodes.end() || newly_visited.find(e->get_to()) != newly_visited.end()){
-                            return false;
-                        }
-                        next_newly_visited.insert(e->get_to());
-                    }
-                }
-            }
-            visited_nodes = slhv_util::setUnion(visited_nodes, newly_visited);
-            newly_visited = next_newly_visited;
-        }
-        for(dgraph_node* n : this->get_nodes()) {
-            if(visited_nodes.find(n) == visited_nodes.end()) {
+    bool heap_term::is_subhterm_of(heap_term* ht) {
+        SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->get_pos(i) > ht->get_pos(i)) {
                 return false;
-            }
-        }
-        // all outgoing edges of a node share the same label
-        for(dgraph_node* n : this->get_nodes()) {
-            app* outgoing_label = nullptr;
-            for(dgraph_edge* e : this->get_edges()) {
-                if(outgoing_label == nullptr) {
-                    outgoing_label = e->get_label();
-                } else {
-                    if(e->get_label() != outgoing_label) {
-                        return false;
-                    }
-                }
             }
         }
         return true;
     }
 
-    dgraph_node* edge_labelled_dgraph::get_root_node() {
-        SASSERT(this->is_rooted());
-        return *this->get_sources().begin();
+    bool heap_term::is_suphterm_of(heap_term* ht) {
+        SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(ht->get_pos(i) > this->get_pos(i)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    std::set<dgraph_node*> edge_labelled_dgraph::get_dest_nodes() {
-        std::set<dgraph_node*> leaves;
-        for(dgraph_node* n : this->nodes) {
-            bool is_dst = true;
-            for(dgraph_edge* e : this->edges) {
-                if(e->get_from() == n) {
-                    is_dst = false;
-                    break;
+    heap_term* heap_term::intersect_with(heap_term* ht) {
+        SASSERT(this->get_atomic_hterm_vec() == ht->get_atomic_hterm_vec());
+        std::vector<int> new_count;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            new_count[i] = 0;
+        }
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->get_pos(i) > 0 && ht->get_pos(i) > 0) {
+                int min = this->get_pos(i) > this->get_pos(i) ? this->get_pos(i) : this->get_pos(i);
+                new_count[i] = min;
+            }
+        }
+        heap_term* intersected_hterm = alloc(heap_term, this->th, this->get_atomic_hterm_vec(), new_count);
+        return intersected_hterm;
+    }
+
+    std::vector<app*> heap_term::get_atoms() {
+        std::vector<app*> result;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->get_pos(i)) {
+                for(int j = 0; j < this->get_pos(i); j ++) {
+                    result.push_back(this->atomic_hterms_vec[i]);
                 }
-            }
-            if(is_dst) {
-                leaves.insert(n);
-            }
-        }
-        return leaves;
-    }
-
-    std::set<dgraph_node*> edge_labelled_dgraph::get_sources() {
-        std::map<dgraph_node*, bool> is_source_map;
-        for(dgraph_node* n : this->nodes) {
-            is_source_map[n] = true;
-        }
-        for(dgraph_edge* e : this->edges) {
-            is_source_map[e->get_to()] = false;
-        }
-        std::set<dgraph_node*> result;
-        for(auto p : is_source_map) {
-            if(p.second) {
-                result.insert(p.first);
             }
         }
         return result;
     }
 
-    dgraph_node* edge_labelled_dgraph::get_unvisited() {
-        for(dgraph_node* n : this->nodes) {
-            if(!n->is_tarjan_visited()) {
-                return n;
+
+
+    bool heap_term::is_emp() {
+        if(this->get_pos(this->get_vec_size() - 1) != 1) {
+            return false;
+        }
+        for(int i = 0; i < this->get_vec_size() - 1; i ++) {
+            if(this->get_pos(i) > 0) {
+                return false;
             }
         }
-        return nullptr;
+        return true;
     }
 
-    bool edge_labelled_dgraph::check_established_reachable(std::set<int> nontrivial_ids) {
-        SASSERT(this->is_scc_computed());
-        std::set<dgraph_node*> established_reachable_nodes;
-        for(dgraph_node* n : this->nodes) {
-            if(n->is_established()) {
-                established_reachable_nodes.insert(n);
+    bool heap_term::is_atom_pt() {
+        return this->get_pt_num() == 1 && this->get_hvar_num() == 0 && !this->is_emp();
+    }
+
+    bool heap_term::is_atom_hvar() {
+        return this->get_pt_num() == 0 && this->get_hvar_num() == 1 && !this->is_emp();
+    }
+
+    int heap_term::get_pt_num() {
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i++) {
+            if(this->th->is_points_to(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
             }
         }
-        std::set<dgraph_node*> next_nodes = established_reachable_nodes;
-        do {
-            established_reachable_nodes = next_nodes;
-            for(dgraph_edge* e : this->edges) {
-                if(established_reachable_nodes.find(e->get_to()) !=  established_reachable_nodes.end()) {
-                    next_nodes.insert(e->get_from());
-                }
-            }
-        } while(next_nodes.size() - established_reachable_nodes.size() > 0);
-        for(dgraph_node* n : established_reachable_nodes) {
-            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
-                this->th->set_conflict_slhv(false);
-                this->th->check_status = theory_slhv::slhv_unsat;
-                return true;
-            }
+        return result;
+    }
+
+
+    bool heap_term::is_uplus_hterm() {
+        if(this->get_hvar_num() + this->get_pt_num() > 1) {
+            return true;
         }
         return false;
     }
 
-    coarse_hvar_eq* edge_labelled_dgraph::check_and_merge_scc_hvars(std::set<int> nontrivial_ids) {
-        SASSERT(this->is_scc_computed());
-        std::vector<std::set<enode*>> enode_sets_to_merge;
-        for(int id : nontrivial_ids) {
-            std::set<dgraph_node*> nodes2merge;
-            std::set<enode*> enode_set;
-            for(dgraph_node* n : this->nodes) {
-                if(n->get_low_index() == id) {
-                    nodes2merge.insert(n);
-                    SASSERT(!n->is_points_to());
-                    hvar_dgraph_node* hvar_node = (hvar_dgraph_node*) n;
-                    app* leader_hvar = hvar_node->get_hvar_label();
-                    enode* leader_hvar_node = this->th->get_context().get_enode(leader_hvar)->get_root();
-                    enode_set.insert(leader_hvar_node);
-                }
-                for(enode_pair p : this->th->curr_distinct_hterm_pairs) {
-                    if(enode_set.find(p.first) != enode_set.end() && 
-                       enode_set.find(p.second) != enode_set.end()) {
-                            this->th->check_status = theory_slhv::slhv_unsat;
-                            this->th->set_conflict_slhv(false);
-                            return nullptr;
-                       }
-                }
-                enode_sets_to_merge.push_back(enode_set);
+    int heap_term::get_hvar_num() {
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i++) {
+            if(this->th->is_hvar(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
             }
         }
-        // new hvar equivalence class
-        coarse_hvar_eq* new_hvar_eq = this->hvar_eq->merge_hvar_nodes(enode_sets_to_merge);
-        return new_hvar_eq;
+        return result;
     }
 
-
-    std::set<dgraph_node*> edge_labelled_dgraph::get_simplified_nodes(std::set<int> nontrivial_ids) {
-        // return the set of ids that the nodes are simplified and eliminated in the simplified graph
-        SASSERT(this->is_scc_computed());
-        std::set<dgraph_node*> to_nodes;
-        for(dgraph_node* n : this->nodes) {
-            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
-                to_nodes.insert(n);
+    int heap_term::get_emp_num() {
+        int result = 0;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->th->is_emp(this->atomic_hterms_vec[i])) {
+                result += this->get_pos(i);
             }
         }
-        std::set<dgraph_node*> temp_nodes = to_nodes;
-        do {
-            std::set<dgraph_node*> new_nodes;
-            for(dgraph_node* n : temp_nodes) {
-                for(dgraph_edge* e : this->edges) {
-                    if(e->get_from() == n && to_nodes.find(e->get_to()) == to_nodes.end()) {
-                        new_nodes.insert(e->get_to());
+        return result;
+    }
+
+    std::set<heap_term*> heap_term::get_subhterms() {
+        std::set<heap_term*> result;
+        std::set<std::vector<int>> current_enum;
+        std::set<std::vector<int>> next_enum;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(i == 0) {
+                for(int j = 0; j <= this->get_pos(i); j ++) {
+                    std::vector<int> partial_vec;
+                    partial_vec.push_back(j);
+                    next_enum.insert(partial_vec);
+                }
+            } else {
+                for(std::vector<int> last_partial_vec : current_enum) {
+                    for(int j = 0; j <= this->get_pos(i); j ++) {
+                        std::vector<int>  next_partial_vec = last_partial_vec;
+                        next_partial_vec.push_back(j);
+                        next_enum.insert(next_partial_vec);
                     }
                 }
             }
-            temp_nodes = new_nodes;
-            to_nodes = slhv_util::setUnion(to_nodes, new_nodes);
-        } while(temp_nodes.size() != 0);
-        for(dgraph_node* n : to_nodes) {
-            if(nontrivial_ids.find(n->get_low_index()) != nontrivial_ids.end()) {
-                to_nodes.erase(n);
-            }
+            current_enum = next_enum;
+            next_enum.clear();
         }
-        return to_nodes;
-    }
-
-    std::vector<dgraph_edge*> edge_labelled_dgraph::get_edges_from_node(dgraph_node* n) {
-        std::vector<dgraph_edge*> result;
-        for(dgraph_edge* e : this->edges) {
-            if(e->get_from() == n) {    
-                result.push_back(e);
+        for(std::vector<int> atoms_count : current_enum) {
+            bool is_valid_hterm = false;
+            for(int hterm_num : atoms_count) {
+                if(hterm_num > 0) {
+                    is_valid_hterm = true;
+                    break;
+                }
             }
-        }
-        return result;
-    }
-
-    std::vector<dgraph_edge*> edge_labelled_dgraph::get_edges_to_node(dgraph_node* n) {
-        std::vector<dgraph_edge*> result;
-        for(dgraph_edge* e : this->edges) {
-            if(e->get_to() == n) {
-                result.push_back(e);
+            if(is_valid_hterm) {
+                heap_term* subhterm = alloc(heap_term, this->th, this->atomic_hterms_vec, atoms_count);
+                result.insert(subhterm);
             }
         }
         return result;
     }
 
-    void edge_labelled_dgraph::tarjanSCC(std::set<dgraph_node*> tarjanSCC) {
-        int dfs_num = 1;
-        for(dgraph_node* n : this->get_sources()) {
-            n->tarjanSCC(dfs_num);
-        }
-        dgraph_node* curr_unvisited = this->get_unvisited();
-        while(curr_unvisited != nullptr) {
-            curr_unvisited->tarjanSCC(dfs_num);
-            curr_unvisited = this->get_unvisited();
-        }
-        for(dgraph_node* n : this->nodes) {
-            SASSERT(n->is_tarjan_visited());
-        }
-    }
 
-
-    bool edge_labelled_dgraph::has_edge(dgraph_edge* edge){
-        for(dgraph_edge* e : this->edges) {
-            if(e->get_from() == edge->get_from() && 
-               e->get_to() == edge->get_to() &&
-               e->get_label() == edge->get_label()) {
-                return true;
-               } 
-        }
-        return false;
-    }
-
-    bool edge_labelled_dgraph::has_edge_from(dgraph_node* node) {
-        for(dgraph_edge* e : this->edges) {
-            if(e->get_from() == node) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool edge_labelled_dgraph::has_edge_to(dgraph_node* node) {
-        for(dgraph_edge* e : this->edges) {
-            if(e->get_to() == node) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    dgraph_node::dgraph_node(edge_labelled_dgraph* g) {
-        this->dgraph = g;
-        this->dfs_index = -1;
-        this->low_index = -1;
-        this->in_tarjan_stack = false;
-    }
-
-    int dgraph_node::tarjanSCC(int& dfs_num) {
-        if(this->dfs_index == -1) {
-            this->low_index = dfs_num;
-            this->dfs_index = dfs_num;
-            this->push_tarjan_stack();
-            dfs_num += 1;
-        } else {
-            if(this->in_tarjan_stack) {
-                return this->low_index;
+    std::set<std::pair<std::vector<int>, std::vector<int>>> heap_term::get_splitted_subpairs() {
+        SASSERT(!this->is_atom_hvar() && !this->is_atom_pt() && !this->is_emp());
+        std::set<std::vector<int>> curr_enum;
+        std::set<std::vector<int>> next_enum;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(i == 0) {
+                for(int j = 0; j <= this->get_pos(i); j ++) {
+                    std::vector<int> partial_vec;
+                    partial_vec.push_back(j);
+                    next_enum.insert(partial_vec);
+                }
             } else {
-                return this->dgraph->get_nodes().size() + 2;
+                for(std::vector<int> last_partial_vec : curr_enum) {
+                    for(int j = 0; j <= this->get_pos(i); j ++) {
+                        std::vector<int> next_partial_vec = last_partial_vec;
+                        next_partial_vec.push_back(j);
+                        next_enum.insert(next_partial_vec);
+                    }
+                }
+            }
+            curr_enum = next_enum;
+            next_enum.clear();
+        }
+
+
+        for(std::vector<int> atoms_count : curr_enum) {
+            bool is_valid_hterm = false;
+            for(int i = 0; i < this->get_vec_size(); i ++) {
+                if(atoms_count[i] > 0) {
+                    is_valid_hterm = true;
+                    break;
+                }
+            }
+            if(is_valid_hterm) {
+                next_enum.insert(atoms_count);
             }
         }
-        std::vector<dgraph_edge*> edges = this->dgraph->get_edges_from_node(this);
-        for(dgraph_edge* e : edges) {
-            dgraph_node* curr_next_node = e->get_to();
-            int ret_low_index = curr_next_node->tarjanSCC(dfs_num);
-            if(ret_low_index < this->low_index) {
-                this->low_index = ret_low_index;
+        curr_enum = next_enum;
+
+        std::set<std::pair<std::vector<int>, std::vector<int>>> result;
+        for(std::vector<int> first_elem_vector : curr_enum) {
+            std::vector<int> whole_vec = this->get_atomic_count();
+            std::vector<int> remnant_vec = whole_vec;
+            for(int i = 0; i < this->get_vec_size(); i ++) {
+                remnant_vec[i] -= first_elem_vector[i];
+            }
+            bool pair_exists = false;
+            for(auto p : result) {
+                if(p.second == first_elem_vector && p.first == remnant_vec || 
+                   p.first == first_elem_vector && p.second == remnant_vec) {
+                    pair_exists = true;
+                    break;
+                }
+            }
+            if(!pair_exists) {
+                result.insert({first_elem_vector, remnant_vec});
             }
         }
-        this->pop_tarjan_stack();
-        return this->low_index;
+        return result;
     }
 
 
-    hvar_dgraph_node::hvar_dgraph_node(edge_labelled_dgraph* g, app* hvar) : dgraph_node(g){
-        this->leader_hvar = hvar;
+    void heap_term::print(std::ostream& os) {
+        os << "hterm id: ";
+        for(int index = 0; index < this->get_vec_size(); index ++) {
+            os << " " << this->atomic_hterms_count[index] << " ";
+        }
+        os << std::endl;
     }
     
-
-    pt_dgraph_node::pt_dgraph_node(edge_labelled_dgraph* g, app* addr, app* pt) : dgraph_node(g) {
-        this->addr_leader = addr;
-        this->pt_leader = pt;
-    }
-    // dgraph edge
-    dgraph_edge::dgraph_edge(edge_labelled_dgraph* g, dgraph_node* f, dgraph_node* t, app* hterm_label) {
-        this->dgraph = g;
-        this->from = f;
-        this->to = t;
-        this->hterm_label = hterm_label;
-    }
-
-    // graph print functions
-    void pt_dgraph_node::print(std::ostream& out) {
-        out << "(N)-(PT)-" << mk_ismt2_pp(this->pt_leader, this->get_dgraph()->get_th()->get_manager()) <<"-(" << mk_ismt2_pp(this->addr_leader, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
-    }
-
-    void hvar_dgraph_node::print(std::ostream& out) {
-        auto hvar_label = this->get_hvar_label();
-        out << "(N)-(HVAR)-(" << mk_ismt2_pp(hvar_label, this->get_dgraph()->get_th()->get_manager()) << ")-(" << this->get_dfs_index() << ", " << this->get_low_index() << ")";
-    }
-
-    void dgraph_edge::print(std::ostream& out) {
-        out << "["; this->from->print(out); out << "]" << "<" << mk_ismt2_pp(this->hterm_label, this->get_dgraph()->get_th()->get_manager()) << ">["; this->to->print(out); out << "]" << std::endl;
-    }
-
-    void edge_labelled_dgraph::print(std::ostream& out) {
-        out << "-------" << std::endl;
-        out << "dgraph nodes: " << std::endl;
-        for(dgraph_node* n : this->nodes) {
-            n->print(std::cout);
-            out << std::endl;
+    // encoder
+    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>>  eq_hterm_pairs) {
+        // record all kinds of hts
+        this->th = th;
+        this->emp_ht = nullptr;
+        int i = 0;
+        for(heap_term* ht : all_hterms) {
+            this->ht2index_map[ht] = i;
+            this->index2ht.push_back(ht);
+            i ++;
         }
-        out << "dgraph edges:" << std::endl;
-        for(dgraph_edge* e : this->edges) {
-            e->print(std::cout);
-        }
-    }
-
-    // hterm class
-    bool hterm::is_sub_hterm_of(hterm* ht) {
-        SASSERT(this->h_eq == ht->get_h_eq());
-        std::set<std::pair<app*, app*>> h_atoms_larger = ht->get_h_atoms();
-        if(slhv_util::setIsSubset(h_atoms_larger, this->h_atoms)) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool hterm::is_super_hterm_of(hterm* ht) {
-        SASSERT(this->h_eq == ht->get_h_eq());
-        if(slhv_util::setIsSubset(this->get_h_atoms(), ht->get_h_atoms())) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool hterm::is_established() {
-        for(auto p : this->h_atoms) {
-            if(p.second != nullptr) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    bool hterm::is_emp() {
-        SASSERT(this->h_atoms.size() > 0);
-        if(this->h_atoms.size() == 1 && (*this->h_atoms.begin()).first == this->h_eq->get_emp()) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    std::set<hterm*> hterm::get_all_atom_hterms() {
-        std::set<hterm*> result;
-        for(auto app_pair : this->h_atoms) {
-            std::set<std::pair<app*, app*>> atom;
-            atom.insert(app_pair); 
-            hterm* atom_hterm = alloc(hterm, atom, this->h_eq, this->loc_eq);
-            result.insert(atom_hterm);
-        }
-        return result;
-    }
-
-
-    std::set<hterm*> hterm::generate_all_subhterms() {
-        std::set<hterm*> curr_result;
-        std::set<hterm*> next_result;
-        std::set<std::pair<app*, app*>> empty;
-        hterm* emp_hterm = alloc(hterm, empty, this->h_eq, this->loc_eq);
-        for(std::pair<app*, app*> curr_atom : this->h_atoms) {
-            next_result = this->concat_subhterms(curr_result, curr_atom);
-            curr_result = next_result;
-        }
-        return curr_result;
-    }
-
-    void hterm::print_app_pair(std::pair<app*, app*> p, std::ostream& os) {
-        if(p.second != nullptr) {
-            os << mk_ismt2_pp(p.first, this->loc_eq->get_th()->get_manager()) << " -> " << mk_ismt2_pp(p.second, this->loc_eq->get_th()->get_manager());
-        } else {
-            os << mk_ismt2_pp(p.first, this->loc_eq->get_th()->get_manager());
-        }
-    }
-    void hterm::print(std::ostream& os) {
-        if(this->h_atoms.size() > 1) {
-            os << "(hterm ";
-            for(auto p : this->h_atoms) {
-                this->print_app_pair(p, os);
-                os <<  ", ";
-            }
-            os << ")";
-        } else {
-            
-            os << "(hterm ";
-            this->print_app_pair(*this->h_atoms.begin(), os);
-            os << ")";
-        }
-    }
-
-
-    std::set<hterm*> hterm::concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom) {
-        for(hterm* ht : hterm_set) {
-            for(auto pair : ht->get_h_atoms()) {
-                SASSERT(pair != curr_atom);
-            }
-        }
-        std::set<hterm*> result_hterm_set;
-        for(hterm* ht : hterm_set) {
-            if(ht->get_h_atoms().size() == 1 && (*ht->get_h_atoms().begin()).first == this->h_eq->get_emp()) {
-                std::set<std::pair<app*, app*>> contain_set;
-                contain_set.insert(curr_atom);
-                hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
-                hterm* not_contain_hterm = ht;
-                result_hterm_set.insert(contain_hterm);
-                result_hterm_set.insert(not_contain_hterm);
+        this->hts = all_hterms;
+        this->eq_ht_pairs = eq_hterm_pairs;
+        for(heap_term* ht : this->hts) {
+            if(ht->is_emp()) {
+                SASSERT(this->emp_ht == nullptr);
+                this->emp_ht = ht;
+            } else if(ht->is_atom_pt()) {
+                this->atom_hts.insert(ht);
+                this->pt_hts.insert(ht);
+            } else if(ht->is_atom_hvar()) {
+                this->atom_hts.insert(ht);
+                this->hvar_hts.insert(ht);
             } else {
-                std::set<std::pair<app*, app*>> contain_set = ht->get_h_atoms();
-                contain_set.insert(curr_atom);
-                hterm* contain_hterm = alloc(hterm, contain_set, this->h_eq, this->loc_eq);
-                hterm* not_contain_hterm = ht;
-                result_hterm_set.insert(contain_hterm);
-                result_hterm_set.insert(not_contain_hterm);
+                // compound ht
             }
         }
-        return result_hterm_set;
-    }
+        this->syntax_maker = this->th->syntax_maker;
 
-    hterm* hterm::substract_hterm(hterm* substractor) {
-        SASSERT(substractor->is_sub_hterm_of(this));
-        SASSERT(this->h_eq == substractor->get_h_eq());
-        std::set<std::pair<app*, app*>> h_atom_remained = slhv_util::setSubstract(this->h_atoms, substractor->get_h_atoms());
-        hterm* result = alloc(hterm, h_atom_remained, this->h_eq, this->loc_eq);
-        return result;
-    }
-
-
-    hterm* hterm::replace_subhterm(hterm* orig_subhterm, hterm* replaced_subhterm) {
-        SASSERT(orig_subhterm->is_sub_hterm_of(this));
-        SASSERT(this->h_eq == orig_subhterm->get_h_eq() && this->h_eq == replaced_subhterm->get_h_eq());
-        std::set<std::pair<app*, app*>> h_atom_replaced = slhv_util::setUnion(
-            slhv_util::setSubstract(this->h_atoms, orig_subhterm->get_h_atoms()),
-            replaced_subhterm->get_h_atoms()
-        );
-        hterm* result = alloc(hterm, h_atom_replaced, this->h_eq, this->loc_eq);
-        return result;
-    }
-    // equiheap relation
-    void equiheap_relation::add_hterm(hterm* ht) {
-        SASSERT(ht->get_loc_eq() == this->loc_eq && ht->get_h_eq() == this->h_eq);
-        for(hterm* t : this->hterm_set) {
-            if(*ht == *t) {
-                break;
+        // create boolean variables
+        for(int ht1_index = 0; ht1_index < this->hts.size(); ht1_index ++) {
+            for(int ht2_index = 0; ht2_index < this->hts.size(); ht2_index ++) {
+                if(ht1_index != ht2_index || this->djrel_var_map.find({ht1_index, ht2_index}) == this->djrel_var_map.end()) {
+                    std::string idj_name_prefix = "idj";
+                    std::string ish_name_prefix = "ish";
+                    std::pair<int, int> key_pair = {ht1_index, ht2_index};
+                    app* idj_boolvar = this->syntax_maker->mk_boolvar(idj_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+                    app* ish_boolvar = this->syntax_maker->mk_boolvar(ish_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+                    this->djrel_var_map[key_pair] = idj_boolvar;
+                    this->shrel_var_map[key_pair] = ish_boolvar;
+                } 
             }
         }
-        this->hterm_set.insert(ht);
+        // create intvar for locvar
+        for(app* lv : this->th->curr_locvars) {
+            SASSERT(this->th->is_locvar(lv));
+            std::string name = lv->get_name().str();
+            std::string int_name = name + "_intvar";
+            app* intvar = this->syntax_maker->mk_lia_intvar(int_name);
+            SASSERT(this->locvar2intvar_map.find(lv) == this->locvar2intvar_map.end());
+            this->locvar2intvar_map[lv] = intvar;
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "formula encoder created" << std::endl;
+        #endif
     }
-
-    void equiheap_relation::add_pair(hterm* ht1, hterm* ht2) {
-        for(auto p : this->equiv_pairs) {
-            if(*p.first == *ht1 && *p.second == *ht2 || 
-               *p.second == *ht1 && *p.first == *ht2) {
-                break;
-            }
-        }
-        this->equiv_pairs.insert({ht1, ht2});
-    }
-
-
-    bool equiheap_relation::construct_equiv_class() {
-        for(auto p : this->equiv_pairs) {
-            SASSERT(this->hterm_set.find(p.first) != this->hterm_set.end());
-            SASSERT(this->hterm_set.find(p.second) != this->hterm_set.end());
-        }
-        for(hterm* t : this->hterm_set) {
-            std::set<hterm*> singleton{t};
-            this->equiv_class[t] = singleton;
-        }
-        for(auto p : this->equiv_pairs) {
-            std::set<hterm*> all_equal_hterms = slhv_util::setUnion(this->equiv_class[p.first], this->equiv_class[p.second]);
-            for(hterm* t : all_equal_hterms) {
-                this->equiv_class[t] = all_equal_hterms;
-            }
-        }
         
-        bool is_consistent = this->check_inconsistency();
-        return is_consistent;
+    app* formula_encoder::get_shrel_boolvar(heap_term* subht, heap_term* supht) {
+        int sub_index = this->ht2index_map[subht];
+        int sup_index = this->ht2index_map[supht];
+
+        std::pair<int, int> key = {sub_index, sup_index};
+        return this->shrel_var_map[key];
     }
 
-    bool equiheap_relation::check_inconsistency() {
-        SASSERT(this->loc_eq != nullptr && this->h_eq != nullptr);
-        std::set<std::set<hterm*>> distinct_hterm_eq_set;
-        for(auto record : this->equiv_class) {
-            if(distinct_hterm_eq_set.find(record.second) == distinct_hterm_eq_set.end()) {
-                distinct_hterm_eq_set.insert(record.second);
+    app* formula_encoder::get_djrel_boolvar(heap_term* firstht, heap_term* secondht) {
+        int first_index = this->ht2index_map[firstht];
+        int second_index = this->ht2index_map[secondht];
+
+        std::pair<int, int> key = {first_index, second_index};
+        return this->djrel_var_map[key];
+    }
+    
+    app* formula_encoder::locvar2intvar(app* locvar) {
+        if(this->locvar2intvar_map.find(locvar) == this->locvar2intvar_map.end()) {
+            return nullptr;
+        }
+        return this->locvar2intvar_map[locvar];
+    }
+
+
+    std::set<heap_term*> formula_encoder::get_sub_atom_hts(heap_term* orig_ht) {
+        std::vector<int> ht_atom_vec = orig_ht->get_atomic_count();
+        std::set<std::vector<int>> atom_counts;
+        for(int i = 0; i < orig_ht->get_vec_size(); i ++) {
+            if(ht_atom_vec[i] != 0) {
+                std::vector<int> atom_count(orig_ht->get_vec_size(), 0);
+                atom_count[i] = 1;
+                atom_counts.insert(atom_count);
             }
         }
-        for(std::set<hterm*> hterm_eq : distinct_hterm_eq_set) {
-            for(hterm* ht1 : hterm_eq) {
-                for(hterm* ht2 : hterm_eq) {
-                    // CRITICAL: need to prove that this is correct regarding the satisfiability
-                    if(ht1->get_all_atom_hterms().size() == 1 && ht2->get_all_atom_hterms().size() == 1) {
-                        std::set<std::pair<app*, app*>> ht1_app_pairs = (*ht1->get_all_atom_hterms().begin())->get_h_atoms();
-                        std::set<std::pair<app*, app*>> ht2_app_pairs = (*ht2->get_all_atom_hterms().begin())->get_h_atoms();
-                        // Situation 1: established equal to empty
-                        if((*ht1->get_all_atom_hterms().begin())->is_established() && 
-                           (*ht2->get_all_atom_hterms().begin())->is_emp()) {
-                            return false;
-                        }
-                        // Situation 2: established equal established but with different address or same address with different data
-                        if((*ht1->get_all_atom_hterms().begin())->is_established() &&
-                           (*ht2->get_all_atom_hterms().begin())->is_established()) {
-                            std::pair<app*, app*> ht1_app = *ht1_app_pairs.begin();
-                            std::pair<app*, app*> ht2_app = *ht2_app_pairs.begin();
-                            app* ht1_addr = to_app(ht1_app.second->get_arg(0));
-                            app* ht1_data = to_app(ht1_app.second->get_arg(1));
-                            app* ht2_addr = to_app(ht2_app.second->get_arg(0));
-                            app* ht2_data = to_app(ht2_app.second->get_arg(1));
-                            if(this->loc_eq->get_leader_locvar(ht1_addr) != this->loc_eq->get_leader_locvar(ht2_addr)) {
-                                return false;
-                            } else {
-                                if(this->loc_eq->get_leader_locvar(ht1_data) != this->loc_eq->get_leader_locvar(ht2_data)) {
-                                    return false;
+        // find atoms 
+        std::set<heap_term*> result;
+        for(std::vector<int> id_vec : atom_counts) {
+            for(heap_term* aht : this->atom_hts) {
+                if(aht->get_atomic_count() == id_vec) {
+                    result.insert(aht);
+                    break;
+                }
+            }
+        }
+        return result;
+    }
+
+    app* formula_encoder::translate_locterm_to_liaterm(app* locterm) {
+        arith_util a(this->th->get_manager());
+        if(this->th->is_locvar(locterm)) {
+            return this->locvar2intvar(locterm);
+        } else if(this->th->is_nil(locterm)) {
+            return this->syntax_maker->mk_lia_intconst(0);
+        } else if(this->th->is_locadd(locterm)){
+            SASSERT(locterm->get_num_args() == 2);
+            app* arg1 = to_app(locterm->get_arg(0));
+            app* arg2 = to_app(locterm->get_arg(1));
+            app* first = this->translate_locterm_to_liaterm(arg1);
+            SASSERT(this->th->is_dataterm(arg2));
+            app* result = a.mk_add(first, arg2);
+            return result;
+        } else {
+            return locterm;
+        }
+    }
+
+    expr* formula_encoder::translate_locdata_formula(expr* formula) {
+        app* apped_formula = to_app(formula);
+        if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = to_app(apped_formula->get_arg(0));
+            expr* inner_translated = this->translate_locdata_formula(inner);
+            return this->th->get_manager().mk_not(inner_translated);
+        } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
+            app* inner_first = to_app(apped_formula->get_arg(0));
+            app* inner_second = to_app(apped_formula->get_arg(1));
+            app* translated_inner_first = this->translate_locterm_to_liaterm(inner_first);
+            app* translated_inner_second = this->translate_locterm_to_liaterm(inner_second);
+            expr_ref_vector expr_vec(this->th->get_manager());
+            expr_vec.push_back(translated_inner_first);
+            expr_vec.push_back(translated_inner_second);
+            return this->th->get_manager().mk_distinct(2, expr_vec.data());
+        } else if(apped_formula->is_app_of(basic_family_id, OP_EQ)) {
+            app* inner_lhs = to_app(apped_formula->get_arg(0));
+            app* inner_rhs = to_app(apped_formula->get_arg(1));
+            app* translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
+            app* translated_inner_rhs = this->translate_locterm_to_liaterm(inner_rhs);
+            return this->th->get_manager().mk_eq(translated_inner_lhs, translated_inner_rhs);
+        } else {
+            return formula;
+        }
+    }
+
+    expr* formula_encoder::generate_ld_formula() {
+        #ifdef SLHV_DEBUG
+        std::cout << "generate ld formula" << std::endl;
+        #endif
+        expr* result = this->th->get_manager().mk_true();
+        for(app* loc_constraint : this->th->curr_loc_cnstr) {
+            result = this->th->get_manager().mk_and(result, this->translate_locdata_formula(loc_constraint));
+        }
+        for(app* data_constraint : this->th->curr_data_cnstr) {
+            result = this->th->get_manager().mk_and(result, data_constraint);
+        }
+        return result;
+    }
+
+    expr* formula_encoder::generate_init_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate init formula" << std::endl;
+        #endif
+        expr* disj_form = this->th->get_manager().mk_true();
+        for(heap_term* uplus_ht : this->hts) {
+            if(uplus_ht->is_uplus_hterm()) {
+                for(auto vec_pair : uplus_ht->get_splitted_subpairs()) {
+                    std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);
+                    disj_form = this->th->get_manager().mk_and(disj_form, this->get_djrel_boolvar(htp.first, htp.second));
+                }
+            }
+        }
+        expr* emp_subsume_form = this->th->get_manager().mk_true();
+        for(heap_term* ht : this->hts) {
+            emp_subsume_form = this->th->get_manager().mk_and(emp_subsume_form, this->get_shrel_boolvar(this->emp_ht, ht));
+        }
+
+        expr* sub_ht_form = this->th->get_manager().mk_true();
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                if(!(ht1->is_emp() || ht2->is_emp()) && ht1->is_subhterm_of(ht2)) {
+                    sub_ht_form = this->th->get_manager().mk_and(sub_ht_form, this->get_shrel_boolvar(ht1, ht2));
+                }
+            }
+        }
+
+        expr* eq_induced_subht_form = this->th->get_manager().mk_true();
+        for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
+            eq_induced_subht_form = this->th->get_manager().mk_and(
+                eq_induced_subht_form,
+                this->get_shrel_boolvar(p.first, p.second),
+                this->get_shrel_boolvar(p.second, p.first)
+            );
+        }
+        expr_ref_vector expr_vec(this->th->get_manager());
+        expr_vec.push_back(disj_form);
+        expr_vec.push_back(emp_subsume_form);
+        expr_vec.push_back(sub_ht_form);
+        expr_vec.push_back(eq_induced_subht_form);
+        expr* result = this->th->get_manager().mk_and(4, expr_vec.data());
+        return result;
+    }
+
+    expr* formula_encoder::generate_pto_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate pto formula" << std::endl;
+        #endif
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ptp : this->pt_hts) {
+                std::vector<app*> pt_atom = pt->get_atoms();
+                SASSERT(pt_atom.size() == 1);
+                app* pt_addr = to_app(pt_atom[0]->get_arg(0));
+                app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* pt_content = to_app(pt_rcd->get_arg(0));
+                
+                std::vector<app*> ptp_atom = ptp->get_atoms();
+                SASSERT(ptp_atom.size() == 1);
+                app* ptp_addr = to_app(ptp_atom[0]->get_arg(0));
+                app* ptp_rcd = to_app(ptp_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* ptp_content = to_app(ptp_rcd->get_arg(0));
+                expr* disj_temp_form = this->th->get_manager().mk_implies(
+                    this->get_djrel_boolvar(pt, ptp),
+                    this->th->get_manager().mk_not(
+                        this->th->get_manager().mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        )
+                    )
+                );
+                expr* content_eq_temp_form = nullptr;
+                if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                    std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
+                    std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;
+                    content_eq_temp_form = this->th->get_manager().mk_eq(
+                        this->translate_locterm_to_liaterm(pt_content),
+                        this->translate_locterm_to_liaterm(ptp_content)
+                    );
+
+                } else {
+                    content_eq_temp_form = this->th->get_manager().mk_false();
+                }
+                expr* sh_temp_form = this->th->get_manager().mk_implies(
+                    this->get_shrel_boolvar(pt, ptp),
+                    this->th->get_manager().mk_and(
+                        this->th->get_manager().mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        ),
+                        content_eq_temp_form
+                    )
+                );
+
+                first_conj = this->th->get_manager().mk_and(
+                    first_conj,
+                    disj_temp_form,
+                    sh_temp_form
+                );
+
+                for(heap_term* ht : this->hts) {
+                    second_conj = this->th->get_manager().mk_implies(
+                        this->th->get_manager().mk_and(
+                            this->get_shrel_boolvar(pt, ht),
+                            this->get_shrel_boolvar(ptp, ht)
+                        ),
+                        this->th->get_manager().mk_or(
+                            this->get_shrel_boolvar(pt, ptp),
+                            this->get_djrel_boolvar(pt, ptp)
+                        )
+                    );
+                }
+            }
+            
+        }
+
+        return this->th->get_manager().mk_and(first_conj, second_conj);
+    }
+
+    expr* formula_encoder::generate_iso_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate iso formula" << std::endl;
+        #endif
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        expr* third_conj = this->th->get_manager().mk_true();
+
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ht : this->hts) {
+                if(ht != this->emp_ht) {
+                    expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
+                    expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
+                    for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                        first_conj_ipl_rhs = this->th->get_manager().mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, a));
+                    }
+                    first_conj = this->th->get_manager().mk_and(
+                        first_conj,
+                        this->th->get_manager().mk_implies(first_conj_ipl_lhs, first_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                for(heap_term* ht3 : this->hts) {
+                    expr* second_conj_ipl_lhs = this->th->get_manager().mk_and(
+                        this->get_shrel_boolvar(ht1, ht2),
+                        this->get_shrel_boolvar(ht2, ht3)
+                    );
+                    expr* second_conj_ipl_rhs =  this->get_shrel_boolvar(ht1, ht3);
+                    second_conj = this->th->get_manager().mk_and(
+                        second_conj, 
+                        this->th->get_manager().mk_implies(second_conj_ipl_lhs, second_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        for(heap_term* compound_ht1 : this->hts) {
+            for(heap_term* compound_ht2 : this->hts) {
+                if(compound_ht1 != this->emp_ht && compound_ht2 != this->emp_ht) {
+                    std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht1_split_counts = compound_ht1->get_splitted_subpairs();
+                    std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht2_split_counts = compound_ht2->get_splitted_subpairs();
+                    for(auto ht1ht2_vec : compound_ht1_split_counts) {
+                        auto ht1ht2 = this->get_ht_pair_by_vec_pair(ht1ht2_vec);
+                        if(ht1ht2.first != this->emp_ht && ht1ht2.second != this->emp_ht) {
+                            for(auto ht1pht2p_vec : compound_ht2_split_counts) {
+                                auto ht1pht2p = this->get_ht_pair_by_vec_pair(ht1pht2p_vec);
+                                if(ht1pht2p.first != this->emp_ht && ht1pht2p.first != this->emp_ht) {
+                                    expr* third_conj_impl_lhs = this->th->get_manager().mk_and(
+                                        this->get_shrel_boolvar(ht1ht2.first, ht1pht2p.first),
+                                        this->get_shrel_boolvar(ht1ht2.second, ht1pht2p.second)
+                                    );
+                                    expr* third_conj_impl_rhs =  this->get_shrel_boolvar(compound_ht1, compound_ht2);
+                                    third_conj = this->th->get_manager().mk_and(
+                                        third_conj,
+                                        this->th->get_manager().mk_implies(third_conj_impl_lhs, third_conj_impl_rhs)
+                                    );
                                 }
                             }
                         }
@@ -4167,116 +1542,111 @@ namespace smt {
                 }
             }
         }
-        return true;
+
+        expr* result = this->th->get_manager().mk_and(first_conj, second_conj, third_conj);
+        return result;
     }
 
-    // subheap relation
-    void subheap_relation::add_pair(hterm* ht_smaller, hterm* ht_larger) {
-        for(auto smaller_ht : ht_smaller->get_h_atoms()) {
-            if(smaller_ht.second != nullptr) {
-                for(auto larger_ht : ht_larger->get_h_atoms()) {
-                    if(larger_ht.second != nullptr && larger_ht.first == smaller_ht.first && smaller_ht.second != larger_ht.second) {
-                        SASSERT(false);
-                        // this should not happen
+    expr* formula_encoder::generate_idj_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate idj formula" << std::endl;
+        #endif
+        expr* result = this->th->get_manager().mk_true();
+        for(heap_term* ht1 : this->hts) {
+            if(ht1 == this->emp_ht) {break;}
+            for(heap_term* ht2 : this->hts) {
+                if(ht2 == this->emp_ht) {break;}
+                for(heap_term* ht3 : this->hts) {
+                    if(ht3 == this->emp_ht) {break;}
+                    for(heap_term* ht4 : this->hts) {
+                        if(ht4 == this->emp_ht) {break;}
+                        expr* impl_lhs = this->th->get_manager().mk_and(
+                            this->get_shrel_boolvar(ht1, ht3),
+                            this->get_shrel_boolvar(ht2, ht4),
+                            this->get_djrel_boolvar(ht3, ht4)
+                        );
+                        expr* impl_rhs = this->get_djrel_boolvar(ht1, ht2);
+                        result = this->th->get_manager().mk_and(
+                            result,
+                            this->th->get_manager().mk_implies(impl_lhs, impl_rhs)
+                        );
                     }
                 }
             }
         }
-        this->subheap_pairs.insert({ht_smaller, ht_larger});
+        return result;
     }
 
-    void subheap_relation::add_equal(hterm* first, hterm* second) {
-        this->add_pair(first, second);
-        this->add_pair(second, first);
-    }
+    expr* formula_encoder::generate_final_formula() {
 
-    bool subheap_relation::contain_hterm(hterm* ht) {
-        if(this->hterm_set.find(ht) != this->hterm_set.end()) {
-            return true;
-        } else {
-            return false;
-        }
-    }
-
-    bool subheap_relation::is_subheap(hterm* smaller, hterm* larger) {
-        if(this->contain_hterm(smaller) && this->contain_hterm(larger)) {
-            for(auto pair : this->subheap_pairs) {
-                if(smaller == pair.first && larger == pair.second) {
-                    return true;
-                }
-            }
-            return false;
-        } else {
-            return false;
-        }
-    }
-
-    bool subheap_relation::is_equal_heap(hterm* first, hterm* second) {
-        if(this->contain_hterm(first) && this->contain_hterm(second)) {
-            bool subheap, overheap = false;
-            for(auto pair : this->subheap_pairs) {
-                if(first == pair.first && second == pair.second) {
-                    subheap = true;
-                }
-                if(first == pair.second && second == pair.first) {
-                    overheap = true;
-                }
-                if(subheap && overheap) {
-                    return true;
-                }
-            }
-            return false;
-        } else {
-            if(slhv_util::setEqual(first->get_h_atoms(), second->get_h_atoms())) {
-                return true;
-            } else {
-                return false;
-            }
-        }
-    }
-
-    std::set<hterm*> subheap_relation::get_all_smaller_hterms(hterm* larger) {
-        SASSERT(this->contain_hterm(larger));
-        std::set<hterm*> result;
-        for(auto pair : this->subheap_pairs) {
-            if(pair.second == larger) {
-                result.insert(pair.first);
-            }
+        #ifdef SLHV_DEBUG
+        std::cout << "generate final formula" << std::endl;
+        #endif
+        expr* result = this->th->get_manager().mk_true();
+        for(heap_term* pt : this->pt_hts) {
+            result = this->th->get_manager().mk_and(
+                result,
+                this->th->get_manager().mk_not(this->get_shrel_boolvar(pt, this->emp_ht))
+            );
         }
         return result;
     }
 
+    expr* formula_encoder::generate_loc_var_constraints() {
+        // generate locvar constraints
 
-
-
-    std::set<std::pair<hterm*, hterm*>> subheap_relation::extract_equivalent_hterms() {
-        std::set<std::pair<hterm*, hterm*>> result; 
-        for(auto p1 : this->subheap_pairs) {
-            for(auto p2 : this->subheap_pairs) {
-                if(p1.first == p2.second && p2.second == p1.first) {
-                    result.insert({p1.first, p1.second});
-                }
-            }
+        #ifdef SLHV_DEBUG
+        std::cout << "generate loc var constraints" << std::endl;
+        #endif
+        expr* result = this->th->get_manager().mk_true();
+        for(auto item : this->locvar2intvar_map) {
+            SASSERT(this->th->is_locvar(item.first));
+            arith_util a(this->th->get_manager());
+            result = this->th->get_manager().mk_and(
+                result,
+                a.mk_ge(item.second, a.mk_int(0))
+            );
         }
         return result;
     }
-    
-    void subheap_relation::print(std::ostream& os) {
-        os << "subheap relation hterm set: " << std::endl;
-        for(hterm* ht : this->hterm_set) {
-            ht->print(os);
-            os << std::endl;
-        }
-        os << "subheap pairs: " << std::endl;
-        for(auto p : subheap_pairs) {
-            p.first->print(os);
-            os  << " <= ";
-            p.second->print(os);
-            os << std::endl;
-        }
+
+    expr* formula_encoder::encode() {
+        expr_ref_vector all_conj(this->th->get_manager());
+
+        all_conj.push_back(this->generate_ld_formula());
+        all_conj.push_back(this->generate_init_formula());
+        all_conj.push_back(this->generate_pto_formula());
+        all_conj.push_back(this->generate_iso_formula());
+        all_conj.push_back(this->generate_idj_formula());
+        all_conj.push_back(this->generate_final_formula());
+        all_conj.push_back(this->generate_loc_var_constraints());
+        expr* result = this->th->get_manager().mk_and(
+            all_conj.size(),
+            all_conj.data()
+        );
+        return result;
     }
 
 
+    std::pair<heap_term*, heap_term*> formula_encoder::get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair) {
+        heap_term* first_ht = nullptr;
+        heap_term* second_ht = nullptr;
+        for(heap_term* ht : this->hts) {
+            if(ht->get_atomic_count() == vec_pair.first) {
+                SASSERT(first_ht == nullptr);
+                first_ht = ht;
+            }
+            if(ht->get_atomic_count() == vec_pair.second) {
+                SASSERT(second_ht == nullptr);
+                second_ht = ht;
+            }
+            if(first_ht != nullptr && second_ht != nullptr) {
+                break;
+            }
+        }
+        return {first_ht, second_ht};
+    }
 
     // syntax maker
 
@@ -4294,6 +1664,30 @@ namespace smt {
         return this->fv_maker->mk_fresh_datavar();
     }
 
+    app* slhv_syntax_maker::mk_lia_intvar(std::string name) {
+        arith_util a(this->th->get_manager());
+        family_id arith_family_id = this->th->get_manager().mk_family_id("arith");
+        sort* range_sort = a.mk_int();
+        unsigned num_args = 0;
+        arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
+        app* lia_intvar = this->th->get_manager().mk_const(name, range_sort);
+        #ifdef SLHV_DEBUG
+        std::cout << "lia intvar made: " << name << std::endl;
+        #endif
+        return lia_intvar;
+    }
+
+    app* slhv_syntax_maker::mk_lia_intconst(int constval) {
+        arith_util a(this->th->get_manager());
+        return a.mk_int(constval);
+    }
+
+    app* slhv_syntax_maker::mk_boolvar(std::string name) {
+        sort* bool_sort = this->th->get_manager().mk_bool_sort();
+        app* boolvar = this->th->get_manager().mk_const(name, bool_sort);
+        return boolvar;
+    }
+
     app* slhv_syntax_maker::mk_fresh_hvar() {
         return this->fv_maker->mk_fresh_hvar();
     }
@@ -4301,6 +1695,8 @@ namespace smt {
     app* slhv_syntax_maker::mk_fresh_locvar() {
         return this->fv_maker->mk_fresh_locvar();
     }
+
+
 
     app* slhv_syntax_maker::mk_read_formula(app* from_hvar, app* read_addr, app* read_data) {
         SASSERT(this->th->is_hvar(from_hvar));
@@ -5186,86 +2582,10 @@ namespace smt {
 
 
     void theory_slhv::init_model(model_generator & mg)  {
-        SASSERT(this->check_status == slhv_sat);
-        #ifdef SLHV_DEBUG
-        std::cout << "slhv init model" << std::endl;
-        #endif
-        m_factory = alloc(locvar_factory, this->get_manager(), this->get_family_id());
-        mg.register_factory(m_factory);
-        m_factory->set_slhv_decl_plugin(this->slhv_plug);
-        SASSERT(this->global_nil != nullptr && this->global_emp != nullptr);
-        this->m_factory->set_nil_loc(this->global_nil);
-        this->m_factory->set_emp_heap(this->global_emp);
     }
 
 
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
-        theory_var enode_var = n->get_th_var(this->get_family_id());
-        SASSERT(this->check_status == slhv_sat);
-        #ifdef SLHV_DEBUG
-        std::cout << "mk_value for enode: " << mk_ismt2_pp(n->get_expr(), this->get_manager()) << " th_var id: " << enode_var << std::endl;
-        #endif
-        arith_util a(this->get_manager());
-        if(n->get_sort()->get_name() == INTLOC_SORT_STR) {
-            #ifdef SLHV_DEBUG
-            std::cout << "curr mk value for intloc sort" << std::endl;
-            #endif
-            if(this->is_locvar(n->get_expr())) {
-                app* locvar = to_app(n->get_expr());
-                app* leader_locvar = model_graph->get_locvar_eq()->get_leader_locvar(locvar);
-                if(this->expr2value.find(leader_locvar) != this->expr2value.end()) {
-                    // if the equivalence class already have value
-                    return this->expr2value[locvar];
-                } else {
-                    // otherwise create a fresh loc value
-                    app* fresh_loc = to_app(this->m_factory->get_fresh_value(n->get_sort()));
-                    expr_wrapper_proc* result = alloc(expr_wrapper_proc, fresh_loc);
-                    this->expr2value[leader_locvar] = result;
-                }
-            } else {
-                // currently not support complicate loc terms
-                SASSERT(false);
-            }
-        } else if(n->get_sort()->get_name() == INTHEAP_SORT_STR){
-            #ifdef SLHV_DEBUG 
-            std::cout << "curr mk value for intheap sort" << std::endl;
-            #endif
-            if(this->is_hvar(n->get_expr())) {
-                heap_value_proc* hvp = alloc(heap_value_proc, this->get_family_id(), n->get_sort());
-                app* n_hvar = to_app(n->get_expr());
-                dgraph_node* n_hvar_node = this->model_graph->get_hvar_node(n_hvar);
-                std::vector<dgraph_node*> nodes_depend;
-                std::set<enode*> enodes_depend;
-                for(dgraph_edge* e : this->model_graph->get_edges_from_node(n_hvar_node)) {
-                    nodes_depend.push_back(e->get_to()); 
-                }
-                for(dgraph_node* n : nodes_depend) {
-                    if(n->is_hvar()) {
-                        enode* hvar_enode = this->get_context().get_enode(((hvar_dgraph_node*)n)->get_hvar_label());
-                        enodes_depend.insert(hvar_enode);
-                    } else if(n->is_points_to()) {
-                        // TODO: this can be detailize into enodes of loc vars and datavars
-                        enode* pt_enode = this->get_context().get_enode(((pt_dgraph_node*)n)->get_pt_leader());
-                        enodes_depend.insert(pt_enode);
-                    } else {
-                        SASSERT(false);
-                    }
-                }
-                for(enode* en : enodes_depend) {
-                    hvp->add_dependency(model_value_dependency(en));
-                }
-                return hvp;
-            } else if(this->is_uplus(n->get_expr())) {
-
-            } else if(this->is_points_to(n->get_expr())) {
-
-            } else {
-                SASSERT(false);
-            }
-        } else if(n->get_sort() == a.mk_int()) {
-            SASSERT(false);
-        } else {
-            SASSERT(false);
-        }
+        return nullptr;
     }
 }

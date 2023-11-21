@@ -1016,6 +1016,7 @@ namespace smt2 {
                 
                 func_decl* ptrs = this->m_ctx.find_func_decl(symbol(curr_Pt_R_name));
                 std::cout << "ptrs range sort: " << ptrs->get_range()->get_name() << std::endl;
+                SASSERT(locnum == 1 &&  datanum == 0 || locnum == 0 && datanum == 1);
                 plug->add_pt_record(curr_Pt_R_name, locnum, datanum);
                 plug->add_pt_r_decl(curr_Pt_R_name, ptrs);
             }

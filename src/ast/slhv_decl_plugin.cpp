@@ -13,6 +13,7 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_disj_union_sym("uplus"),
     m_list_segment_sym("lseg"),
     m_points_to_sym("pt"),
+    m_locadd_symbol("locadd"),
     m_locconst_symbol("Loc"),
     global_emp(nullptr),
     global_nil(nullptr),
@@ -56,6 +57,8 @@ void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol con
     op_names.push_back(builtin_name("uplus", OP_HEAP_DISJUNION));
     op_names.push_back(builtin_name("pt", OP_POINTS_TO));
     op_names.push_back(builtin_name("lseg", OP_LIST_SEGMENT));
+    op_names.push_back(builtin_name("locadd", OP_LOCADD));
+
 }
 
 func_decl* slhv_decl_plugin::mk_uplus(unsigned arity, sort * const * domain) {
@@ -97,6 +100,25 @@ func_decl* slhv_decl_plugin::mk_points_to(unsigned arity, sort * const* domain) 
     func_decl* result_decl = m_manager->mk_func_decl(m_points_to_sym, arity, domain, final_sort, func_decl_info(m_family_id, OP_POINTS_TO));
     #ifdef SLHV_DEBUG
     std::cout << "mk_points_to result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
+    #endif
+    return result_decl;
+
+}
+
+func_decl* slhv_decl_plugin::mk_locadd(unsigned arity, sort* const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("locadd takes exactly two arguments");
+        return nullptr;
+    }
+    sort* addon_loc_sort = domain[0];
+    sort* num_sort = domain[1];
+
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTLOC_SORT, 0, nullptr);
+
+    func_decl_info info(m_family_id, OP_LOCADD);
+    func_decl* result_decl = m_manager->mk_func_decl(m_locadd_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_LOCADD));
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_locadd result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 
@@ -174,6 +196,11 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_points_to" << std::endl; 
     #endif 
         return this->mk_points_to(arity, domain);
+    case OP_LOCADD:
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_func_decl in slhv plugin op_locadd" << std::endl; 
+    #endif
+        return this->mk_locadd(arity, domain);
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;

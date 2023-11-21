@@ -13,21 +13,9 @@
 #include <tuple>
 namespace smt
 {
+    class heap_term;
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
-    class dgraph_node;
-    class hvar_dgraph_node;
-    class pt_dgraph_node;
-    class dgraph_edge;
-    class hterm;
-    class edge_labelled_dgraph;
-    class edge_labelled_subgraph;
-    class equiheap_relation;
-    class subheap_relation;
-    class locvar_eq;
-    class coarse_hvar_eq;
-    class pt_eq;
-    class assignable_dataterm_pair;
     class theory_slhv : public theory {
 
         public:
@@ -47,33 +35,18 @@ namespace smt
         std::set<app *> curr_datavars;
         std::set<app *> curr_disj_unions;
         std::set<app *> curr_pts;
+        std::vector<app*> curr_atomic_hterms;
 
         std::set<app *> curr_loc_cnstr;
         std::set<app *> curr_heap_cnstr;
         std::set<app* > curr_data_cnstr;
 
-        std::set<enode_pair> curr_distinct_locterm_pairs;
-        std::set<enode*> curr_emp_hterm_enodes;
         std::set<enode*> curr_notnil_locterms_enodes;
-        std::set<enode_pair> curr_distinct_hterm_pairs;
 
         slhv_syntax_maker* syntax_maker;
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
-
-        // enumeration of loc eq
-        std::vector<bool> temp_loceq_bits;
-        bool temp_loc_zero_enumerated;
-        std::map<int, enode_pair> indexed_assignable_loc_pairs;
-
-
-        // enumeration of data constraint
-        std::vector<bool> temp_data_cnstr_bits;
-        bool temp_data_zero_enumerated;
-        std::map<int, enode_pair> indexed_assignable_data_pairs;
-        std::map<enode_pair, std::set<assignable_dataterm_pair*>> temp_data_term_pair2set;
-        std::set<assignable_dataterm_pair*> temp_data_neq_pairs;
 
 
 
@@ -83,11 +56,6 @@ namespace smt
         app* global_nil;
 
         // model generation
-
-        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> sat_node2sinks;
-
-        locvar_factory* m_factory {nullptr};
-        std::map<app*, model_value_proc*> expr2value;
 
 
 
@@ -105,6 +73,16 @@ namespace smt
         } 
         bool is_locvar(app const* n) const {
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
+        }
+        bool is_atom_hterm(app const* n) const {
+            return (is_points_to(n) || is_hvar(n));
+        }
+        bool is_locadd(app const* n) const {
+            if(n->is_app_of(get_id(), OP_LOCADD)) {
+                SASSERT(this->is_locvar(n) && this->is_dataterm(n));
+                return true;
+            }
+            return false;
         }
 
         bool is_datavar(app const* n) const {
@@ -184,80 +162,13 @@ namespace smt
 
         std::set<app*> collect_points_tos(app* expression);
 
-        void record_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
         
-        void record_distinct_locterms(app* atom);
-
         void reset_configs();
         // checking logic
 
-        std::map<enode*, std::set<app*>> get_coarse_locvar_eq();
+        std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
 
-        std::vector<enode_pair> get_unassigned_locvar_pairs();
-
-        std::map<enode*, std::set<app*>> get_fine_locvar_eq(std::set<enode_pair>& assigned_pairs, std::map<enode*, std::set<app*>>& existing_data);
-
-        std::vector<std::map<enode*, std::set<app*>>>  get_feasible_locvars_eq(); 
-
-        void init_locvars_eq_boolvec();
-
-        void init_dataterm_boolvec(locvar_eq* loc_eq);
-
-        std::pair<bool, std::map<enode*, std::set<app*>>> get_locvar_eq_next();
-
-        std::pair<bool, pt_eq*> get_pt_eq_next(locvar_eq* loc_eq);
-
-        std::set<std::set<app*>> construct_pt_coarse_eq(locvar_eq* loc_eq);
-
-        std::vector<assignable_dataterm_pair*> extract_influential_data_constraints(locvar_eq* loc_eq);
-
-        std::map<app*, std::vector<app*>> refine_pt_coarse_eq(std::set<std::set<app*>> pt_coarse_eq, std::set<assignable_dataterm_pair*> neq_pairs, locvar_eq* loc_eq);
-
-        bool is_points_to_loc_inequal(app* pt1, app*pt2, locvar_eq* loc_eq);
-
-        bool check_hterm_distinct_hvar_eq_consistency(coarse_hvar_eq* hvar_eq);
-
-        void infer_emp_hterms();
-
-        void infer_distinct_locterms_in_assignments(expr_ref_vector assigned_literals);
-
-        void infer_distinct_locterms(app* expr);
-
-        void infer_notnil_locterms_in_assignments(expr_ref_vector assigned_literals);
-
-        void infer_notnil_locterms(app* expr);
-
-
-        void infer_distinct_heapterms_in_assignments(expr_ref_vector assigned_hcnstrs);
-
-        void infer_distinct_heapterms(app* atom);
-
-        bool check_locvar_eq_feasibility_in_assignments(locvar_eq* loc_eq);
-
-        bool check_temp_neq_pairs_data_constraint(solver* numeral_solver);
-
-
-        std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> infer_pt_belongingness(edge_labelled_dgraph* saturated_graph);
-
-        std::map<dgraph_node*, std::set<dgraph_node*>> choose_pt_dependency(std::map<dgraph_node*, std::set<std::set<dgraph_node*>>> pt2hterms);
-
-        std::set<hterm*> construct_hterms_subgraphs(std::vector<edge_labelled_subgraph*> all_subgraphs);
-
-        std::pair<equiheap_relation*, bool> check_and_deduce_equiheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
-
-        std::pair<std::map<dgraph_node*, subheap_relation*>, bool> check_and_deduce_subheap_relation(edge_labelled_dgraph* orig_graph, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& all_subgraphs);
-
-        std::pair<subheap_relation*, bool> check_and_deduce_subheap_relation_for_node(dgraph_node* node, std::map<dgraph_node*, subheap_relation*>& root2relation, std::set<edge_labelled_subgraph*> rooted_node_subgraphs);
-
-        // RULE3 RULE4
-        std::set<std::pair<hterm*, hterm*>> deduce_replaced_equivalent_pairs(std::set<hterm*>& existing_hterms, std::set<std::pair<hterm*, hterm*>> curr_eqs, std::set<std::pair<hterm*, hterm*>> child_eqs);
-
-        std::pair<hterm*, hterm*> replace_and_find(std::set<hterm*>& existing_hterms, hterm* unchanged_orig, hterm* changed_orig, hterm* changed_frag, hterm* replacer);
-
-        std::pair<hterm*, hterm*> substract_and_find(std::set<hterm*>& existing_hterms, hterm* large1, hterm* large2, hterm* small1, hterm* small2);
-
-        bool check_new_subheap_pair(hterm* smaller, hterm* larger);
-
+        void print_all_hterms(std::ostream& os);
         public:
         theory_slhv(context& ctx);
         
@@ -565,510 +476,105 @@ namespace smt
     };
 
 
-// variable equivalence class
-    class locvar_eq {
+// heap term class
+
+    class heap_term {
         private:
             theory_slhv* th;
-            std::map<enode*, std::vector<app*>> fine_data;
-        public: 
-            locvar_eq(theory_slhv* t, std::map<enode*, std::set<app*>>& fine_data);
-            bool is_in_same_class(app* loc1, app* loc2);
-            app* get_leader_locvar(app* loc);
-            bool is_nil(app* loc);
-
-            std::vector<app*> get_leader_locvars();
-            theory_slhv* get_th() {
-                return this->th;
-            }
-
-    };
-
-    class coarse_hvar_eq {
-        private:
-            theory_slhv* th;
-            std::map<enode*, std::vector<app*>> coarse_data;
-            void merge_enodes(std::set<enode*> nodes);
+            std::vector<app*> atomic_hterms_vec;
+            std::vector<int> atomic_hterms_count;
         public:
-        // construct coarse hvar eq from th curr_hvars
-        coarse_hvar_eq(theory_slhv* th);
-        coarse_hvar_eq(theory_slhv* th, std::map<enode*, std::vector<app*>> coarse_data) : th(th), coarse_data(coarse_data) {}
-        coarse_hvar_eq* merge_hvar_nodes(std::vector<std::set<enode*>> enode_sets);
-        // return 1 for yes, 0 for no and -1 for not sure
-        int is_in_same_class(app* hvar1, app* hvar2);
-        app* get_leader_hvar(app* hvar);
-        // return 1 for yes, 0 for no and -1 for unknown
-        int is_emp_hvar(app* hvar);
-        app* get_emp() {
-            return this->th->global_emp;
-        }
-
-        std::vector<app*> get_leader_hvars();
-        std::map<enode*, std::vector<app*>> get_coarse_data() {
-            return this->coarse_data;
-        }
-        theory_slhv* get_th() {
-            return this->th;
-        }
-    };
-
-    class pt_eq {
-        private:
-            theory_slhv* th;
-            locvar_eq* loc_eq;
-            std::map<app*, std::vector<app*>> fine_data;
-        public:
-            pt_eq(theory_slhv* t, locvar_eq* loc_eq, std::map<app*,  std::vector<app*>> fine_data): th(t), loc_eq(loc_eq), fine_data(fine_data) {};
-            bool is_in_same_class(app* pt1, app* pt2);
-            bool record_in_same_class(app* rec1, app* rec2);
-            app* get_representative_pt(app* pt);
-            void print(std::ostream& os);
-
-    };
-
-
-    class assignable_dataterm_pair {
-        private:
-            theory_slhv* th;
-            std::set<app*> pair;
-
-        public:
-            assignable_dataterm_pair(app* t1, app* t2, theory_slhv* th);
-            std::set<app*> get_pair() {
-                return this->pair;
-            }
-            theory_slhv* get_th(){
-                return this->th;
-            }   
-            app* get_first() {
-                app* first;
-                for(app* a : this->pair) {
-                    first = a;
-                    return first;
-                }
-                return nullptr;
-            }
-            app* get_last() {
-                app* first = nullptr;
-                app* second = nullptr;
-                for(app* a : this->pair) {
-                    if(first == nullptr) {
-                        first = a;
-                    } else {
-                        second = a;
-                        return second;
-                    }
-                }
-                return nullptr;
-            }
-            bool contain_data_constraint(app* pt1, app* pt2, locvar_eq* loc_eq);
-
-            expr* extract_constraint();
-    };
-
-// edge-labelled directed graph
-    class edge_labelled_dgraph {
-        //TODO: add labeling function for list segment later
-        private:
-            theory_slhv* th;
-            locvar_eq* loc_eq;
-            coarse_hvar_eq* hvar_eq;
-            pt_eq* pt_term_eq;
-            std::vector<dgraph_node*>  nodes;
-            std::vector<dgraph_edge*>  edges;
-            bool simplified;
-            bool saturated;
-            void construct_graph_from_theory();
-            void tarjanSCC(std::set<dgraph_node*> sources);
-            dgraph_node* get_unvisited();
-            bool check_established_reachable(std::set<int> nontrivial_ids);
-            coarse_hvar_eq* check_and_merge_scc_hvars(std::set<int> nontrivial_ids);
-            std::set<dgraph_node*> get_simplified_nodes(std::set<int> nontrivial_ids);
-        public:
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq);
-            edge_labelled_dgraph(theory_slhv* t, locvar_eq* l, coarse_hvar_eq* h, pt_eq* pteq, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es, bool simplified, bool saturated);
-
-            hvar_dgraph_node* get_hvar_node(app* orig_hvar);
-            pt_dgraph_node* get_pt_node(app* orig_pt);
-
-            std::set<dgraph_node*> get_sources();
-            bool has_edge(dgraph_edge* edge);
-            bool has_edge_to(dgraph_node* node);
-            bool has_edge_from(dgraph_node* node);
-            std::vector<dgraph_edge*> get_edges_from_node(dgraph_node* n);
-            std::vector<dgraph_edge*> get_edges_to_node(dgraph_node* n);
-            bool is_scc_computed();
-            virtual bool is_subgraph() {
-                return false;
-            }
-            edge_labelled_dgraph* check_and_simplify();
-            std::pair<bool, edge_labelled_dgraph*> check_and_saturate();
-            void set_simplified() {
-                this->simplified = true;
-            }
-            void set_saturated() {
-                this->saturated = true;
-            }
-            void add_node(dgraph_node* n);
-            void add_edge(dgraph_edge* e);
-            void del_node(dgraph_node* n);
-            void del_edge(dgraph_edge* e);
-            dgraph_node* get_node_by_low(int low_idx);
-            std::vector<edge_labelled_subgraph*> extract_all_rooted_disjoint_labelcomplete_subgraphs(dgraph_node* root, std::map<dgraph_node*, std::vector<edge_labelled_subgraph*>>& node2subgraph);
-            std::vector<edge_labelled_subgraph*> subgraphs_union(std::vector<edge_labelled_subgraph*> graphs1, std::vector<edge_labelled_subgraph*> graphs2);
-            
-            bool is_rooted() {
-                return this->get_sources().size() == 1;
-            }
-            dgraph_node* get_root_node();
-            std::set<dgraph_node*> get_dest_nodes();
-
-            locvar_eq* get_locvar_eq() {
-                return this->loc_eq;
-            }
-            coarse_hvar_eq* get_hvar_eq() {
-                return this->hvar_eq;
-            }
-            void set_hvar_eq(coarse_hvar_eq* heq) {
-                this->hvar_eq = heq;
-            }
-            pt_eq* get_pt_term_eq() {
-                return this->pt_term_eq;
-            }
-            theory_slhv* get_th() {
-                return this->th;
-            }
-            bool get_simplified() {
-                return this->simplified;
-            }
-            bool get_saturated() {
-                return this->saturated;
-            }
-            std::vector<dgraph_node*> get_nodes() {
-                return this->nodes;
-            }
-            std::vector<dgraph_edge*> get_edges() {
-                return this->edges;
-            }
-            void print(std::ostream& out);
-    };
-
-    class edge_labelled_subgraph : public  edge_labelled_dgraph {
-        private:
-            edge_labelled_dgraph* parent;
-        public:
-        edge_labelled_subgraph(edge_labelled_dgraph* p, std::vector<dgraph_node*> ns, std::vector<dgraph_edge*> es);
-        bool is_subgraph() override {
-            return true;
-        }
-        edge_labelled_dgraph* get_parent() {
-            return this->parent;
-        }
-        hterm* obtain_graph_hterm();
-        bool is_rooted_disjoint_labelcomplete();
-    };
-
-    class dgraph_node {
-        private:
-            edge_labelled_dgraph* dgraph;
-            // -1 for not visited
-            // other means visited
-            int dfs_index;
-            int low_index;
-            bool in_tarjan_stack;
-        public: 
-            dgraph_node(edge_labelled_dgraph* g);
-            int tarjanSCC(int& dfs_num);
-            bool is_tarjan_visited() {
-                return !(dfs_index == -1);
-            }
-            int get_low_index() {
-                return this->low_index;
-            }
-            int get_dfs_index() {
-                return dfs_index;
-            }
-            edge_labelled_dgraph* get_dgraph() {
-                return this->dgraph;
-            }
-            virtual bool is_hvar() {
-                return false;
-            }
-            virtual bool is_points_to() {
-                return false;
-            }
-            virtual bool is_established() {
-                return false;
-            }
-            void set_graph(edge_labelled_dgraph* g) {
-                this->dgraph = g;
-            }
-            void set_low_index(int idx) {
-                this->low_index = idx;
-            }
-            void set_dfs_index(int idx) {
-                this->dfs_index = idx;
-            }
-            void push_tarjan_stack() {
-                SASSERT(this->in_tarjan_stack == false);
-                this->in_tarjan_stack = true;
-            }   
-            void pop_tarjan_stack() {
-                SASSERT(this->in_tarjan_stack == true);
-                this->in_tarjan_stack = false;
-            }
-            bool is_in_tarjan_stack() {
-                return this->in_tarjan_stack;
-            }
-            virtual void print(std::ostream& out) {
-                out << "node print node implemented" << std::endl;
-            }
-    };
-
-    class hvar_dgraph_node : public dgraph_node {
-        private: 
-            app* leader_hvar;
-        public:
-            hvar_dgraph_node(edge_labelled_dgraph* g, app* hvar);
-            app* get_hvar_label() {
-                return this->leader_hvar;
-            }
-            bool is_hvar() override {
-                return true;
-            }
-            bool is_points_to() override {
-                return false;
-            }
-            bool is_established() override {
-                return false;
-            }
-            void print(std::ostream& out) override;
-    };
-
-    class pt_dgraph_node : public dgraph_node {
-        private:
-            app* addr_leader;
-            app* pt_leader;
-        public:
-
-            pt_dgraph_node(edge_labelled_dgraph* g, app* addr, app* pt);
-
-            app* get_addr_leader() {
-                return this->addr_leader;
+            heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<app*> atoms);
+            heap_term(theory_slhv* th, std::vector<app*> atomics, std::vector<int> atoms_count): th(th), atomic_hterms_vec(atomics), atomic_hterms_count(atoms_count) {
             }
 
-            std::pair<app*, app*> get_pt_pair_label(){
-                app* record = to_app(pt_leader->get_arg(1));
-                return {addr_leader, record};
+            bool is_subhterm_of(heap_term* ht);
+            bool is_suphterm_of(heap_term* ht);
+            heap_term* intersect_with(heap_term* ht);
+            heap_term* disj_union_with(heap_term* ht);
+
+            std::vector<app*> get_atoms();
+
+            std::vector<app*> get_atomic_hterm_vec() const{
+                return this->atomic_hterms_vec;
+            }
+            std::vector<int> get_atomic_count() const{
+                return this->atomic_hterms_count;
+            }
+            int get_vec_size() {
+                return this->atomic_hterms_vec.size();
+            }
+            int get_pos(int pos) const{
+                return this->atomic_hterms_count[pos];
             }
 
-            app* get_pt_leader() {
-                return this->pt_leader;
-            }
-            
-            bool is_hvar() override {
-                return false;
-            }
-            
-            bool is_points_to() override {
-                return true;
-            }
-            bool is_established() override {
-                return true;
-            }
-            void print(std::ostream& out) override;
-    };
-
-    class dgraph_edge {
-        private:
-            edge_labelled_dgraph* dgraph;
-            dgraph_node* from;
-            dgraph_node* to;
-            app* hterm_label;
-        public:
-            dgraph_edge(edge_labelled_dgraph* graph, dgraph_node* f, dgraph_node* t, app* hterm_label);
-            dgraph_node* get_from() {
-                return from;
-            }
-            dgraph_node* get_to() {
-                return to;
-            }
-            app* get_label() {
-                return hterm_label;
-            }
-            edge_labelled_dgraph* get_dgraph() {
-                return dgraph;
-            }
-            void print(std::ostream& out);
-    };
-// hterm class
-    class hterm {
-        private:
-            // the first app is for hvar and the second for points-to, cannot co-exist
-            std::set<std::pair<app*,app*>> h_atoms;
-            coarse_hvar_eq* h_eq;
-            locvar_eq* loc_eq;
-
-            std::set<hterm*> concat_subhterms(std::set<hterm*> hterm_set, std::pair<app*, app*> curr_atom);
-
-            void print_app_pair(std::pair<app*, app*> p, std::ostream& os);
-        public:
-            hterm(std::set<std::pair<app*, app*>> hts, coarse_hvar_eq* hvar_eq, locvar_eq* loc_eq) : h_atoms(hts), h_eq(hvar_eq), loc_eq(loc_eq) {
-                if(h_atoms.size() == 0) {
-                    h_atoms.insert({this->h_eq->get_emp(), nullptr});
-                }
-            }
-            bool is_sub_hterm_of(hterm* ht);
-            bool is_super_hterm_of(hterm* ht);
-            bool is_established();
             bool is_emp();
-            std::set<std::pair<app*, app*>> get_h_atoms() {
-                return h_atoms;
-            }
-            hterm* substract_hterm(hterm* substracted);
-            hterm* replace_subhterm(hterm* orig_subhterm, hterm* replaced_subhterm);
-            coarse_hvar_eq* get_h_eq() {
-                return this->h_eq;
-            }
-            locvar_eq* get_loc_eq() {
-                return this->loc_eq;
-            }
-            std::set<hterm*> get_all_atom_hterms();
-            std::set<hterm*> generate_all_subhterms();
 
-            bool operator==(const hterm& other) {
-                if(this->h_eq == other.h_eq &&
-                   this->loc_eq == other.loc_eq &&
-                   this->h_atoms == other.h_atoms) {
-                    return true;
-                   } else {
-                    return false;
-                   }
-            }
+            bool is_atom_pt();
 
+            bool is_atom_hvar();
+
+            bool is_uplus_hterm();
+
+            int get_pt_num();
+
+            int get_hvar_num();
+
+            int get_emp_num();
+
+            std::set<heap_term*>  get_subhterms();
             void print(std::ostream& os);
 
+            std::set<std::pair<std::vector<int>, std::vector<int>>> get_splitted_subpairs();
+
     };
-// hterm equivalence relation
-    class equiheap_relation {
-        private: 
-            std::set<hterm*> hterm_set;
-            std::set<std::pair<hterm*, hterm*>> equiv_pairs;
-            std::map<hterm*, std::set<hterm*>> equiv_class;
-            bool is_feasible;
-
-            locvar_eq* loc_eq;
-            coarse_hvar_eq* h_eq;
-
-            bool check_inconsistency();
-        public:
-            equiheap_relation(std::set<hterm*> hterms, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hterms), equiv_pairs(pairs) {
-                this->is_feasible = true;
-                loc_eq = nullptr;
-                h_eq = nullptr;
-                // if the hterms fed are graph hterms, then RULE 1
-                for(hterm* ht : hterm_set) {
-                    if(loc_eq == nullptr && h_eq == nullptr) {
-                        this->loc_eq = ht->get_loc_eq();
-                        this->h_eq = ht->get_h_eq();
-                    } else {
-                        SASSERT(this->loc_eq == ht->get_loc_eq() && this->h_eq == ht->get_h_eq());
-                    }
-                    bool found = false;
-                    for(std::pair<hterm*, hterm*> p : this->equiv_pairs) {
-                        SASSERT(this->hterm_set.find(p.first) != this->hterm_set.end() &&
-                                this->hterm_set.find(p.second) != this->hterm_set.end());
-                        if(*p.first == *ht && *p.second == *ht) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if(!found) {
-                        equiv_pairs.insert({ht, ht});
-                    }
-                }
-                is_feasible = this->construct_equiv_class();
-
-            }
-            equiheap_relation() {}
-            void add_hterm(hterm* ht);
-            void add_pair(hterm* ht1, hterm* ht2);
-
-            bool is_equal_heap(hterm* ht1, hterm* ht2);
-            bool get_is_feasible() {
-                return this->is_feasible;
-            }
-
-            bool construct_equiv_class();
-
-            std::set<hterm*> get_hterm_set() {
-                return this->hterm_set;
-            }
-
-            std::set<std::pair<hterm*, hterm*>> get_equiv_pairs() {
-                return this->equiv_pairs;
-            }
-
-            std::map<hterm*, std::set<hterm*>> get_equiv_class() {
-                return this->equiv_class;
-            }
-
-            void print(std::ostream& os);
-    };
-
-// hterm inclusion relation
-    class subheap_relation {
+// encoder from slhv to lia
+    class formula_encoder {
         private:
-            std::set<hterm*> hterm_set;
-            std::set<std::pair<hterm*, hterm*>> subheap_pairs;
-            // first <= second
-            locvar_eq* loc_eq;
-            coarse_hvar_eq* h_eq;
+        std::map<std::pair<int, int>, app*> djrel_var_map;
+        std::map<std::pair<int, int>, app*> shrel_var_map;
+        std::map<heap_term*, int> ht2index_map;
+        std::vector<heap_term*> index2ht;
+
+        std::map<app*, app*> locvar2intvar_map;
+
+        std::set<heap_term*> hts;
+        std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
+        std::set<heap_term*> atom_hts;
+        std::set<heap_term*> pt_hts;
+        std::set<heap_term*> hvar_hts;
+        heap_term* emp_ht;
+
+        theory_slhv* th;
+        slhv_syntax_maker* syntax_maker;
+        
+        std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
+
+        expr* translate_locdata_formula(expr* formula);
+        app* translate_locterm_to_liaterm(app* locterm);
+
         public:
-            subheap_relation(std::set<hterm*> hts, std::set<std::pair<hterm*, hterm*>> pairs) : hterm_set(hts), subheap_pairs(pairs) {
-                this->loc_eq = nullptr;
-                this->h_eq = nullptr;
-                for(hterm* ht : this->hterm_set) {
-                    if(this->loc_eq == nullptr && this->h_eq == nullptr) {
-                        this->loc_eq = ht->get_loc_eq();
-                        this->h_eq = ht->get_h_eq();
-                    } else {
-                        SASSERT(this->loc_eq == ht->get_loc_eq() && this->h_eq == ht->get_h_eq());
-                    }
-                }
-            }
-            subheap_relation() {
-                this->loc_eq = nullptr;
-                this->h_eq = nullptr;
-            }
-            void add_hterm(hterm* ht) {
-                #ifdef SLHV_DEBUG
-                std::cout << "add hterm: ";
-                ht->print(std::cout);
-                std::cout << std::endl;
-                #endif
-                if(this->h_eq == nullptr && this->loc_eq == nullptr) {
-                    this->h_eq = ht->get_h_eq();
-                    this->loc_eq = ht->get_loc_eq();
-                } else {
-                    SASSERT(ht->get_h_eq() == this->h_eq && ht->get_loc_eq() == this->loc_eq);
-                }
-                this->hterm_set.insert(ht);
-            }
-            void add_pair(hterm* ht_smaller, hterm* ht_larger);
-            void add_equal(hterm* first, hterm* second);
-            bool contain_hterm(hterm* ht);
-            bool is_subheap(hterm* smaller, hterm* larger);
-            bool is_equal_heap(hterm* first, hterm* second);
-            std::set<hterm*> get_all_smaller_hterms(hterm* larger);
-            std::set<hterm*> get_hterm_set() {
-                return this->hterm_set;
-            }
-            std::set<std::pair<hterm*, hterm*>> get_subheap_pairs() {
-                return this->subheap_pairs;
-            }
-            std::set<std::pair<hterm*, hterm*>> extract_equivalent_hterms();
-            void print(std::ostream& os);
+        
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
+        
+        app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
+        app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
+        app* locvar2intvar(app* locvar);
+
+        expr* generate_ld_formula();
+        expr* generate_init_formula();
+        expr* generate_pto_formula();
+        expr* generate_iso_formula();
+        expr* generate_idj_formula();
+        expr* generate_final_formula();
+        expr* generate_loc_var_constraints();
+
+        expr* encode();
+
+
+        std::pair<heap_term*, heap_term*> get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair);
     };
+
 
 // util class
     class slhv_util {
@@ -1241,6 +747,7 @@ namespace smt
         theory_slhv* th;
         slhv_decl_plugin* slhv_decl_plug;
         slhv_fresh_var_maker* fv_maker;
+        arith_util* a;
 
         public: 
         void reset_fv_maker();
@@ -1261,6 +768,9 @@ namespace smt
         app* mk_points_to_new(app* addr_loc, app* record_loc); 
 
         app* mk_fresh_datavar(); 
+        app* mk_lia_intvar(std::string name);
+        app* mk_lia_intconst(int constval);
+        app* mk_boolvar(std::string name);
         std::vector<std::vector<app*>> mk_hterm_disequality_new(app* lhs, app* rhs); 
         app* mk_addr_in_hterm_new(app* hterm, app* addr); 
         app* mk_addr_notin_hterm_new(app *hterm, app* addr);
