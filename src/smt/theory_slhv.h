@@ -166,7 +166,7 @@ namespace smt
         void reset_configs();
         // checking logic
 
-        std::pair<std::set<std::pair<hterm*, hterm*>>, std::set<heap_term*>>  extract_all_hterms();
+        std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
 
         void print_all_hterms(std::ostream& os);
         public:
@@ -536,7 +536,7 @@ namespace smt
         std::map<heap_term*, int> ht2index_map;
         std::vector<heap_term*> index2ht;
 
-        std::map<app*, app*> locvar2invar_map;
+        std::map<app*, app*> locvar2intvar_map;
 
         std::set<heap_term*> hts;
         std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
@@ -555,7 +555,7 @@ namespace smt
 
         public:
         
-        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*>> eq_hterm_pairs);
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);

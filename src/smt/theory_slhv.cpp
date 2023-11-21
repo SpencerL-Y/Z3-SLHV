@@ -7,6 +7,7 @@
 #include "model/numeral_factory.h"
 #include "model/locvar_factory.h"
 #include "model/model_core.h"
+#include "model/model_smt2_pp.h"
 #include "smt/smt_model_generator.h"
 #include "util/params.h"
 #include <bitset>
@@ -380,6 +381,31 @@ namespace smt {
                 ht->print(std::cout);
             }
             #endif
+            formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
+            expr* encoded_form  = fec->encode();
+            #ifdef SLHV_DEBUG
+            std::cout << "============= encoded formula ========== " << std::endl;
+            std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
+            std::cout << "======================================== " << std::endl;
+            #endif
+            
+            solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+            final_sovler->assert_expr(encoded_form);
+            lbool final_result = final_sovler->check_sat();
+            SASSERT(false);
+            std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
+            if(final_result == l_true) {
+                std::cout << " translated SAT " << std::endl;
+                model_ref md;
+                final_sovler->get_model(md);
+                std::cout << "translated model: " << std::endl;
+                model_smt2_pp(std::cout, this->m, *md, 0);
+                return true;
+            } else if(final_result == l_false) { 
+                std::cout << " translated UNSAT " << std::endl;
+            } else {    
+                std::cout << " translated UNKNOWN " << std::endl;
+            }
 
         }
 
@@ -559,7 +585,7 @@ namespace smt {
                 app* ge = slhv_plugin->global_emp;
                 this->get_context().internalize(ge, false);
                 std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
-                this->curr_hvars.insert(ge);
+                // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
                 SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
@@ -725,7 +751,7 @@ namespace smt {
 
     // check_logic
 
-    std::pair<std::set<std::pair<hterm*, hterm*>>, std::set<heap_term*>> theory_slhv::extract_all_hterms() {
+    std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>> theory_slhv::extract_all_hterms() {
         #ifdef SLHV_DEBUG
         std::cout << "begin extract all hterms" << std::endl;
         #endif
@@ -887,6 +913,16 @@ namespace smt {
             }
         }
 
+        std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
+        emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
+        for(heap_term* eht : all_hterms) {
+            if(eht->get_atomic_count() == emp_hterm_count) {
+                break;
+            } else {
+                heap_term* emp_hterm = alloc(heap_term, this, this->curr_atomic_hterms, emp_hterm_count);
+                all_hterms.insert(emp_hterm);
+            }
+        }
         
         #ifdef SLHV_DEBUG
         std::cout << "end extract all hterms" << std::endl;
@@ -1152,7 +1188,7 @@ namespace smt {
     }
     
     // encoder
-    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*>> eq_hterm_pairs) {
+    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>>  eq_hterm_pairs) {
         // record all kinds of hts
         this->th = th;
         this->emp_ht = nullptr;
@@ -1183,7 +1219,7 @@ namespace smt {
         // create boolean variables
         for(int ht1_index = 0; ht1_index < this->hts.size(); ht1_index ++) {
             for(int ht2_index = 0; ht2_index < this->hts.size(); ht2_index ++) {
-                if(ht1_index != ht2index_map || this->djrel_var_map.find({ht1_index, ht2_index}) == this->djrel_var_map.end()) {
+                if(ht1_index != ht2_index || this->djrel_var_map.find({ht1_index, ht2_index}) == this->djrel_var_map.end()) {
                     std::string idj_name_prefix = "idj";
                     std::string ish_name_prefix = "ish";
                     std::pair<int, int> key_pair = {ht1_index, ht2_index};
@@ -1197,12 +1233,15 @@ namespace smt {
         // create intvar for locvar
         for(app* lv : this->th->curr_locvars) {
             SASSERT(this->th->is_locvar(lv));
-            std::string name = lv->get_name();
+            std::string name = lv->get_name().str();
             std::string int_name = name + "_intvar";
             app* intvar = this->syntax_maker->mk_lia_intvar(int_name);
-            SASSERT(this->locvar2invar_map.find(lv) == this->locvar2invar_map.end());
+            SASSERT(this->locvar2intvar_map.find(lv) == this->locvar2intvar_map.end());
             this->locvar2intvar_map[lv] = intvar;
         }
+        #ifdef SLHV_DEBUG
+        std::cout << "formula encoder created" << std::endl;
+        #endif
     }
         
     app* formula_encoder::get_shrel_boolvar(heap_term* subht, heap_term* supht) {
@@ -1222,10 +1261,10 @@ namespace smt {
     }
     
     app* formula_encoder::locvar2intvar(app* locvar) {
-        if(this->locvar2invar_map.find(locvar) == this->locvar2invar_map.end()) {
+        if(this->locvar2intvar_map.find(locvar) == this->locvar2intvar_map.end()) {
             return nullptr;
         }
-        return this->locvar2invar_map[locvar];
+        return this->locvar2intvar_map[locvar];
     }
 
 
@@ -1260,8 +1299,8 @@ namespace smt {
             return this->syntax_maker->mk_lia_intconst(0);
         } else if(this->th->is_locadd(locterm)){
             SASSERT(locterm->get_num_args() == 2);
-            app* arg1 = locterm->get_arg(0);
-            app* arg2 = locterm->get_arg(1);
+            app* arg1 = to_app(locterm->get_arg(0));
+            app* arg2 = to_app(locterm->get_arg(1));
             app* first = this->translate_locterm_to_liaterm(arg1);
             SASSERT(this->th->is_dataterm(arg2));
             app* result = a.mk_add(first, arg2);
@@ -1274,18 +1313,21 @@ namespace smt {
     expr* formula_encoder::translate_locdata_formula(expr* formula) {
         app* apped_formula = to_app(formula);
         if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
-            app* inner = apped_formula->get_arg(0);
+            app* inner = to_app(apped_formula->get_arg(0));
             expr* inner_translated = this->translate_locdata_formula(inner);
             return this->th->get_manager().mk_not(inner_translated);
         } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
-            app* inner_first = apped_formula->get_arg(0);
-            app* inner_second = apped_formula->get_arg(1);
+            app* inner_first = to_app(apped_formula->get_arg(0));
+            app* inner_second = to_app(apped_formula->get_arg(1));
             app* translated_inner_first = this->translate_locterm_to_liaterm(inner_first);
             app* translated_inner_second = this->translate_locterm_to_liaterm(inner_second);
-            return this->th->get_manager().mk_distinct(translated_inner_first, translated_inner_second);
+            expr_ref_vector expr_vec(this->th->get_manager());
+            expr_vec.push_back(translated_inner_first);
+            expr_vec.push_back(translated_inner_second);
+            return this->th->get_manager().mk_distinct(2, expr_vec.data());
         } else if(apped_formula->is_app_of(basic_family_id, OP_EQ)) {
-            app* inner_lhs = apped_formula->get_arg(0);
-            app* inner_rhs = apped_formula->get_arg(1);
+            app* inner_lhs = to_app(apped_formula->get_arg(0));
+            app* inner_rhs = to_app(apped_formula->get_arg(1));
             app* translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
             app* translated_inner_rhs = this->translate_locterm_to_liaterm(inner_rhs);
             return this->th->get_manager().mk_eq(translated_inner_lhs, translated_inner_rhs);
@@ -1295,6 +1337,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_ld_formula() {
+        #ifdef SLHV_DEBUG
+        std::cout << "generate ld formula" << std::endl;
+        #endif
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
             result = this->th->get_manager().mk_and(result, this->translate_locdata_formula(loc_constraint));
@@ -1307,6 +1352,9 @@ namespace smt {
 
     expr* formula_encoder::generate_init_formula() {
 
+        #ifdef SLHV_DEBUG
+        std::cout << "generate init formula" << std::endl;
+        #endif
         expr* disj_form = this->th->get_manager().mk_true();
         for(heap_term* uplus_ht : this->hts) {
             if(uplus_ht->is_uplus_hterm()) {
@@ -1318,7 +1366,7 @@ namespace smt {
         }
         expr* emp_subsume_form = this->th->get_manager().mk_true();
         for(heap_term* ht : this->hts) {
-            emp_subsume_form = this->th->get_manager().mk_and(this->get_shrel_boolvar(this->emp_ht, ht));
+            emp_subsume_form = this->th->get_manager().mk_and(emp_subsume_form, this->get_shrel_boolvar(this->emp_ht, ht));
         }
 
         expr* sub_ht_form = this->th->get_manager().mk_true();
@@ -1334,29 +1382,41 @@ namespace smt {
         for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
             eq_induced_subht_form = this->th->get_manager().mk_and(
                 eq_induced_subht_form,
-                this->get_shrel_boolvar(p.first),
-                this->get_shrel_boolvar(p.second)
+                this->get_shrel_boolvar(p.first, p.second),
+                this->get_shrel_boolvar(p.second, p.first)
             );
         }
-
-        expr* result = this->th->get_manager().mk_and(disj_form, emp_subsume_form, sub_ht_form, eq_induced_subht_form);
+        expr_ref_vector expr_vec(this->th->get_manager());
+        expr_vec.push_back(disj_form);
+        expr_vec.push_back(emp_subsume_form);
+        expr_vec.push_back(sub_ht_form);
+        expr_vec.push_back(eq_induced_subht_form);
+        expr* result = this->th->get_manager().mk_and(4, expr_vec.data());
         return result;
     }
 
     expr* formula_encoder::generate_pto_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate pto formula" << std::endl;
+        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
             for(heap_term* ptp : this->pt_hts) {
                 std::vector<app*> pt_atom = pt->get_atoms();
                 SASSERT(pt_atom.size() == 1);
-                app* pt_addr = pt_atom[0]->get_arg(0);
-                app* pt_content = pt_atom[0]->get_arg(1);
+                app* pt_addr = to_app(pt_atom[0]->get_arg(0));
+                app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* pt_content = to_app(pt_rcd->get_arg(0));
+                
                 std::vector<app*> ptp_atom = ptp->get_atoms();
                 SASSERT(ptp_atom.size() == 1);
-                app* ptp_addr = ptp_atom[0]->get_arg(0);
-                app* ptp_content = ptp_atom[0]->get_arg(1);
-
+                app* ptp_addr = to_app(ptp_atom[0]->get_arg(0));
+                app* ptp_rcd = to_app(ptp_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* ptp_content = to_app(ptp_rcd->get_arg(0));
                 expr* disj_temp_form = this->th->get_manager().mk_implies(
                     this->get_djrel_boolvar(pt, ptp),
                     this->th->get_manager().mk_not(
@@ -1368,10 +1428,13 @@ namespace smt {
                 );
                 expr* content_eq_temp_form = nullptr;
                 if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                    std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
+                    std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;
                     content_eq_temp_form = this->th->get_manager().mk_eq(
                         this->translate_locterm_to_liaterm(pt_content),
                         this->translate_locterm_to_liaterm(ptp_content)
                     );
+
                 } else {
                     content_eq_temp_form = this->th->get_manager().mk_false();
                 }
@@ -1402,7 +1465,7 @@ namespace smt {
                             this->get_shrel_boolvar(pt, ptp),
                             this->get_djrel_boolvar(pt, ptp)
                         )
-                    )
+                    );
                 }
             }
             
@@ -1412,6 +1475,10 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_iso_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate iso formula" << std::endl;
+        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         expr* third_conj = this->th->get_manager().mk_true();
@@ -1466,7 +1533,7 @@ namespace smt {
                                     expr* third_conj_impl_rhs =  this->get_shrel_boolvar(compound_ht1, compound_ht2);
                                     third_conj = this->th->get_manager().mk_and(
                                         third_conj,
-                                        this->th->get_manager().mk_implies(third_conj_impl_lhs, third_conj_impl_rhs);
+                                        this->th->get_manager().mk_implies(third_conj_impl_lhs, third_conj_impl_rhs)
                                     );
                                 }
                             }
@@ -1481,6 +1548,10 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_idj_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate idj formula" << std::endl;
+        #endif
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->hts) {
             if(ht1 == this->emp_ht) {break;}
@@ -1508,6 +1579,10 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_final_formula() {
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate final formula" << std::endl;
+        #endif
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
             result = this->th->get_manager().mk_and(
@@ -1520,10 +1595,37 @@ namespace smt {
 
     expr* formula_encoder::generate_loc_var_constraints() {
         // generate locvar constraints
+
+        #ifdef SLHV_DEBUG
+        std::cout << "generate loc var constraints" << std::endl;
+        #endif
+        expr* result = this->th->get_manager().mk_true();
+        for(auto item : this->locvar2intvar_map) {
+            SASSERT(this->th->is_locvar(item.first));
+            arith_util a(this->th->get_manager());
+            result = this->th->get_manager().mk_and(
+                result,
+                a.mk_ge(item.second, a.mk_int(0))
+            );
+        }
+        return result;
     }
 
     expr* formula_encoder::encode() {
+        expr_ref_vector all_conj(this->th->get_manager());
 
+        all_conj.push_back(this->generate_ld_formula());
+        all_conj.push_back(this->generate_init_formula());
+        all_conj.push_back(this->generate_pto_formula());
+        all_conj.push_back(this->generate_iso_formula());
+        all_conj.push_back(this->generate_idj_formula());
+        all_conj.push_back(this->generate_final_formula());
+        all_conj.push_back(this->generate_loc_var_constraints());
+        expr* result = this->th->get_manager().mk_and(
+            all_conj.size(),
+            all_conj.data()
+        );
+        return result;
     }
 
 
@@ -1577,7 +1679,7 @@ namespace smt {
 
     app* slhv_syntax_maker::mk_lia_intconst(int constval) {
         arith_util a(this->th->get_manager());
-        return a.mk_int(const_val);
+        return a.mk_int(constval);
     }
 
     app* slhv_syntax_maker::mk_boolvar(std::string name) {

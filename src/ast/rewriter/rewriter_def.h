@@ -764,7 +764,7 @@ void rewriter_tpl<Config>::main_loop(expr * t, expr_ref & result, proof_ref & re
     }
     TRACE("rewriter", tout << mk_ismt2_pp(t, m()) << "\n=>\n" << result << "\n";;);
     #ifdef SLHV_DEBUG
-    std::cout << mk_ismt2_pp(t, m()) << "\n=>\n" << result << "\n";
+    // std::cout << mk_ismt2_pp(t, m()) << "\n=>\n" << result << "\n";
     #endif
 }
 
@@ -790,7 +790,7 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
         expr * t   = fr.m_curr;
         TRACE("rewriter_step", tout << "step\n" << mk_ismt2_pp(t, m()) << "\n";);
         #ifdef SLHV_DEBUG
-        std::cout << "rewriter_step: step\n" << mk_ismt2_pp(t, m()) << "\n";
+        // std::cout << "rewriter_step: step\n" << mk_ismt2_pp(t, m()) << "\n";
         #endif
         m_num_steps++;
         check_max_steps();
@@ -809,7 +809,7 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
             }
         }
         #ifdef SLHV_DEBUG
-        std::cout << "curr expr kind: " << t->get_kind() << std::endl;
+        // std::cout << "curr expr kind: " << t->get_kind() << std::endl;
         #endif
         switch (t->get_kind()) {
         case AST_APP:
@@ -827,7 +827,7 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
             break;
         }
         #ifdef SLHV_DEBUG
-        std::cout << "curr expr kind over: " << t->get_kind() << std::endl;
+        // std::cout << "curr expr kind over: " << t->get_kind() << std::endl;
         #endif
     }
     result = result_stack().back();
