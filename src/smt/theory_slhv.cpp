@@ -973,6 +973,19 @@ namespace smt {
             heap_term* atom = alloc(heap_term, this, atomics, vec);
             all_hterms.insert(atom);
         }
+        bool has_emp = false;
+        for(heap_term* ht : all_hterms) {
+            if(ht->is_emp()) {
+                has_emp = true;
+                break;
+            }
+        }
+        if(!has_emp) {
+            std::vector<int> emp_vec(atomics.size(), 0);
+            emp_vec[emp_vec.size() - 1] = 1;
+            heap_term* emp_hterm = alloc(heap_term, this, atomics, emp_vec);
+            all_hterms.insert(emp_hterm);
+        }
         
         // std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
         // emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
