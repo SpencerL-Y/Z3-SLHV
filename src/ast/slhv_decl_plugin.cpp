@@ -276,6 +276,10 @@ app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
     return result;
 }
 
+app* slhv_decl_plugin::mk_emp_value() {
+    return this->global_emp;
+}
+
 bool slhv_decl_plugin::is_loc_value(app* e) {
     return is_app_of(e, m_family_id, OP_LOCVAR_CONST);
 }

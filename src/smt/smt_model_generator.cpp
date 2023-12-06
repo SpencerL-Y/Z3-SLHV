@@ -410,6 +410,10 @@ namespace smt {
                 m_root2value.insert(n, val);
             }
         }        
+
+        #ifdef SLHV_DEBUG
+        std::cout << "send model" << std::endl;
+        #endif
         // send model
         for (enode * n : m_context->enodes()) {
             if (is_uninterp_const(n->get_expr()) && m_context->is_relevant(n)) {

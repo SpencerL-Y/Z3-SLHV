@@ -412,7 +412,7 @@ namespace smt {
                     name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
                 }
                 std::set<std::string> true_var_names;
-                std::map<std::string, int> locvar2val;
+                std::map<std::string, int> loc_data_var2val;
                 for(auto key_val_p : name2val) {
                     if(key_val_p.second->get_sort()->get_name() == "Bool") {
                         if(this->m.is_true(key_val_p.second)) {
@@ -430,13 +430,13 @@ namespace smt {
                         std::cout << std::endl;
 
                         std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
-                        locvar2val[extracted_names[0]] =  param.get_rational().get_int64();
+                        loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
                     }
                 }
                 std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
                 // record model information collected.
                 this->model_subsume_info = atoms_subs;
-                this->model_locvar_val_info = locvar2val;
+                this->model_loc_data_var_val_info = loc_data_var2val;
                 #ifdef SLHV_DEBUG
                 std::cout << "model info recorded: " << std::endl;
                 std::cout << this->model_subsume_info.size() << std::endl;SASSERT(s != nullptr);
@@ -450,7 +450,7 @@ namespace smt {
                     }
                 }
                 std::cout << "locvar vals: " << std::endl;
-                for(auto r : this->model_locvar_val_info) {
+                for(auto r : this->model_loc_data_var_val_info) {
                     std::cout << r.first << " " << r.second << std::endl;
                 }
                 #endif
@@ -2764,25 +2764,27 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is points to" << std::endl;
                 #endif
-                heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 enode* data_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 pt_proc->add_dependency(model_value_dependency(addr_enode));
                 pt_proc->add_dependency(model_value_dependency(data_enode));
                 return pt_proc;
             } else if(this->is_hvar(oapp)) {
-                this->model_subsume_info
+                // TODO: add dependency here later
                 #ifdef SLHV_DEBUG
                 std::cout << "is hvar" << std::endl;
                 #endif
-                heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
-                return hvar_proc
+                heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* emp_node = this->ctx.get_enode(this->global_emp);
+                hvar_proc->add_dependency(model_value_dependency(emp_node));
+                return hvar_proc;
             } else if(this->is_emp(oapp)) {
                 
                 #ifdef SLHV_DEBUG
                 std::cout << "is emp" << std::endl;
                 #endif
-                heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 return emp_proc;
             }
             else {
@@ -2790,7 +2792,7 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is uplus" << std::endl;
                 #endif
-                heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 return uplus_proc;
             }
         } else if(this->is_locterm(oapp)) {
@@ -2798,15 +2800,15 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is locvar" << std::endl;
                 #endif
-                std::string locvar_name = oapp->get_name();
-                int int_val = this->model_locvar_val_info[locvar_name];
+                std::string locvar_name = oapp->get_name().str();
+                int int_val = this->model_loc_data_var_val_info[locvar_name];
                 app* val_expr = data_factory->mk_num_value(rational(int_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else if(this->is_nil(oapp)){
                 #ifdef SLHV_DEBUG
                 std::cout << "is nil" << std::endl;
                 #endif
-                int nil_val = this->model_locvar_val_info["nil"];
+                int nil_val = this->model_loc_data_var_val_info["nil"];
                 app* val_expr = data_factory->mk_num_value(rational(nil_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else {
@@ -2825,10 +2827,14 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is datavar" << std::endl;
                 #endif
+                int data_var_val = this->model_loc_data_var_val_info[oapp->get_name().str()];
+                app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
             } else {
                 #ifdef SLHV_DEBUG
                 std::cout << "is arith term" << std::endl;
                 #endif
+                return nullptr;
             }
         } else {
             SASSERT(false);

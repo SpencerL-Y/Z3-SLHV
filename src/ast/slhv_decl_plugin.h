@@ -190,6 +190,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     app* mk_locadd_value(int num_arg, expr_ref_vector items);
 
+    app* mk_emp_value();
+
     bool is_loc_value(app* e);
 
 

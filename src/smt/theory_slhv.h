@@ -53,7 +53,7 @@ namespace smt
         std::vector<expr*> curr_inside_assignments;
 
         std::set<atoms_subsumption*> model_subsume_info;
-        std::map<std::string, int> model_locvar_val_info;
+        std::map<std::string, int> model_loc_data_var_val_info;
 
 
         slhv_decl_plugin* slhv_plug;
@@ -887,12 +887,14 @@ namespace smt
                 } else if(values.size() == 1){
                     return to_app(values.get(0));
                 } else {
-                    return nullptr;
+                    return plug->mk_emp_value();
                 }
             } else if(this->m_sort->get_name() == INTLOC_SORT_STR) {
                 ast_manager& m = mg.get_manager();
                 SASSERT(values.size() == 2);
                 return plug->mk_locadd_value(2, values);
+            } else {
+                return nullptr;
             }
         }
 
