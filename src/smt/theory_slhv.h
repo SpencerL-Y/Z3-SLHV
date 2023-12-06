@@ -19,6 +19,7 @@ namespace smt
     class slhv_syntax_maker;
     class atoms_subsumption;
     class formula_encoder;
+    class heap_value_proc;
     class theory_slhv : public theory {
 
         public:
@@ -218,6 +219,8 @@ namespace smt
         }
 
         model_value_proc * mk_value(enode * n, model_generator & mg) override;
+
+        std::vector<int> generate_count_vector_by_app(app* hterm);
 
         bool can_propagate() override {
             return false;
@@ -864,19 +867,32 @@ namespace smt
             this->m_dependencies.push_back(d);
         }
 
-        void get_dependencies(buffer<model_value_dependency>& result) override{
+        void get_dependencies(buffer<model_value_dependency>& result) override {
             result.append(this->m_dependencies.size(), m_dependencies.data());
         }
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
             ast_manager& m = mg.get_manager();
-            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
-            if(values.size() > 1) {
-                return plug->mk_uplus_value(values.size(), values);
-            } else if(values.size() == 1){
-                return to_app(values.get(0));
-            } else {
-                return nullptr;
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.     get_plugin(m.mk_family_id("slhv"));
+            if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
+                if(values.size() > 1) {
+                    if(values.get(0)->get_sort()->get_name() == INTHEAP_SORT_STR) {
+                        // the value is a uplus term
+                        return plug->mk_uplus_value(values.size(), values);
+                    } else {
+                        SASSERT(values.size() == 2 && values.get(0)->get_sort()->get_name() == INTLOC_SORT_STR);
+                        // must be a points to
+                        return plug->mk_points_to_value(2, values);
+                    }
+                } else if(values.size() == 1){
+                    return to_app(values.get(0));
+                } else {
+                    return nullptr;
+                }
+            } else if(this->m_sort->get_name() == INTLOC_SORT_STR) {
+                ast_manager& m = mg.get_manager();
+                SASSERT(values.size() == 2);
+                return plug->mk_locadd_value(2, values);
             }
         }
 
@@ -884,9 +900,6 @@ namespace smt
             return false;
         }
 
-
     };
 
-
-    
 } // namespace smt

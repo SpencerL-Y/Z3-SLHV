@@ -1750,10 +1750,17 @@ namespace smt {
         for(auto item : this->locvar2intvar_map) {
             SASSERT(this->th->is_locvar(item.first));
             arith_util a(this->th->get_manager());
-            result = this->th->get_manager().mk_and(
-                result,
-                a.mk_ge(item.second, a.mk_int(0))
-            );
+            if(this->th->is_nil(item.first)) {
+                result = this->th->get_manager().mk_and(
+                    result,
+                    a.mk_eq(item.second, a.mk_int(0))
+                );
+            } else {
+                result = this->th->get_manager().mk_and(
+                    result,
+                    a.mk_gt(item.second, a.mk_int(0))
+                );
+            }
         }
         return result;
     }
@@ -2754,20 +2761,81 @@ namespace smt {
         app* oapp = to_app(o);
         if(this->is_heapterm(oapp)) {
             if(this->is_points_to(oapp)) {
-
+                #ifdef SLHV_DEBUG
+                std::cout << "is points to" << std::endl;
+                #endif
+                heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* data_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                pt_proc->add_dependency(model_value_dependency(addr_enode));
+                pt_proc->add_dependency(model_value_dependency(data_enode));
+                return pt_proc;
             } else if(this->is_hvar(oapp)) {
-
-            } else {
+                this->model_subsume_info
+                #ifdef SLHV_DEBUG
+                std::cout << "is hvar" << std::endl;
+                #endif
+                heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                return hvar_proc
+            } else if(this->is_emp(oapp)) {
+                
+                #ifdef SLHV_DEBUG
+                std::cout << "is emp" << std::endl;
+                #endif
+                heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                return emp_proc;
+            }
+            else {
                 SASSERT(this->is_uplus(oapp));
+                #ifdef SLHV_DEBUG
+                std::cout << "is uplus" << std::endl;
+                #endif
+                heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0. nullptr));
+                return uplus_proc;
             }
         } else if(this->is_locterm(oapp)) {
-
+            if(this->is_locvar(oapp)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "is locvar" << std::endl;
+                #endif
+                std::string locvar_name = oapp->get_name();
+                int int_val = this->model_locvar_val_info[locvar_name];
+                app* val_expr = data_factory->mk_num_value(rational(int_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else if(this->is_nil(oapp)){
+                #ifdef SLHV_DEBUG
+                std::cout << "is nil" << std::endl;
+                #endif
+                int nil_val = this->model_locvar_val_info["nil"];
+                app* val_expr = data_factory->mk_num_value(rational(nil_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else {
+                SASSERT(this->is_locadd(oapp));
+                #ifdef SLHV_DEBUG
+                std::cout << "is locadd" << std::endl;
+                #endif
+                heap_value_proc* locadd_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
+                enode* left_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* right_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                locadd_proc->add_dependency(model_value_dependency(left_enode));
+                locadd_proc->add_dependency(model_value_dependency(right_enode));
+            }
         } else if(this->is_dataterm(oapp)) {
-
+            if(this->is_datavar(oapp)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "is datavar" << std::endl;
+                #endif
+            } else {
+                #ifdef SLHV_DEBUG
+                std::cout << "is arith term" << std::endl;
+                #endif
+            }
         } else {
             SASSERT(false);
         }
-
         return nullptr;
     }
+
+
+    
 }

@@ -252,6 +252,30 @@ app* slhv_decl_plugin::mk_uplus_value(int num_arg, expr_ref_vector items) {
     return result;
 }
 
+
+app* slhv_decl_plugin::mk_points_to_value(int num_arg, expr_ref_vector items) {
+    sort* heap_sort = this->mk_sort(INTHEAP_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* pt_decl = this->mk_points_to(num_arg, domain);
+    app* result = m_manager->mk_app(pt_decl, items.data());
+    return result;
+}
+
+
+app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
+    sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* locadd_decl = this->mk_locadd(num_arg, domain);
+    app* result = m_manager->mk_app(locadd_decl, items.data());
+    return result;
+}
+
 bool slhv_decl_plugin::is_loc_value(app* e) {
     return is_app_of(e, m_family_id, OP_LOCVAR_CONST);
 }

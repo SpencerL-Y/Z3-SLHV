@@ -186,6 +186,10 @@ class slhv_decl_plugin : public decl_plugin {
 
     app* mk_uplus_value(int num_arg, expr_ref_vector items);
 
+    app* mk_points_to_value(int num_arg, expr_ref_vector items);
+
+    app* mk_locadd_value(int num_arg, expr_ref_vector items);
+
     bool is_loc_value(app* e);
 
 
