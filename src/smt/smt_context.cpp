@@ -3524,7 +3524,7 @@ namespace smt {
         if (r == l_true && gparams::get_value("model_validate") == "true") {
             recfun::util u(m);
             model_ref mdl;
-            get_model(mdl);            
+            get_model(mdl);
             if (u.get_rec_funs().empty()) {
                 if (mdl.get()) {
                     for (theory* t : m_theory_set) {
