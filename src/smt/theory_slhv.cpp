@@ -454,6 +454,17 @@ namespace smt {
                     std::cout << r.first << " " << r.second << std::endl;
                 }
                 #endif
+                for(atoms_subsumption* sbs : this->model_subsume_info) {
+                    if(sbs->get_main_heap_term()->is_atom_hvar()) {
+                        app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
+                        SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
+                        std::set<app*> pts_subsumed;
+                        for(heap_term* pt_ht : sbs->get_pt_atoms()) {
+                            pts_subsumed.insert(pt_ht->get_atoms()[0]);
+                        }
+                        this->hvar2ptset[hvar_app] = pts_subsumed;
+                    }
+                }
                 return true;
             } else if(final_result == l_false) { 
                 std::cout << " translated UNSAT " << std::endl;
@@ -2746,7 +2757,7 @@ namespace smt {
         std::cout << "init model for slhv: arith factory, locvar_factory and heap factory" << std::endl;
 
         this->data_factory = alloc(arith_factory, this->m);
-        this->loc_factory = alloc(locvar_factory, this->m, this->get_family_id());
+        // this->loc_factory = alloc(locvar_factory, this->m, this->get_family_id());
 
     }
 
@@ -2769,6 +2780,10 @@ namespace smt {
                 enode* data_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 pt_proc->add_dependency(model_value_dependency(addr_enode));
                 pt_proc->add_dependency(model_value_dependency(data_enode));
+                SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = pt_proc;
                 return pt_proc;
             } else if(this->is_hvar(oapp)) {
                 // TODO: add dependency here later
@@ -2776,8 +2791,18 @@ namespace smt {
                 std::cout << "is hvar" << std::endl;
                 #endif
                 heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
-                enode* emp_node = this->ctx.get_enode(this->global_emp);
-                hvar_proc->add_dependency(model_value_dependency(emp_node));
+                std::set<enode*> depended_nodes;
+                for(app* dp_pt : this->hvar2ptset[oapp]) {
+                    depended_nodes.insert(
+                        this->ctx.get_enode(dp_pt)->get_root()
+                    );
+                }
+                for(enode* dpn : depended_nodes ){
+                    hvar_proc->add_dependency(model_value_dependency(dpn));
+                }
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = hvar_proc;
                 return hvar_proc;
             } else if(this->is_emp(oapp)) {
                 
@@ -2785,6 +2810,10 @@ namespace smt {
                 std::cout << "is emp" << std::endl;
                 #endif
                 heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = emp_proc;
                 return emp_proc;
             }
             else {
@@ -2793,6 +2822,9 @@ namespace smt {
                 std::cout << "is uplus" << std::endl;
                 #endif
                 heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = uplus_proc;
                 return uplus_proc;
             }
         } else if(this->is_locterm(oapp)) {

@@ -64,7 +64,10 @@ namespace smt
         // model generation
 
         arith_factory* data_factory;
-        locvar_factory* loc_factory;
+        
+        std::map<app*, std::set<app*>> hvar2ptset;
+
+        std::map<enode*, heap_value_proc*> enode2proc;
 
 
 
