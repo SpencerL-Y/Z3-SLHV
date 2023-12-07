@@ -396,10 +396,75 @@ namespace smt {
             std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
             if(final_result == l_true) {
                 std::cout << " translated SAT " << std::endl;
+                std::map<std::string, expr*> name2val;
                 model_ref md;
                 final_sovler->get_model(md);
                 std::cout << "translated model: " << std::endl;
                 model_smt2_pp(std::cout, this->m, *md, 0);
+                model_core& mdc = *md;
+                for(int i = 0; i < mdc.get_num_constants(); i ++) {
+                    expr_ref temp_val(this->m);
+                    mdc.eval(mdc.get_constant(i), temp_val);
+                    #ifdef SLHV_DEBUG
+                    std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                    std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
+                    #endif
+                    name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
+                }
+                std::set<std::string> true_var_names;
+                std::map<std::string, int> loc_data_var2val;
+                for(auto key_val_p : name2val) {
+                    if(key_val_p.second->get_sort()->get_name() == "Bool") {
+                        if(this->m.is_true(key_val_p.second)) {
+                            true_var_names.insert(key_val_p.first);
+                        } else if(this->m.is_false(key_val_p.second)) {
+
+                        } else {
+                            SASSERT(false);
+                        }
+        
+                    } else {
+                        SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
+                        auto param = to_app(key_val_p.second)->get_parameter(0);
+                        std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
+                        std::cout << std::endl;
+
+                        std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
+                        loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
+                    }
+                }
+                std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
+                // record model information collected.
+                this->model_subsume_info = atoms_subs;
+                this->model_loc_data_var_val_info = loc_data_var2val;
+                #ifdef SLHV_DEBUG
+                std::cout << "model info recorded: " << std::endl;
+                std::cout << this->model_subsume_info.size() << std::endl;SASSERT(s != nullptr);
+                for(atoms_subsumption* ats : this->model_subsume_info) {
+                    std::cout << 
+                    ats->get_main_heap_term()->get_vec_size() << "------- main" << std::endl;
+                    ats->get_main_heap_term()->print_ht();
+                    std::cout << "------- subs" << std::endl;
+                    for(heap_term* h : ats->get_pt_atoms()) {
+                        h->print_ht();
+                    }
+                }
+                std::cout << "locvar vals: " << std::endl;
+                for(auto r : this->model_loc_data_var_val_info) {
+                    std::cout << r.first << " " << r.second << std::endl;
+                }
+                #endif
+                for(atoms_subsumption* sbs : this->model_subsume_info) {
+                    if(sbs->get_main_heap_term()->is_atom_hvar()) {
+                        app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
+                        SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
+                        std::set<app*> pts_subsumed;
+                        for(heap_term* pt_ht : sbs->get_pt_atoms()) {
+                            pts_subsumed.insert(pt_ht->get_atoms()[0]);
+                        }
+                        this->hvar2ptset[hvar_app] = pts_subsumed;
+                    }
+                }
                 return true;
             } else if(final_result == l_false) { 
                 std::cout << " translated UNSAT " << std::endl;
@@ -896,33 +961,53 @@ namespace smt {
             std::cout << "extract rhs hterm end" << std::endl;
             #endif
         }
-        std::set<heap_term*> all_hterms;
-        for(heap_term* eq_hterm : eq_hterms) {
-            std::set<heap_term*> curr_heap_terms = eq_hterm->get_subhterms();
-            for(heap_term* ht : curr_heap_terms) {
-                bool found = false;
-                for(heap_term* eht : all_hterms) {
-                    if(ht->get_atomic_count() == eht->get_atomic_count()) {
-                        found = true;
-                        break;
-                    }
-                }
-                if(!found) {
-                    all_hterms.insert(ht);
-                }
-            }
-        }
 
-        std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
-        emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
-        for(heap_term* eht : all_hterms) {
-            if(eht->get_atomic_count() == emp_hterm_count) {
-                break;
-            } else {
-                heap_term* emp_hterm = alloc(heap_term, this, this->curr_atomic_hterms, emp_hterm_count);
-                all_hterms.insert(emp_hterm);
+        std::set<heap_term*> all_hterms;
+        std::set<std::vector<int>> all_counts;
+        std::vector<app*> atomics;
+        for(heap_term* eq_hterm : eq_hterms) {
+            std::set<std::vector<int>> curr_atom_counts = eq_hterm->get_atomic_subhterms_counts();
+            all_counts = slhv_util::setUnion(all_counts, curr_atom_counts);
+            all_hterms.insert(eq_hterm);
+            atomics = eq_hterm->get_atomic_hterm_vec();
+        }
+        SASSERT(atomics.size() > 0);
+        for(auto vec : all_counts) {
+            for(heap_term* ht : all_hterms) {
+                if(ht->get_atomic_count() == vec) {
+                    all_counts.erase(vec);
+                    break;
+                }
             }
         }
+        for(std::vector<int> vec : all_counts) {
+            heap_term* atom = alloc(heap_term, this, atomics, vec);
+            all_hterms.insert(atom);
+        }
+        bool has_emp = false;
+        for(heap_term* ht : all_hterms) {
+            if(ht->is_emp()) {
+                has_emp = true;
+                break;
+            }
+        }
+        if(!has_emp) {
+            std::vector<int> emp_vec(atomics.size(), 0);
+            emp_vec[emp_vec.size() - 1] = 1;
+            heap_term* emp_hterm = alloc(heap_term, this, atomics, emp_vec);
+            all_hterms.insert(emp_hterm);
+        }
+        
+        // std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
+        // emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
+        // for(heap_term* eht : all_hterms) {
+        //     if(eht->get_atomic_count() == emp_hterm_count) {
+        //         break;
+        //     } else {
+        //         heap_term* emp_hterm = alloc(heap_term, this, this->curr_atomic_hterms, emp_hterm_count);
+        //         all_hterms.insert(emp_hterm);
+        //     }
+        // }
         
         #ifdef SLHV_DEBUG
         std::cout << "end extract all hterms" << std::endl;
@@ -939,6 +1024,55 @@ namespace smt {
         os << std::endl;
     }
 
+
+    std::set<atoms_subsumption*> theory_slhv::parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs) {
+        std::set<std::pair<heap_term*, heap_term*>> subparent_pairs;
+        for(std::string name : true_bool_strs) {
+        #ifdef SLHV_DEBUG
+            std::cout << "origin name: " << name << std::endl;
+        #endif
+            if(name.find("ish") != name.npos) {
+        #ifdef SLHV_DEBUG
+                std::cout << "deal with sh" << std::endl;
+        #endif
+                std::vector<std::string> tokens = slhv_util::str_split(name, "_");
+                SASSERT(tokens[0].compare("ish") == 0);
+                int subsumed_id = atoi(tokens[1].data());
+                int parent_id = atoi(tokens[2].data());
+        #ifdef SLHV_DEBUG
+                std::cout << "subsumed id: " << subsumed_id << " parent id: " << parent_id << std::endl;
+        #endif
+                subparent_pairs.insert({enc->get_ht_by_id(subsumed_id), enc->get_ht_by_id(parent_id)});
+            } else if(name.find("idj") != name.npos) {
+        #ifdef SLHV_DEBUG
+                std::cout << "deawl with dj" << std::endl;
+        #endif
+            } else {
+                SASSERT(false);
+            }
+        }
+        std::map<heap_term*, std::set<heap_term*>> ht2subpts;
+        for(auto p : subparent_pairs) {
+            if(p.first->is_atom_pt()) {
+                if(ht2subpts.find(p.second) != ht2subpts.end()) {
+                    ht2subpts[p.second].insert(p.first);
+                } else {
+                    std::set<heap_term*> subpts;
+                    subpts.insert(p.first);
+                    ht2subpts[p.second] = subpts;
+                }
+            }
+        }
+        std::set<atoms_subsumption*> result;
+        for(auto r : ht2subpts) {
+            atoms_subsumption* s = alloc(atoms_subsumption, r.first, r.second);
+            result.insert(s);
+        }
+        #ifdef SLHV_DEBUG
+        std::cout << "result size: " << result.size() << std::endl;
+        #endif
+        return result;
+    }
 
 
 
@@ -1117,6 +1251,19 @@ namespace smt {
     }
 
 
+    std::set<std::vector<int>> heap_term::get_atomic_subhterms_counts() {
+        std::set<std::vector<int>> atomic_counts;
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            if(this->get_pos(i) > 0) {
+                std::vector<int> temp_count(this->get_vec_size(), 0);
+                temp_count[i] = 1;
+                atomic_counts.insert(temp_count);
+            }
+        }
+        return atomic_counts;
+    }
+
+
     std::set<std::pair<std::vector<int>, std::vector<int>>> heap_term::get_splitted_subpairs() {
         SASSERT(!this->is_atom_hvar() && !this->is_atom_pt() && !this->is_emp());
         std::set<std::vector<int>> curr_enum;
@@ -1177,6 +1324,17 @@ namespace smt {
         }
         return result;
     }
+
+    void heap_term::print_ht() {
+        std::cout << "( ";                    
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            for(int l = 0; l < this->get_pos(i); l ++) {
+                std::cout << mk_ismt2_pp(this->atomic_hterms_vec[i], this->th->get_manager()) << " | ";
+            }
+        }
+        std::cout << ")" << std::endl;
+    }
+
 
 
     void heap_term::print(std::ostream& os) {
@@ -1603,10 +1761,17 @@ namespace smt {
         for(auto item : this->locvar2intvar_map) {
             SASSERT(this->th->is_locvar(item.first));
             arith_util a(this->th->get_manager());
-            result = this->th->get_manager().mk_and(
-                result,
-                a.mk_ge(item.second, a.mk_int(0))
-            );
+            if(this->th->is_nil(item.first)) {
+                result = this->th->get_manager().mk_and(
+                    result,
+                    a.mk_eq(item.second, a.mk_int(0))
+                );
+            } else {
+                result = this->th->get_manager().mk_and(
+                    result,
+                    a.mk_gt(item.second, a.mk_int(0))
+                );
+            }
         }
         return result;
     }
@@ -1646,6 +1811,13 @@ namespace smt {
             }
         }
         return {first_ht, second_ht};
+    }
+
+
+    std::set<std::pair<heap_term*, heap_term*>> formula_encoder::parse_model_shrel(model_core& mdc) {
+        std::set<std::pair<heap_term*, heap_term*>> result;
+
+        return result;
     }
 
     // syntax maker
@@ -2582,10 +2754,126 @@ namespace smt {
 
 
     void theory_slhv::init_model(model_generator & mg)  {
+        std::cout << "init model for slhv: arith factory, locvar_factory and heap factory" << std::endl;
+
+        this->data_factory = alloc(arith_factory, this->m);
+        // this->loc_factory = alloc(locvar_factory, this->m, this->get_family_id());
+
     }
 
 
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
+        theory_var v = n->get_th_var(get_id());
+        expr* o = n->get_expr();
+        #ifdef SLHV_DEBUG
+        std::cout << "mk_value for " << mk_ismt2_pp(o, this->m) << std::endl;
+        #endif
+        arith_util a(this->m);
+        app* oapp = to_app(o);
+        if(this->is_heapterm(oapp)) {
+            if(this->is_points_to(oapp)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "is points to" << std::endl;
+                #endif
+                heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* data_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                pt_proc->add_dependency(model_value_dependency(addr_enode));
+                pt_proc->add_dependency(model_value_dependency(data_enode));
+                SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = pt_proc;
+                return pt_proc;
+            } else if(this->is_hvar(oapp)) {
+                // TODO: add dependency here later
+                #ifdef SLHV_DEBUG
+                std::cout << "is hvar" << std::endl;
+                #endif
+                heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                std::set<enode*> depended_nodes;
+                for(app* dp_pt : this->hvar2ptset[oapp]) {
+                    depended_nodes.insert(
+                        this->ctx.get_enode(dp_pt)->get_root()
+                    );
+                }
+                for(enode* dpn : depended_nodes ){
+                    hvar_proc->add_dependency(model_value_dependency(dpn));
+                }
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = hvar_proc;
+                return hvar_proc;
+            } else if(this->is_emp(oapp)) {
+                
+                #ifdef SLHV_DEBUG
+                std::cout << "is emp" << std::endl;
+                #endif
+                heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = emp_proc;
+                return emp_proc;
+            }
+            else {
+                SASSERT(this->is_uplus(oapp));
+                #ifdef SLHV_DEBUG
+                std::cout << "is uplus" << std::endl;
+                #endif
+                heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = uplus_proc;
+                return uplus_proc;
+            }
+        } else if(this->is_locterm(oapp)) {
+            if(this->is_locvar(oapp)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "is locvar" << std::endl;
+                #endif
+                std::string locvar_name = oapp->get_name().str();
+                int int_val = this->model_loc_data_var_val_info[locvar_name];
+                app* val_expr = data_factory->mk_num_value(rational(int_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else if(this->is_nil(oapp)){
+                #ifdef SLHV_DEBUG
+                std::cout << "is nil" << std::endl;
+                #endif
+                int nil_val = this->model_loc_data_var_val_info["nil"];
+                app* val_expr = data_factory->mk_num_value(rational(nil_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else {
+                SASSERT(this->is_locadd(oapp));
+                #ifdef SLHV_DEBUG
+                std::cout << "is locadd" << std::endl;
+                #endif
+                heap_value_proc* locadd_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
+                enode* left_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* right_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                locadd_proc->add_dependency(model_value_dependency(left_enode));
+                locadd_proc->add_dependency(model_value_dependency(right_enode));
+            }
+        } else if(this->is_dataterm(oapp)) {
+            if(this->is_datavar(oapp)) {
+                #ifdef SLHV_DEBUG
+                std::cout << "is datavar" << std::endl;
+                #endif
+                int data_var_val = this->model_loc_data_var_val_info[oapp->get_name().str()];
+                app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else {
+                #ifdef SLHV_DEBUG
+                std::cout << "is arith term" << std::endl;
+                #endif
+                return nullptr;
+            }
+        } else {
+            SASSERT(false);
+        }
         return nullptr;
     }
+
+
+    
 }

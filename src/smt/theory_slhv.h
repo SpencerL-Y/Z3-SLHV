@@ -3,6 +3,7 @@
 #include "smt/smt_theory.h"
 #include "ast/slhv_decl_plugin.h"
 #include "model/locvar_factory.h"
+#include "model/numeral_factory.h"
 #include "smt/smt_model_generator.h"
 #include <set>
 #include <stack>
@@ -16,6 +17,9 @@ namespace smt
     class heap_term;
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
+    class atoms_subsumption;
+    class formula_encoder;
+    class heap_value_proc;
     class theory_slhv : public theory {
 
         public:
@@ -48,6 +52,8 @@ namespace smt
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
 
+        std::set<atoms_subsumption*> model_subsume_info;
+        std::map<std::string, int> model_loc_data_var_val_info;
 
 
         slhv_decl_plugin* slhv_plug;
@@ -57,6 +63,11 @@ namespace smt
 
         // model generation
 
+        arith_factory* data_factory;
+        
+        std::map<app*, std::set<app*>> hvar2ptset;
+
+        std::map<enode*, heap_value_proc*> enode2proc;
 
 
 
@@ -169,6 +180,8 @@ namespace smt
         std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
 
         void print_all_hterms(std::ostream& os);
+
+        std::set<atoms_subsumption*> parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs); 
         public:
         theory_slhv(context& ctx);
         
@@ -209,6 +222,8 @@ namespace smt
         }
 
         model_value_proc * mk_value(enode * n, model_generator & mg) override;
+
+        std::vector<int> generate_count_vector_by_app(app* hterm);
 
         bool can_propagate() override {
             return false;
@@ -523,10 +538,12 @@ namespace smt
             int get_emp_num();
 
             std::set<heap_term*>  get_subhterms();
+            std::set<std::vector<int>> get_atomic_subhterms_counts();
             void print(std::ostream& os);
 
             std::set<std::pair<std::vector<int>, std::vector<int>>> get_splitted_subpairs();
 
+            void print_ht();
     };
 // encoder from slhv to lia
     class formula_encoder {
@@ -559,6 +576,9 @@ namespace smt
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
+        heap_term* get_ht_by_id(int id) {
+            return this->index2ht[id];
+        }
         app* locvar2intvar(app* locvar);
 
         expr* generate_ld_formula();
@@ -573,8 +593,26 @@ namespace smt
 
 
         std::pair<heap_term*, heap_term*> get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair);
+
+        std::set<std::pair<heap_term*, heap_term*>> parse_model_shrel(model_core& mdc);
     };
 
+// heap term atoms contained
+    class atoms_subsumption {
+        private: 
+            heap_term* main_heap_term;
+            std::set<heap_term*> pt_atoms;
+        public:
+            atoms_subsumption(heap_term* m, std::set<heap_term*> pts) : main_heap_term(m), pt_atoms(pts) {
+                
+            }
+            heap_term* get_main_heap_term() {
+                return this->main_heap_term;
+            }
+            std::set<heap_term*> get_pt_atoms() {
+                return this->pt_atoms;
+            }
+    };
 
 // util class
     class slhv_util {
@@ -719,6 +757,22 @@ namespace smt
             }
             return result;
         }
+
+        static std::vector<std::string> str_split(std::string str, std::string pattern) {
+            std::string::size_type pos;
+            std::vector<std::string> result;
+            str += pattern;
+            int size = str.size();
+            for (int i = 0; i < size; i ++) {
+                pos = str.find(pattern, i);
+                if(pos < size) {
+                    std::string s = str.substr(i, pos-i);
+                    result.push_back(s);
+                    i = pos + pattern.size() - 1;
+                }
+            }
+            return result;
+        }
     };
 
 // fresh_var_maker
@@ -816,17 +870,32 @@ namespace smt
             this->m_dependencies.push_back(d);
         }
 
-        void get_dependencies(buffer<model_value_dependency>& result) override{
+        void get_dependencies(buffer<model_value_dependency>& result) override {
             result.append(this->m_dependencies.size(), m_dependencies.data());
         }
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
             ast_manager& m = mg.get_manager();
-            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
-            if(values.size() > 1) {
-                return plug->mk_uplus_value(values.size(), values);
-            } else if(values.size() == 1){
-                return to_app(values.get(0));
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.     get_plugin(m.mk_family_id("slhv"));
+            if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
+                if(values.size() > 1) {
+                    if(values.get(0)->get_sort()->get_name() == INTHEAP_SORT_STR) {
+                        // the value is a uplus term
+                        return plug->mk_uplus_value(values.size(), values);
+                    } else {
+                        SASSERT(values.size() == 2 && values.get(0)->get_sort()->get_name() == INTLOC_SORT_STR);
+                        // must be a points to
+                        return plug->mk_points_to_value(2, values);
+                    }
+                } else if(values.size() == 1){
+                    return to_app(values.get(0));
+                } else {
+                    return plug->mk_emp_value();
+                }
+            } else if(this->m_sort->get_name() == INTLOC_SORT_STR) {
+                ast_manager& m = mg.get_manager();
+                SASSERT(values.size() == 2);
+                return plug->mk_locadd_value(2, values);
             } else {
                 return nullptr;
             }
@@ -836,9 +905,6 @@ namespace smt
             return false;
         }
 
-
     };
 
-
-    
 } // namespace smt
