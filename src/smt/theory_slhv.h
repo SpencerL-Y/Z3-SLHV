@@ -876,7 +876,7 @@ namespace smt
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
             ast_manager& m = mg.get_manager();
-            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.     get_plugin(m.mk_family_id("slhv"));
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
             if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
                 if(values.size() > 1) {
                     if(values.get(0)->get_sort()->get_name() == INTHEAP_SORT_STR) {

@@ -1011,7 +1011,7 @@ namespace smt {
                 break;
             }
         }
-        if(!has_emp) {
+        if(!has_emp && all_hterms.size() > 0) {
             std::vector<int> emp_vec(atomics.size(), 0);
             emp_vec[emp_vec.size() - 1] = 1;
             heap_term* emp_hterm = alloc(heap_term, this, atomics, emp_vec);
@@ -2875,11 +2875,13 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is locadd" << std::endl;
                 #endif
+                
                 heap_value_proc* locadd_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
                 enode* left_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 enode* right_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                 locadd_proc->add_dependency(model_value_dependency(left_enode));
                 locadd_proc->add_dependency(model_value_dependency(right_enode));
+                return locadd_proc;
             }
         } else if(this->is_dataterm(oapp)) {
             if(this->is_datavar(oapp)) {
@@ -2893,7 +2895,7 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "is arith term" << std::endl;
                 #endif
-                return nullptr;
+                return alloc(expr_wrapper_proc, oapp);
             }
         } else {
             SASSERT(false);
