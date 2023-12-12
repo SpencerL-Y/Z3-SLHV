@@ -68,9 +68,9 @@ lbool solver_na2as::check_sat_core(unsigned num_assumptions, expr * const * assu
     append_assumptions app(m_assumptions, num_assumptions, assumptions);
     TRACE("solver_na2as", display(tout););
 
-    #ifdef SLHV_DEBUG
-    display(std::cout);
-    #endif
+    // #ifdef SLHV_DEBUG
+    // display(std::cout);
+    // #endif
     return check_sat_core2(m_assumptions.size(), m_assumptions.data());
 }
 

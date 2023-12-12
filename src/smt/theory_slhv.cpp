@@ -917,6 +917,7 @@ namespace smt {
                 for(heap_term* ht : eq_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
+                        break;
                     }
                 }
 
@@ -962,6 +963,10 @@ namespace smt {
             #endif
         }
 
+        #ifdef SLHV_DEBUG
+        std::cout << "eq hterm extracted" << std::endl;
+        #endif
+
         std::set<heap_term*> all_hterms;
         std::set<std::vector<int>> all_counts;
         std::vector<app*> atomics;
@@ -972,18 +977,33 @@ namespace smt {
             atomics = eq_hterm->get_atomic_hterm_vec();
         }
         SASSERT(atomics.size() > 0);
+        
+        std::set<std::vector<int>> next_all_counts;
         for(auto vec : all_counts) {
+            bool insert_to_next = true;
             for(heap_term* ht : all_hterms) {
                 if(ht->get_atomic_count() == vec) {
-                    all_counts.erase(vec);
+                    insert_to_next = false;
                     break;
                 }
             }
+            if(insert_to_next) {
+                next_all_counts.insert(vec);
+            }
         }
-        for(std::vector<int> vec : all_counts) {
+
+        #ifdef SLHV_DEBUG
+        std::cout << " begin all heap term allocation" << std::endl;
+        #endif
+        for(std::vector<int> vec : next_all_counts) {
             heap_term* atom = alloc(heap_term, this, atomics, vec);
             all_hterms.insert(atom);
         }
+
+        #ifdef SLHV_DEBUG
+        std::cout << "all heap term alloced" << std::endl;
+        #endif
+
         bool has_emp = false;
         for(heap_term* ht : all_hterms) {
             if(ht->is_emp()) {
@@ -997,6 +1017,12 @@ namespace smt {
             heap_term* emp_hterm = alloc(heap_term, this, atomics, emp_vec);
             all_hterms.insert(emp_hterm);
         }
+
+
+        #ifdef SLHV_DEBUG
+        std::cout << "emp heap term alloced" << std::endl;
+        #endif
+
         
         // std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
         // emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
@@ -1009,9 +1035,6 @@ namespace smt {
         //     }
         // }
         
-        #ifdef SLHV_DEBUG
-        std::cout << "end extract all hterms" << std::endl;
-        #endif
         return {eq_pair_hterms, all_hterms};
     }
 
@@ -1028,25 +1051,25 @@ namespace smt {
     std::set<atoms_subsumption*> theory_slhv::parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs) {
         std::set<std::pair<heap_term*, heap_term*>> subparent_pairs;
         for(std::string name : true_bool_strs) {
-        #ifdef SLHV_DEBUG
-            std::cout << "origin name: " << name << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //     std::cout << "origin name: " << name << std::endl;
+        // #endif
             if(name.find("ish") != name.npos) {
-        #ifdef SLHV_DEBUG
-                std::cout << "deal with sh" << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //         std::cout << "deal with sh" << std::endl;
+        // #endif
                 std::vector<std::string> tokens = slhv_util::str_split(name, "_");
                 SASSERT(tokens[0].compare("ish") == 0);
                 int subsumed_id = atoi(tokens[1].data());
                 int parent_id = atoi(tokens[2].data());
-        #ifdef SLHV_DEBUG
-                std::cout << "subsumed id: " << subsumed_id << " parent id: " << parent_id << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //         std::cout << "subsumed id: " << subsumed_id << " parent id: " << parent_id << std::endl;
+        // #endif
                 subparent_pairs.insert({enc->get_ht_by_id(subsumed_id), enc->get_ht_by_id(parent_id)});
             } else if(name.find("idj") != name.npos) {
-        #ifdef SLHV_DEBUG
-                std::cout << "deawl with dj" << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        //         std::cout << "deal with dj" << std::endl;
+        // #endif
             } else {
                 SASSERT(false);
             }
@@ -1068,9 +1091,9 @@ namespace smt {
             atoms_subsumption* s = alloc(atoms_subsumption, r.first, r.second);
             result.insert(s);
         }
-        #ifdef SLHV_DEBUG
-        std::cout << "result size: " << result.size() << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "result size: " << result.size() << std::endl;
+        // #endif
         return result;
     }
 
@@ -1614,14 +1637,17 @@ namespace smt {
                 );
 
                 for(heap_term* ht : this->hts) {
-                    second_conj = this->th->get_manager().mk_implies(
-                        this->th->get_manager().mk_and(
-                            this->get_shrel_boolvar(pt, ht),
-                            this->get_shrel_boolvar(ptp, ht)
-                        ),
-                        this->th->get_manager().mk_or(
-                            this->get_shrel_boolvar(pt, ptp),
-                            this->get_djrel_boolvar(pt, ptp)
+                    second_conj = this->th->get_manager().mk_and(
+                        second_conj,
+                        this->th->get_manager().mk_implies(
+                            this->th->get_manager().mk_and(
+                                this->get_shrel_boolvar(pt, ht),
+                                this->get_shrel_boolvar(ptp, ht)
+                            ),
+                            this->th->get_manager().mk_or(
+                                this->get_shrel_boolvar(pt, ptp),
+                                this->get_djrel_boolvar(pt, ptp)
+                            )
                         )
                     );
                 }
@@ -1629,6 +1655,7 @@ namespace smt {
             
         }
 
+        std::cout << mk_pp(this->th->get_manager().mk_and(first_conj, second_conj), this->th->get_manager()) << std::endl;
         return this->th->get_manager().mk_and(first_conj, second_conj);
     }
 
