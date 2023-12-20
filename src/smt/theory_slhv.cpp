@@ -265,25 +265,32 @@ namespace smt {
     }
 
     bool theory_slhv::is_arith_formula(app* l) {
-        if(l->get_family_id() == arith_family_id) {
-            return true;
-        }
-        if(l->get_num_args() > 0) {
-            bool result = false;
+        if(l->get_num_args() == 0) {
+            if(l->get_family_id() == arith_family_id) {
+                return true; 
+            } else {
+                return false;
+            }
+        } else  {
+            bool result = true;
             for(int i = 0; i < l->get_num_args(); i ++) {
                 bool curr_result = this->is_arith_formula(to_app(l->get_arg(i)));
-                result = result || curr_result;
-                if(result) {
-                    return true;
+                result = result && curr_result;
+                if(!result) {
+                    return result;
                 }
             }
-        }
-        return false;
+            return result;
+        } 
     }
 
     bool theory_slhv::is_not_heap_or_loc_formula(app* l) {
-        if(l->get_family_id() == this->get_family_id()) {
-            return false;
+        if(l->get_num_args() == 0) {
+            if(l->get_family_id() == this->get_family_id()) {
+                return false;
+            } else {
+                return true;
+            }
         } else {
             bool result = true;
             for(int i = 0; i < l->get_num_args(); i ++ ){
@@ -293,8 +300,8 @@ namespace smt {
                     return false;
                 }
             }
+            return result;
         }
-        return true;
     }
 
 
@@ -456,10 +463,10 @@ namespace smt {
                 for(int i = 0; i < mdc.get_num_constants(); i ++) {
                     expr_ref temp_val(this->m);
                     mdc.eval(mdc.get_constant(i), temp_val);
-                    #ifdef SLHV_DEBUG
+                    // #ifdef SLHV_DEBUG
                     std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                     std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                    #endif
+                    // #endif
                     name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
                 }
                 std::set<std::string> true_var_names;
@@ -476,12 +483,17 @@ namespace smt {
         
                     } else {
                         SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
+                        // std::cout << "DEBUG: " << key_val_p.first << std::endl;
                         auto param = to_app(key_val_p.second)->get_parameter(0);
                         std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
                         std::cout << std::endl;
 
                         std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
+                        for(std::string n : extracted_names) {
+                            std::cout << n << std::endl;
+                        }
                         loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
+                        // std::cout << "here" << std::endl;
                     }
                 }
                 std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
@@ -517,16 +529,17 @@ namespace smt {
                         this->hvar2ptset[hvar_app] = pts_subsumed;
                     }
                 }
-            this->set_conflict_slhv(true);
-            numeral_solver->dec_ref();
-            final_sovler->dec_ref();
+                final_sovler->dec_ref();
+                numeral_solver->dec_ref();
                 return true;
             } else if(final_result == l_false) { 
                 std::cout << " translated UNSAT " << std::endl;
             } else {    
                 std::cout << " translated UNKNOWN " << std::endl;
             }
+            // this->set_conflict_slhv(true);
             final_sovler->dec_ref();
+            numeral_solver->dec_ref();
             this->m.dec_ref(encoded_form);
 
             this->mem_mng->dealloc_all();
@@ -568,7 +581,7 @@ namespace smt {
         std::vector<std::vector<expr*>> last_result;
         for(auto e : assigned_literals) {
             std::vector<std::vector<expr*>> temp_result;
-            if(this->is_arith_formula(to_app(e)) || this->is_not_heap_or_loc_formula(to_app(e))) {
+            if(this->is_not_heap_or_loc_formula(to_app(e))) {
                 if(last_result.size() > 0) {
                     for(std::vector<expr*> r : last_result) {
                         std::vector<expr*> nr = r;
@@ -1613,11 +1626,9 @@ namespace smt {
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
             result = this->th->mk_simplify_and(result, this->translate_locdata_formula(loc_constraint));
-            
         }
         for(app* data_constraint : this->th->curr_data_cnstr) {
-            result = this->th->mk_simplify_and(result, data_constraint);
-
+            result = this->th->mk_simplify_and(result, this->translate_locdata_formula(data_constraint));
         }
         return result;
     }
