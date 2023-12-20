@@ -159,6 +159,8 @@ namespace smt
 
         bool internalize_term_core(app * term);
 
+        
+        std::vector<expr*> eliminate_not_or_assignments(expr* expression);
 
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use

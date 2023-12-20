@@ -82,7 +82,7 @@ namespace smt {
         #ifdef SLHV_DEBUG
             std::cout << "slhv internalize term" << std::endl;
         #endif
-        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term)) {
+        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term)) {
             std::cout << "unsupported term op: " << term->get_name() << std::endl;
             return false;
         }
@@ -108,6 +108,10 @@ namespace smt {
             #ifdef SLHV_DEBUG
             std::cout << "term name: " << term->get_name() << " is_uplus: " << is_uplus(term) << " num args: " << term->get_num_args() << std::endl;
             #endif
+        } else if(is_locadd(term)) {
+            SASSERT(term->get_num_args() == 2);
+            enode* arg0_node = ctx.get_enode(term->get_arg(0));
+            enode* arg1_node = ctx.get_enode(term->get_arg(1));
         }
         else {
             SASSERT(term->get_num_args() == 0);
@@ -134,7 +138,9 @@ namespace smt {
             std::cout << "mk_theory_var for " << mk_ismt2_pp(term, m) << std::endl;
             #endif
             mk_var(e);
+            #ifdef SLHV_DEBUG
             std::cout << "theory var made: " << get_th_var(e) << std::endl;
+            #endif
         }
         if(m.is_bool(term)) {
             bool_var bv = ctx.mk_bool_var(term);
@@ -307,18 +313,27 @@ namespace smt {
 
     bool theory_slhv::final_check() {
         // reset all theory attribute for new final check
-        #ifdef SLHV_DEBUG
+        #if true
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
-        std::cout << "================= current outside assignment ==============" << std::endl;
+        std::cout << "================= current refined assignment ==============" << std::endl;
         #endif
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+        
         // reset collected hvars, locvars and 
-        #ifdef SLHV_DEBUG
+
+        expr_ref_vector refined_assignments(this->m);
         for(expr* e : assignments) {
+            std::vector<expr*> refined_e = this->eliminate_not_or_assignments(e);
+            for(expr* re : refined_e) {
+                refined_assignments.push_back(re);
+            }
+        }
+        #if true
+        for(expr* e : refined_assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-        std::cout << "===================== current outside assignment end ==================" << std::endl;  
+        std::cout << "===================== current refined assignment end ==================" << std::endl;  
         #endif
 
         // use the datatype to initialize pt field info
@@ -333,7 +348,7 @@ namespace smt {
         
         // TODO: change all encoding based on pt record info 
         //  enumerate all possible situations for negation imposed on hterm equalities
-        std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(assignments);
+        std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
 
         #ifdef SLHV_DEBUG
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
@@ -559,6 +574,33 @@ namespace smt {
         return false;
     }
 
+
+    std::vector<expr*> theory_slhv::eliminate_not_or_assignments(expr* expression) {
+        // currently only single layered not or is eliminated
+
+        std::vector<expr*> result;
+        app* apped_expr = to_app(expression);
+        if(apped_expr->is_app_of(basic_family_id, OP_NOT)) {
+            app* apped_neg_arg = to_app(apped_expr->get_arg(0));
+            if(apped_neg_arg->is_app_of(basic_family_id, OP_OR)) {
+                for(int i = 0; i < apped_neg_arg->get_num_args(); i ++) {
+                    app* disj_apped = to_app(apped_neg_arg->get_arg(i));
+                    if(disj_apped->is_app_of(basic_family_id, OP_NOT)) {
+                        result.push_back(disj_apped->get_arg(0));
+                    } else {
+                        result.push_back(this->syntax_maker->mk_not(disj_apped));
+                    }
+                }
+                return result;
+            } else if(apped_neg_arg->is_app_of(basic_family_id, OP_AND)) {
+                std::cout << "ELIMINATE NOT OR NOT SUPPORT, NOT AND APPEARS" << std::endl;
+            }
+        }
+
+        result.push_back(expression);
+        return result;
+    }
+
     void theory_slhv::preprocessing(expr_ref_vector assigned_literals) {
         #ifdef SLHV_DEBUG
         std::cout << "slhv preprocessing" << std::endl;
@@ -651,7 +693,7 @@ namespace smt {
                     }
                     return final_result;
                 } else {
-                    if(eliminated_neg_vec.size() != 0) {
+                    if(eliminated_neg_vec.size() > 0) {
                         for(std::vector<expr*> v : eliminated_neg_vec) {
                             std::vector<expr*> result = v;
                             result.push_back(curr_neg_lit);
@@ -671,7 +713,7 @@ namespace smt {
                 return final_result;
             }
         } else {
-            if(eliminated_neg_vec.size() != 0) {
+            if(eliminated_neg_vec.size() > 0) {
                 for(std::vector<expr*> v : eliminated_neg_vec) {
                     std::vector<expr*> result = v;
                     result.push_back(curr_neg_lit);
@@ -1581,10 +1623,8 @@ namespace smt {
             app* arg1 = to_app(locterm->get_arg(0));
             app* arg2 = to_app(locterm->get_arg(1));
             app* first = this->translate_locterm_to_liaterm(arg1);
-            SASSERT(this->th->is_dataterm(arg2));
-            this->th->get_manager().inc_ref(first);
-            this->th->get_manager().inc_ref(arg2);
-            app* result = a.mk_add(first, arg2);
+            app* second = this->translate_locterm_to_liaterm(arg2);
+            app* result = a.mk_add(first, second);
             return result;
         } else {
             return locterm;
@@ -1615,6 +1655,7 @@ namespace smt {
             
             return result;
         } else {
+            std::cout << "UNRESOLVED FORMULA: " << mk_ismt2_pp(formula, this->th->get_manager()) << std::endl;
             return formula;
         }
     }
