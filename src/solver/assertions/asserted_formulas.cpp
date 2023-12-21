@@ -94,9 +94,9 @@ asserted_formulas::~asserted_formulas() {
 }
 
 void asserted_formulas::push_assertion(expr * e, proof * pr, vector<justified_expr>& result) {
-    #ifdef SLHV_DEBUG
-    std::cout << "push_assertion";
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << "push_assertion";
+    // #endif
     if (inconsistent()) {
         return;
     }
@@ -109,9 +109,9 @@ void asserted_formulas::push_assertion(expr * e, proof * pr, vector<justified_ex
         // skip
     }
     else if (m.is_and(e)) {
-    #ifdef SLHV_DEBUG
-    std::cout << " and";
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << " and";
+    // #endif
         for (unsigned i = 0; i < to_app(e)->get_num_args(); ++i) {
             expr* arg = to_app(e)->get_arg(i);
             proof_ref _pr(m.proofs_enabled() ? m.mk_and_elim(pr, i) : nullptr, m);
@@ -119,9 +119,9 @@ void asserted_formulas::push_assertion(expr * e, proof * pr, vector<justified_ex
         }
     }
     else if (m.is_not(e, e1) && m.is_or(e1)) {
-    #ifdef SLHV_DEBUG
-    std::cout << " not and or";
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << " not and or";
+    // #endif
         for (unsigned i = 0; i < to_app(e1)->get_num_args(); ++i) {
             expr* arg = to_app(e1)->get_arg(i);
             proof_ref _pr(m.proofs_enabled() ? m.mk_not_or_elim(pr, i) : nullptr, m);
@@ -130,14 +130,14 @@ void asserted_formulas::push_assertion(expr * e, proof * pr, vector<justified_ex
         }
     }
     else {
-    #ifdef SLHV_DEBUG
-    std::cout << " other";
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << " other";
+    // #endif
         result.push_back(justified_expr(m, e, pr));
     }
-    #ifdef SLHV_DEBUG
-    std::cout << std::endl;
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << std::endl;
+    // #endif
 }
 
 void asserted_formulas::updt_params(params_ref const& p) {
@@ -168,9 +168,9 @@ void asserted_formulas::set_eliminate_and(bool flag) {
 
 
 void asserted_formulas::assert_expr(expr * e, proof * _in_pr) {
-    #ifdef  SLHV_DEBUG
-    std::cout << "assert_expr: " << mk_pp(e, this->m) << std::endl;
-    #endif
+    // #ifdef  SLHV_DEBUG
+    // std::cout << "assert_expr: " << mk_pp(e, this->m) << std::endl;
+    // #endif
     force_push();
     proof_ref  in_pr(_in_pr, m), pr(_in_pr, m);
     expr_ref   r(e, m);
@@ -182,13 +182,13 @@ void asserted_formulas::assert_expr(expr * e, proof * _in_pr) {
     if (m_smt_params.m_preprocess) {
         TRACE("assert_expr_bug", tout << r << "\n";);
         set_eliminate_and(false); // do not eliminate and before nnf.
-        #ifdef SLHV_DEBUG
-    std::cout << "init m_rewriter" << std::endl;
-        #endif
+    //     #ifdef SLHV_DEBUG
+    // std::cout << "init m_rewriter" << std::endl;
+    //     #endif
         m_rewriter(e, r, pr);
-        #ifdef SLHV_DEBUG
-    std::cout << "established m_rewriter" << std::endl;
-        #endif
+    //     #ifdef SLHV_DEBUG
+    // std::cout << "established m_rewriter" << std::endl;
+    //     #endif
         if (m.proofs_enabled()) {
             if (e == r)
                 pr = in_pr;

@@ -243,9 +243,9 @@ namespace smt {
         SASSERT(m.is_bool(n));
         if (is_gate(m, n)) {
 
-        #ifdef SLHV_DEBUG
-        std::cout << "is_gate: " << to_app(n)->get_decl_kind() << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "is_gate: " << to_app(n)->get_decl_kind() << std::endl;
+        // #endif
             switch(to_app(n)->get_decl_kind()) {
             case OP_AND: {
                 for (expr * arg : *to_app(n)) {
@@ -390,9 +390,9 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -415,9 +415,9 @@ namespace smt {
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
+        // #ifdef SLHV_DEBUG
+        // std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        // #endif
 
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));

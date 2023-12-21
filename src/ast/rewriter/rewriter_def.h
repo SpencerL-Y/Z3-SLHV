@@ -730,9 +730,9 @@ void rewriter_tpl<Config>::update_binding_at(unsigned i, expr* binding) {
 template<typename Config>
 template<bool ProofGen>
 void rewriter_tpl<Config>::main_loop(expr * t, expr_ref & result, proof_ref & result_pr) {
-    #ifdef SLHV_DEBUG
-    std::cout << "rewriter_tpl: main_loop" << std::endl;    
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << "rewriter_tpl: main_loop" << std::endl;    
+    // #endif
     result_pr = nullptr;
     if (!m().inc()) {
         if (m_cancel_check) {
@@ -774,9 +774,9 @@ void rewriter_tpl<Config>::main_loop(expr * t, expr_ref & result, proof_ref & re
 template<typename Config>
 template<bool ProofGen>
 void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr) {
-    #ifdef SLHV_DEBUG
-    std::cout << "rewriter_tpl: resume_core" << std::endl;
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << "rewriter_tpl: resume_core" << std::endl;
+    // #endif
     SASSERT(!frame_stack().empty());
     while (!frame_stack().empty()) {
         if (!m().inc()) {
@@ -840,9 +840,9 @@ void rewriter_tpl<Config>::resume_core(expr_ref & result, proof_ref & result_pr)
             result_pr = m().mk_reflexivity(m_root);
         SASSERT(result_pr_stack().empty());
     }    
-    #ifdef SLHV_DEBUG
-    std::cout << "rewriter_tpl: resume_core end" << std::endl;
-    #endif
+    // #ifdef SLHV_DEBUG
+    // std::cout << "rewriter_tpl: resume_core end" << std::endl;
+    // #endif
 }
 
 template<typename Config>

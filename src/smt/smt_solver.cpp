@@ -514,7 +514,9 @@ namespace {
 }
 
 solver * mk_smt_solver(ast_manager & m, params_ref const & p, symbol const & logic) {
+    #ifdef SLHV_DEBUG
     std::cout << "mk smt solver" << std::endl;
+    #endif
     return alloc(smt_solver, m, p, logic);
 }
 

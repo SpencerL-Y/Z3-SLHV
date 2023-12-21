@@ -266,6 +266,9 @@ app* slhv_decl_plugin::mk_points_to_value(int num_arg, expr_ref_vector items) {
 
 
 app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
+    #ifdef SLHV_DEBUG
+    std::cout << "mk locadd value" << std::endl;
+    #endif
     sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
     sort* domain[num_arg];
     for(int i = 0; i < num_arg; i ++) {
