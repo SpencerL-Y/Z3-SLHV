@@ -220,7 +220,9 @@ namespace smt
        
 
         final_check_status final_check_eh() override {
-            return final_check()? FC_DONE : FC_CONTINUE;
+            bool result = this->final_check();
+            if(result) std::cout << "FINAL CHECK DONE" << std::endl;
+            return result ? FC_DONE : FC_CONTINUE;
         }
         // model generation
         void init_model(model_generator & mg) override;

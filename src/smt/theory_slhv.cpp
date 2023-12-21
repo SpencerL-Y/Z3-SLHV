@@ -312,41 +312,62 @@ namespace smt {
 
 
     bool theory_slhv::final_check() {
-        // reset all theory attribute for new final check
-        #if true
-        std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
-        std::cout << "================= current refined assignment ==============" << std::endl;
-        #endif
+        
+        this->reset_configs();
+        // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+        // print outside assignments
+        #if true
+        std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
+        std::cout << "================= current outside assignment ==============" << std::endl;
+        for(expr* e : assignments) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
+        std::cout << "===================== current outside assignment end ==================" << std::endl;  
+        #endif
         
-        // reset collected hvars, locvars and 
-
+        // eliminate outside assignments that are of the form (not (or ....))
         expr_ref_vector refined_assignments(this->m);
         for(expr* e : assignments) {
             std::vector<expr*> refined_e = this->eliminate_not_or_assignments(e);
-            for(expr* re : refined_e) {
-                refined_assignments.push_back(re);
+            if(refined_e.size() == 1) {
+                refined_assignments.push_back(refined_e[0]);
+            } else {
+                for(expr* re : refined_e) {
+                    // this->ctx.internalize(re, false);
+                    bool same_e = false;
+                    for(expr* exists_e : refined_assignments) {
+                        if(exists_e != re) {
+                            same_e = true;
+                            break;
+                        }
+                    }
+                    if(!same_e) {
+                        refined_assignments.push_back(re);
+                    }
+                }
             }
         }
+        // print refined assignments
         #if true
+        std::cout << "================= current refined assignment ==============" << std::endl;
         for(expr* e : refined_assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
         std::cout << "===================== current refined assignment end ==================" << std::endl;  
         #endif
 
-        // use the datatype to initialize pt field info
+        // set slhv syntax plugin
         this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
         SASSERT(this->slhv_plug->pt_record_map.size() > 0);
+        // print records in plugin
         #ifdef SLHV_DEBUG
         for(auto item : this->slhv_plug->pt_record_map) {
             std::cout << "record type name: " << item.first << std::endl;
             item.second->print(std::cout);
         }
         #endif
-        
-        // TODO: change all encoding based on pt record info 
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
 
@@ -400,7 +421,11 @@ namespace smt {
                 numeral_solver->assert_expr(e);
             }
             lbool result =  numeral_solver->check_sat();
-            #ifdef SLHV_DEBUG
+            model_ref nmd;
+            numeral_solver->get_model(nmd);
+            std::cout << "translated model: " << std::endl;
+            model_smt2_pp(std::cout, this->m, *nmd, 0);
+            #if true
             std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
             if(result == l_true) {
                 std::cout << "SAT" << std::endl;
@@ -451,11 +476,12 @@ namespace smt {
             this->mem_mng->push_fec_ptr(fec);
             // TODO: memleak here
             expr* encoded_form  = fec->encode();
-            std::cout << "encoded form size: " << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
+            std::cout << "encoded form size: " ;
+            // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
             // expr* encoded_form = this->get_manager().mk_false();
             this->get_manager().inc_ref(encoded_form);
             std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
-            #ifdef SLHV_DEBUG
+            #if true
             std::cout << "============= encoded formula ========== " << std::endl;
             // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
             std::cout << "======================================== " << std::endl;
@@ -463,6 +489,9 @@ namespace smt {
             
             solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
             final_sovler->inc_ref();
+            for(expr* e: numeral_cnstr_assignments) {
+                final_sovler->assert_expr(e);
+            }
             final_sovler->assert_expr(encoded_form);
             // final_sovler->assert_expr(ff);
             lbool final_result = final_sovler->check_sat();
@@ -546,13 +575,19 @@ namespace smt {
                 }
                 final_sovler->dec_ref();
                 numeral_solver->dec_ref();
+                this->m.dec_ref(encoded_form);
+
+                for(expr* e : curr_assignments) {
+                    this->get_manager().dec_ref(e);
+                }
+                this->mem_mng->dealloc_all();
                 return true;
             } else if(final_result == l_false) { 
                 std::cout << " translated UNSAT " << std::endl;
             } else {    
                 std::cout << " translated UNKNOWN " << std::endl;
             }
-            // this->set_conflict_slhv(true);
+            this->set_conflict_slhv(true);
             final_sovler->dec_ref();
             numeral_solver->dec_ref();
             this->m.dec_ref(encoded_form);
@@ -1804,7 +1839,6 @@ namespace smt {
                     );
                 }
             }
-            
         }
         expr* result = this->th->mk_simplify_and(first_conj, second_conj);
 
@@ -1960,7 +1994,8 @@ namespace smt {
         return result;
     }
 
-    expr* formula_encoder::encode() {
+    expr* formula_encoder:: encode() {
+        std::cout << "==== begin encode" << std::endl;
         expr_ref_vector all_conj(this->th->get_manager());
 
         all_conj.push_back(this->generate_ld_formula());
@@ -1974,6 +2009,7 @@ namespace smt {
             all_conj.size(),
             all_conj.data()
         );
+        std::cout << "==== end encode" << std::endl;
 
         return result;
     }
@@ -2107,7 +2143,7 @@ namespace smt {
 
         app* result = this->mk_eq(new_eq_left, new_eq_right);
         
-        this->th->get_context().internalize(result, false);
+        // this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -2154,7 +2190,7 @@ namespace smt {
 
             app* result = this->mk_eq(eq_lhs, eq_rhs);
 
-            this->th->get_context().internalize(result, false);
+            // this->th->get_context().internalize(result, false);
             return result;
         } else {
             app* fresh_hvar = this->mk_fresh_hvar();
@@ -2188,7 +2224,7 @@ namespace smt {
 
             app* result = this->mk_eq(eq_lhs, eq_rhs);
 
-            this->th->get_context().internalize(result, false);
+            // this->th->get_context().internalize(result, false);
             return result;
         }
     }
@@ -2211,7 +2247,7 @@ namespace smt {
         // app_ref first_eq(this->th->get_context().mk_eq_atom(first_eq_left, first_eq_right), this->th->get_manager());
 
         app* first_eq = this->mk_eq(first_eq_left, first_eq_right);
-        this->th->get_context().internalize(first_eq, false);
+        // this->th->get_context().internalize(first_eq, false);
 
         app* second_eq_left = writed_hvar;
         app* second_eq_right_pt = this->mk_points_to(write_addr, write_data);
@@ -2230,7 +2266,7 @@ namespace smt {
         app* second_eq = this->mk_eq(second_eq_left, second_eq_right);
         app* final_result = this->th->mk_simplify_and(first_eq, second_eq);
         // the ast made by manager should be internalize manually
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -2301,7 +2337,7 @@ namespace smt {
         app* second_eq = this->mk_eq(second_eq_lhs, second_eq_rhs);
 
         app* final_result = this->th->mk_simplify_and(first_eq, second_eq);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
         
     }
@@ -2322,7 +2358,7 @@ namespace smt {
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         
         app* final_result = this->mk_eq(eq_lhs, eq_rhs_uplus);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -2359,7 +2395,7 @@ namespace smt {
         
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         app* final_result = this->mk_eq(eq_lhs, eq_rhs_uplus);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -2392,7 +2428,7 @@ namespace smt {
 
             // app* temp_result = this->th->get_manager().mk_eq(curr_eq_lhs, curr_eq_rhs);
             app* temp_result = this->mk_eq(curr_eq_lhs, curr_eq_rhs);
-            this->th->get_context().internalize(temp_result, false);
+            // this->th->get_context().internalize(temp_result, false);
             result.push_back(temp_result);
         }
         return result;
@@ -2413,7 +2449,7 @@ namespace smt {
 
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         app* final_result = this->mk_eq(eq_lhs, eq_rhs);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -2447,7 +2483,7 @@ namespace smt {
         
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs), this->th->get_manager());
         app* final_result = this->mk_eq(eq_lhs, eq_rhs);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -2473,7 +2509,7 @@ namespace smt {
 
         app* result = this->mk_eq(eq_lhs, eq_rhs);
         
-        this->th->get_context().internalize(result, false);
+        // this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -2494,8 +2530,8 @@ namespace smt {
 
         app* ht1_to_hvar_eq = this->mk_eq(ht1_hvar, lhs_hterm);
         app* ht2_to_hvar_eq = this->mk_eq(ht2_hvar, rhs_hterm);
-        this->th->get_context().internalize(ht1_to_hvar_eq, false);
-        this->th->get_context().internalize(ht2_to_hvar_eq, false);
+        // this->th->get_context().internalize(ht1_to_hvar_eq, false);
+        // this->th->get_context().internalize(ht2_to_hvar_eq, false);
 
 
         // first disjunct
@@ -2536,7 +2572,7 @@ namespace smt {
         app* third_conj_diseq = this->mk_distinct(y,z);
 
         
-        this->th->get_context().internalize(third_conj_diseq, false);
+        // this->th->get_context().internalize(third_conj_diseq, false);
 
 
         std::vector<app*> first_disj;
@@ -2559,8 +2595,8 @@ namespace smt {
         second_disj.push_back(x_notin_ht2);
         second_disj.push_back(ht1_to_hvar_eq);
         second_disj.push_back(ht2_to_hvar_eq);
-        this->th->get_context().internalize(x_in_ht1, false);
-        this->th->get_context().internalize(x_notin_ht2, false);
+        // this->th->get_context().internalize(x_in_ht1, false);
+        // this->th->get_context().internalize(x_notin_ht2, false);
         final_result.push_back(second_disj);
 
         // third_disjunct
@@ -2575,8 +2611,8 @@ namespace smt {
         third_disj.push_back(x_notin_ht1);
         third_disj.push_back(ht1_to_hvar_eq);
         third_disj.push_back(ht2_to_hvar_eq);
-        this->th->get_context().internalize(x_in_ht2, false);
-        this->th->get_context().internalize(x_notin_ht1, false);
+        // this->th->get_context().internalize(x_in_ht2, false);
+        // this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
         return final_result;
     }
@@ -2602,8 +2638,8 @@ namespace smt {
 
         app* ht1_to_hvar_eq = this->mk_eq(ht1_hvar, lhs);
         app* ht2_to_hvar_eq = this->mk_eq(ht2_hvar, rhs);
-        this->th->get_context().internalize(ht1_to_hvar_eq, false);
-        this->th->get_context().internalize(ht2_to_hvar_eq, false);
+        // this->th->get_context().internalize(ht1_to_hvar_eq, false);
+        // this->th->get_context().internalize(ht2_to_hvar_eq, false);
         // first disjunction batch
         app* h = this->mk_fresh_hvar();
         app* hp = this->mk_fresh_hvar();
@@ -2663,12 +2699,12 @@ namespace smt {
         std::vector<expr*> one_field_distinct;
         for(int i = 0; i < pt_locfield_num; i ++) {            
             app* e = this->mk_distinct(ht1_pt_locvars[i], ht2_pt_locvars[i]);
-            this->th->get_context().internalize(e, false);
+            // this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(int i = 0; i < pt_datafield_num; i ++) {
             app* e = this->mk_distinct(ht1_pt_datavars[i], ht2_pt_datavars[i]);
-            this->th->get_context().internalize(e, false);
+            // this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(expr* e : one_field_distinct) {
@@ -2678,8 +2714,8 @@ namespace smt {
             first_disj.push_back(to_app(e));
             first_disj.push_back(ht1_to_hvar_eq);
             first_disj.push_back(ht2_to_hvar_eq);
-            this->th->get_context().internalize(ht1_eq, false);
-            this->th->get_context().internalize(ht2_eq, false);
+            // this->th->get_context().internalize(ht1_eq, false);
+            // this->th->get_context().internalize(ht2_eq, false);
             final_result.push_back(first_disj);
         } 
         // second disjunct
@@ -2693,8 +2729,8 @@ namespace smt {
         second_disj.push_back(x_notin_ht2);
         second_disj.push_back(ht1_to_hvar_eq);
         second_disj.push_back(ht2_to_hvar_eq);
-        this->th->get_context().internalize(x_in_ht1, false);
-        this->th->get_context().internalize(x_notin_ht2, false);
+        // this->th->get_context().internalize(x_in_ht1, false);
+        // this->th->get_context().internalize(x_notin_ht2, false);
         final_result.push_back(second_disj);
 
         // third_disjunct
@@ -2709,8 +2745,8 @@ namespace smt {
         third_disj.push_back(x_notin_ht1);
         third_disj.push_back(ht1_to_hvar_eq);
         third_disj.push_back(ht2_to_hvar_eq);
-        this->th->get_context().internalize(x_in_ht2, false);
-        this->th->get_context().internalize(x_notin_ht1, false);
+        // this->th->get_context().internalize(x_in_ht2, false);
+        // this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
         return final_result;
     }
@@ -2719,15 +2755,19 @@ namespace smt {
         SASSERT(this->th->is_hvar(lhs));
         std::vector<std::vector<app*>> final_result;
 
-        std::vector<std::vector<app*>> first_situation_disjuncts;
-
         app* lhs_fresh_hvar = this->mk_fresh_hvar();
         app* rhs_fresh_hvar = this->mk_fresh_hvar();
         app* common_addr = this->mk_fresh_locvar();
 
-        std::set<pt_record*> all_records = this->slhv_decl_plug->get_all_pt_records();
-
+        // all records are currently set to only data record
         
+        // std::set<pt_record*> all_records = this->slhv_decl_plug->get_all_pt_records();
+        std::set<pt_record*> all_records;
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!rc->get_pt_record_name().compare("pt_record_1")) {
+                all_records.insert(rc);
+            }
+        }
 
         bool rhs_is_hvar = (this->th->is_hvar(rhs));
         app* second_eq_lhs = nullptr;
@@ -2780,7 +2820,7 @@ namespace smt {
                 app* first_eq_rhs = this->mk_uplus_app(2, first_eq_rhs_uplus_args);
 
                 app* first_eq = this->mk_eq(first_eq_lhs, first_eq_rhs);
-                this->th->get_context().internalize(first_eq, false);
+                // this->th->get_context().internalize(first_eq, false);
                 #ifdef SLHV_DEBUG
                 std::cout << "second equality" << std::endl;
                 #endif
@@ -2792,19 +2832,19 @@ namespace smt {
                 second_eq_rhs_uplus_args.push_back(second_eq_rhs_pt);
                 app* second_eq_rhs = this->mk_uplus_app(2, second_eq_rhs_uplus_args);
                 app* second_eq = this->mk_eq(second_eq_lhs, second_eq_rhs);
-                this->th->get_context().internalize(second_eq, false);
+                // this->th->get_context().internalize(second_eq, false);
                 if(r1 == r2) {
                     SASSERT(r1_data_num == r2_data_num && r1_loc_num == r2_loc_num);
                     // at least one field distinct
                     std::set<app*> all_possible_nequal;
                     for(int i = 0; i < r1_loc_num; i ++){
                         app* curr_ne = this->mk_distinct(lhs_fresh_locvars[i], rhs_fresh_locvars[i]);
-                        this->th->get_context().internalize(curr_ne, false);
+                        // this->th->get_context().internalize(curr_ne, false);
                         all_possible_nequal.insert(curr_ne);
                     }
                     for(int i = 0; i < r1_data_num; i ++) {
                         app* curr_ne = this->mk_distinct(lhs_fresh_datavars[i], rhs_fresh_datavars[i]);
-                        this->th->get_context().internalize(curr_ne, false);
+                        // this->th->get_context().internalize(curr_ne, false);
                         all_possible_nequal.insert(curr_ne);
                     }
                     for(app* nequal_form : all_possible_nequal) {
@@ -2812,7 +2852,7 @@ namespace smt {
                         if(!rhs_is_hvar) {
 
                             app* rhs_replace_eq = this->mk_eq(to_expr(second_eq_lhs), to_expr(rhs));
-                            this->th->get_context().internalize(rhs_replace_eq, false);
+                            // this->th->get_context().internalize(rhs_replace_eq, false);
                             result.push_back(rhs_replace_eq);
                         }
                         result.push_back(first_eq);
@@ -2825,7 +2865,7 @@ namespace smt {
                     if(!rhs_is_hvar) {
 
                         app* rhs_replace_eq = this->mk_eq(to_expr(second_eq_lhs), to_expr(rhs));
-                        this->th->get_context().internalize(rhs_replace_eq, false);
+                        // this->th->get_context().internalize(rhs_replace_eq, false);
                         result.push_back(rhs_replace_eq);
                     }
                     result.push_back(first_eq);
@@ -3185,7 +3225,7 @@ namespace smt {
 
     int theory_slhv::calculate_atomic_proposition(app* encoded_form) {
         int result = 0;
-        if(encoded_form->get_family_id() == this->get_family_id() || encoded_form->is_app_of(basic_family_id, OP_EQ) ||  encoded_form->get_num_args() == 1) {
+        if(encoded_form->is_app_of(basic_family_id, OP_EQ) ||  encoded_form->get_num_args() <= 1) {
             return 1;
         } else {
             for(int i = 0 ;i < encoded_form->get_num_args(); i ++) {
