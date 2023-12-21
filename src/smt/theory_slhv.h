@@ -20,6 +20,8 @@ namespace smt
     class atoms_subsumption;
     class formula_encoder;
     class heap_value_proc;
+    class mem_management;
+    class memsafe_wrapper;
     class theory_slhv : public theory {
 
         public:
@@ -58,6 +60,8 @@ namespace smt
 
         slhv_decl_plugin* slhv_plug;
 
+        memsafe_wrapper* msw;
+
         app* global_emp;
         app* global_nil;
 
@@ -69,6 +73,7 @@ namespace smt
 
         std::map<enode*, heap_value_proc*> enode2proc;
 
+        mem_management* mem_mng;
 
 
         // check_context for a construction based on locvar_eq and negation choice
@@ -134,7 +139,11 @@ namespace smt
             return false;
         }
 
+        app* mk_simplify_and(expr* f1, expr* f2);
+
         bool is_arith_formula(app* l);
+
+        bool is_not_heap_or_loc_formula(app* l);
 
         pt_record* analyze_pt_record_type(app* record_app);
 
@@ -150,6 +159,8 @@ namespace smt
 
         bool internalize_term_core(app * term);
 
+        
+        std::vector<expr*> eliminate_not_or_assignments(expr* expression);
 
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use
@@ -209,7 +220,9 @@ namespace smt
        
 
         final_check_status final_check_eh() override {
-            return final_check()? FC_DONE : FC_CONTINUE;
+            bool result = this->final_check();
+            if(result) std::cout << "FINAL CHECK DONE" << std::endl;
+            return result ? FC_DONE : FC_CONTINUE;
         }
         // model generation
         void init_model(model_generator & mg) override;
@@ -229,6 +242,12 @@ namespace smt
             return false;
         }        
         
+
+        // statistics
+
+        int calculate_atomic_proposition(app* encoded_form);
+
+
         
         
         /**
@@ -543,6 +562,8 @@ namespace smt
 
             std::set<std::pair<std::vector<int>, std::vector<int>>> get_splitted_subpairs();
 
+            std::set<std::pair<std::vector<int>, std::vector<int>>> get_all_distinct_atomic_pairs();
+
             void print_ht();
     };
 // encoder from slhv to lia
@@ -555,6 +576,7 @@ namespace smt
 
         std::map<app*, app*> locvar2intvar_map;
 
+
         std::set<heap_term*> hts;
         std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
         std::set<heap_term*> atom_hts;
@@ -564,6 +586,7 @@ namespace smt
 
         theory_slhv* th;
         slhv_syntax_maker* syntax_maker;
+
         
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
@@ -590,6 +613,7 @@ namespace smt
         expr* generate_loc_var_constraints();
 
         expr* encode();
+
 
 
         std::pair<heap_term*, heap_term*> get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair);
@@ -765,6 +789,9 @@ namespace smt
             int size = str.size();
             for (int i = 0; i < size; i ++) {
                 pos = str.find(pattern, i);
+                if(pos == std::string::npos) {
+                    std::cout << "problematic str: " << str << std::endl;
+                }
                 if(pos < size) {
                     std::string s = str.substr(i, pos-i);
                     result.push_back(s);
@@ -801,13 +828,28 @@ namespace smt
         theory_slhv* th;
         slhv_decl_plugin* slhv_decl_plug;
         slhv_fresh_var_maker* fv_maker;
+        memsafe_wrapper* msw;
         arith_util* a;
 
         public: 
+        // var maker
         void reset_fv_maker();
-        slhv_syntax_maker(theory_slhv* t);
+        slhv_syntax_maker(theory_slhv* t, memsafe_wrapper* msw);
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
+        // operation maker
+        app* mk_and(expr* lhs, expr* rhs);
+        app* mk_implies(expr* lhs, expr* rhs);
+        app* mk_not(expr* inner);
+        app* mk_and(expr* arg1, expr* arg2, expr* arg3);
+        app* mk_and(int num_args, expr* const* args);
+        app* mk_or(expr* lhs, expr* rhs);
+        app* mk_or(expr* arg1, expr* arg2, expr* arg3);
+        app* mk_or(int num_args, expr* const* args);
+        app* mk_eq(expr* lhs, expr* rhs);
+        app* mk_distinct(expr* lhs, expr* rhs);
+
+        // syntax sugar maker
         app* mk_read_formula(app* from_hvar, app* read_addr, app* read_data);
         app* mk_write_formula(app* orig_hvar, app* writed_hvar, app* write_addr, app* write_data);
         app* mk_addr_in_hterm(app* hterm, app* addr);
@@ -830,7 +872,6 @@ namespace smt
         app* mk_addr_notin_hterm_new(app *hterm, app* addr);
         app* mk_read_formula_new(app* from_hvar, app* read_addr, int read_field, app* read_item); 
         app* mk_write_formula_new(app* orig_hvar, app* writed_hvar, app* write_addr, int write_field, app* write_item); 
-
 
         // logic with multi-records:
         app* mk_points_to_multi(app* addr_loc, app* record_term);// DONE
@@ -876,7 +917,7 @@ namespace smt
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
             ast_manager& m = mg.get_manager();
-            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.     get_plugin(m.mk_family_id("slhv"));
+            slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
             if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
                 if(values.size() > 1) {
                     if(values.get(0)->get_sort()->get_name() == INTHEAP_SORT_STR) {
@@ -905,6 +946,75 @@ namespace smt
             return false;
         }
 
+    };
+
+    class mem_management {
+        public:
+        theory_slhv* th;
+        std::set<heap_term*> ht_ptrs;
+        std::set<atoms_subsumption*> at_ptrs;
+        std::set<formula_encoder*> fec_ptrs;
+        
+
+        mem_management(theory_slhv* t) {
+            this->th = t;
+        }
+
+        void push_ht_ptr(heap_term* ht) {
+            ht_ptrs.insert(ht);
+        }
+        
+        void push_at_ptr(atoms_subsumption* at) {
+            at_ptrs.insert(at);
+        }
+
+        void push_fec_ptr(formula_encoder* fec) {
+            fec_ptrs.insert(fec);
+        }
+
+        void dealloc_all() {
+            for(auto i : ht_ptrs) {
+                dealloc(i);
+            }
+            for(auto i : at_ptrs) {
+                dealloc(i);
+            }
+            for(auto i : fec_ptrs) {
+                dealloc(i);
+            }
+            this->ht_ptrs.clear();
+            this->at_ptrs.clear();
+            this->fec_ptrs.clear();
+        }
+        
+    };
+
+    class memsafe_wrapper {
+        private:
+        theory_slhv* th;
+
+        std::set<expr*> dangling_nodes;
+
+        public:
+        memsafe_wrapper(theory_slhv* t) : th(t) {}
+
+        app* use_mk_and(expr* lhs, expr* rhs);
+        app* use_mk_and(expr* arg1, expr* arg2, expr* arg3);
+        app* use_mk_and(unsigned num_args, expr * const * args);
+
+        app* use_mk_or(expr* lhs, expr* rhs);
+        app* use_mk_or(expr* arg1, expr* arg2, expr* arg3);
+        app* use_mk_or(unsigned num_args, expr * const * args);
+
+        app* use_mk_implies(expr* premise, expr* conclusion);
+        app* use_mk_not(expr* inner);
+        app* use_mk_eq(expr* lhs, expr* rhs);
+        app* use_mk_distinct(expr* lhs, expr* rhs);
+
+        
+        void add_dangling(expr* node) {
+            this->dangling_nodes.insert(node);
+        }
     };
 
 } // namespace smt
