@@ -2056,7 +2056,9 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_fresh_datavar() {
-        return this->fv_maker->mk_fresh_datavar();
+        app* fdv = this->fv_maker->mk_fresh_datavar();
+        this->th->get_context().internalize(fdv, false);
+        return fdv;
     }
 
     app* slhv_syntax_maker::mk_lia_intvar(std::string name) {
@@ -2069,26 +2071,34 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "lia intvar made: " << name << std::endl;
         #endif
+        this->th->get_context().internalize(lia_intvar, false);
         return lia_intvar;
     }
 
     app* slhv_syntax_maker::mk_lia_intconst(int constval) {
         arith_util a(this->th->get_manager());
-        return a.mk_int(constval);
+        app* fint = a.mk_int(constval);
+        this->th->get_context().internalize(fint, false);
+        return fint;
     }
 
     app* slhv_syntax_maker::mk_boolvar(std::string name) {
         sort* bool_sort = this->th->get_manager().mk_bool_sort();
         app* boolvar = this->th->get_manager().mk_const(name, bool_sort);
+        this->th->get_context().internalize(boolvar, false);
         return boolvar;
     }
 
     app* slhv_syntax_maker::mk_fresh_hvar() {
-        return this->fv_maker->mk_fresh_hvar();
+        app* fhv = this->fv_maker->mk_fresh_hvar();
+        this->th->get_context().internalize(fhv, false);
+        return fhv;
     }
 
     app* slhv_syntax_maker::mk_fresh_locvar() {
-        return this->fv_maker->mk_fresh_locvar();
+        app* flv = this->fv_maker->mk_fresh_locvar();
+        this->th->get_context().internalize(flv, false);
+        return flv;
     }
 
     // connection making
@@ -2933,6 +2943,7 @@ namespace smt {
         // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
         func_decl* uplus_decl = this->slhv_decl_plug->mk_func_decl(OP_HEAP_DISJUNION, 0, nullptr, num_arg, sorts_vec.data(), e_ref_sort);
         app* result = this->th->get_manager().mk_app(uplus_decl, args_vec.data());
+        this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -2954,7 +2965,7 @@ namespace smt {
         // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
         func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
         app* result = this->th->get_manager().mk_app(pt_decl, args_vec.data());
-    
+        this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -2980,6 +2991,7 @@ namespace smt {
         sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
         func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
         app* result = this->th->get_manager().mk_app(pt_decl, args_vec);
+        this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -3002,6 +3014,7 @@ namespace smt {
         sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
         func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
         app* result = this->th->get_manager().mk_app(pt_decl, args_vec);
+        this->th->get_context().internalize(result, false);
         return result;
     }
 
@@ -3110,14 +3123,14 @@ namespace smt {
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
         theory_var v = n->get_th_var(get_id());
         expr* o = n->get_expr();
-        #ifdef SLHV_DEBUG
+        #if true
         std::cout << "mk_value for " << mk_ismt2_pp(o, this->m) << std::endl;
         #endif
         arith_util a(this->m);
         app* oapp = to_app(o);
         if(this->is_heapterm(oapp)) {
             if(this->is_points_to(oapp)) {
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is points to" << std::endl;
                 #endif
                 heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -3132,7 +3145,7 @@ namespace smt {
                 return pt_proc;
             } else if(this->is_hvar(oapp)) {
                 // TODO: add dependency here later
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is hvar" << std::endl;
                 #endif
                 heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -3151,7 +3164,7 @@ namespace smt {
                 return hvar_proc;
             } else if(this->is_emp(oapp)) {
                 
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is emp" << std::endl;
                 #endif
                 heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -3163,7 +3176,7 @@ namespace smt {
             }
             else {
                 SASSERT(this->is_uplus(oapp));
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is uplus" << std::endl;
                 #endif
                 heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -3174,7 +3187,7 @@ namespace smt {
             }
         } else if(this->is_locterm(oapp)) {
             if(this->is_locvar(oapp)) {
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is locvar" << std::endl;
                 #endif
                 std::string locvar_name = oapp->get_name().str();
@@ -3182,7 +3195,7 @@ namespace smt {
                 app* val_expr = data_factory->mk_num_value(rational(int_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else if(this->is_nil(oapp)){
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is nil" << std::endl;
                 #endif
                 int nil_val = this->model_loc_data_var_val_info["nil"];
@@ -3190,7 +3203,7 @@ namespace smt {
                 return alloc(expr_wrapper_proc, val_expr);
             } else {
                 SASSERT(this->is_locadd(oapp));
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is locadd" << std::endl;
                 #endif
                 
@@ -3203,14 +3216,14 @@ namespace smt {
             }
         } else if(this->is_dataterm(oapp)) {
             if(this->is_datavar(oapp)) {
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is datavar" << std::endl;
                 #endif
                 int data_var_val = this->model_loc_data_var_val_info[oapp->get_name().str()];
                 app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else {
-                #ifdef SLHV_DEBUG
+                #if true
                 std::cout << "is arith term" << std::endl;
                 #endif
                 return alloc(expr_wrapper_proc, oapp);
