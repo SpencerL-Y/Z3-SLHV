@@ -565,6 +565,7 @@ namespace smt
             std::set<std::pair<std::vector<int>, std::vector<int>>> get_all_distinct_atomic_pairs();
 
             void print_ht();
+            void print_ht2file(std::ofstream& f);
     };
 // encoder from slhv to lia
     class formula_encoder {

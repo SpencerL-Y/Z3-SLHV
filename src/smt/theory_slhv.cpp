@@ -10,6 +10,8 @@
 #include "model/model_smt2_pp.h"
 #include "smt/smt_model_generator.h"
 #include "util/params.h"
+#include <ostream>
+#include <iostream>
 #include <bitset>
 namespace smt {
 
@@ -394,6 +396,7 @@ namespace smt {
             }
             #if true
             std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
+            
             std::cout << "heap constraints ========== " << std::endl;
             for(expr* e : heap_cnstr_assignments) {
                 std::cout << mk_ismt2_pp(e, this->m) << std::endl;
@@ -479,6 +482,7 @@ namespace smt {
             std::cout << "encoded form size: " ;
             // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
             // expr* encoded_form = this->get_manager().mk_false();
+
             this->get_manager().inc_ref(encoded_form);
             std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
             #if true
@@ -497,7 +501,28 @@ namespace smt {
             lbool final_result = final_sovler->check_sat();
             std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
             if(final_result == l_true) {
+                std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
                 std::cout << " translated SAT " << std::endl;
+                // print current refined assignment to file
+                std::ofstream output2file("./outmodel.txt", std::ios::out);
+                output2file << "SAT" << std::endl;
+                output2file << "ORIGINAL FORMULA XXXXXX" << std::endl;
+                for(expr* e : refined_assignments) {
+                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
+                }
+
+                output2file << "ELIMINATED FORMULA XXXXXX" << std::endl;
+
+                output2file << "heap constraints ========== " << std::endl;
+                for(expr* e : heap_cnstr_assignments) {
+                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
+                } 
+                output2file << "numeral constraints ========== " << std::endl;
+                for(expr* e : numeral_cnstr_assignments) {
+                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
+                } 
+                output2file << "MODEL XXXXXX " << std::endl;
+                
                 std::map<std::string, expr*> name2val;
                 model_ref md;
                 final_sovler->get_model(md);
@@ -511,6 +536,8 @@ namespace smt {
                     std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                     std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
                     // #endif
+                    output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                    output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
                     name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
                 }
                 std::set<std::string> true_var_names;
@@ -537,7 +564,6 @@ namespace smt {
                             std::cout << n << std::endl;
                         }
                         loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
-                        // std::cout << "here" << std::endl;
                     }
                 }
                 std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
@@ -548,19 +574,26 @@ namespace smt {
                 this->model_subsume_info = atoms_subs;
                 this->model_loc_data_var_val_info = loc_data_var2val;
                 std::cout << "model info recorded: " << std::endl;
-                std::cout << this->model_subsume_info.size() << std::endl;SASSERT(s != nullptr);
+                output2file << "model info recorded: " << std::endl;
+                std::cout << "model subsume info size: " << this->model_subsume_info.size() << std::endl;
+                output2file << "model subsume info size: " << this->model_subsume_info.size() << std::endl; 
                 for(atoms_subsumption* ats : this->model_subsume_info) {
-                    std::cout << 
-                    ats->get_main_heap_term()->get_vec_size() << "------- main" << std::endl;
+                    std::cout << "------- main" << std::endl;
+                    output2file << "------- main" << std::endl;
                     ats->get_main_heap_term()->print_ht();
+                    ats->get_main_heap_term()->print_ht2file(output2file);
                     std::cout << "------- subs" << std::endl;
+                    output2file << "------- subs" << std::endl;
                     for(heap_term* h : ats->get_pt_atoms()) {
                         h->print_ht();
+                        h->print_ht2file(output2file);
                     }
                 }
                 std::cout << "locvar vals: " << std::endl;
+                output2file << "locvar vals: " << std::endl;
                 for(auto r : this->model_loc_data_var_val_info) {
                     std::cout << r.first << " " << r.second << std::endl;
+                    output2file << r.first << " " << r.second << std::endl;
                 }
                 for(atoms_subsumption* sbs : this->model_subsume_info) {
                     if(sbs->get_main_heap_term()->is_atom_hvar()) {
@@ -571,6 +604,14 @@ namespace smt {
                             pts_subsumed.insert(pt_ht->get_atoms()[0]);
                         }
                         this->hvar2ptset[hvar_app] = pts_subsumed;
+                    }
+                }
+                std::cout << "free heap vars:" << std::endl;
+                output2file << "free heap vars: " << std::endl;
+                for(app* hv : this->curr_hvars) {
+                    if(this->hvar2ptset.find(hv) == this->hvar2ptset.end()) {
+                        std::cout << "emp hvar: " << hv->get_name() << std::endl;
+                        output2file << "emp hvar: " << hv->get_name() << std::endl;
                     }
                 }
                 final_sovler->dec_ref();
@@ -601,6 +642,9 @@ namespace smt {
         }
 
         std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+
+        std::ofstream output2file("./outmodel.txt", std::ios::out);
+        output2file << "UNSAT" << std::endl;
         this->check_status = slhv_unsat;
         // this->set_conflict_slhv(true, heap_cnstr_core);
         this->set_conflict_slhv(true);
@@ -1529,6 +1573,17 @@ namespace smt {
     }
 
 
+    void heap_term::print_ht2file(std::ofstream& f) {
+        f << "( ";                    
+        for(int i = 0; i < this->get_vec_size(); i ++) {
+            for(int l = 0; l < this->get_pos(i); l ++) {
+                f << mk_ismt2_pp(this->atomic_hterms_vec[i], this->th->get_manager()) << " | ";
+            }
+        }
+        f << ")" << std::endl;
+    }
+
+
 
     void heap_term::print(std::ostream& os) {
         os << "hterm id: ";
@@ -1976,9 +2031,9 @@ namespace smt {
         std::cout << "generate loc var constraints" << std::endl;
         #endif
         expr* result = this->th->get_manager().mk_true();
+        arith_util a(this->th->get_manager());
         for(auto item : this->locvar2intvar_map) {
             SASSERT(this->th->is_locvar(item.first));
-            arith_util a(this->th->get_manager());
             if(this->th->is_nil(item.first)) {
                 result = this->th->mk_simplify_and(
                     result,
@@ -1987,9 +2042,17 @@ namespace smt {
             } else {
                 result = this->th->mk_simplify_and(
                     result,
-                    a.mk_gt(item.second, a.mk_int(0))
+                    a.mk_ge(item.second, a.mk_int(0))
                 );
             }
+        }
+        for(app* curr_pt : this->th->curr_pts) {
+            app* addr = to_app(curr_pt->get_arg(0));
+            SASSERT(this->th->is_locvar(addr));
+            result = this->th->mk_simplify_and(
+                result,
+                this->syntax_maker->mk_distinct(this->locvar2intvar(addr), a.mk_int(0))
+            );
         }
         return result;
     }
