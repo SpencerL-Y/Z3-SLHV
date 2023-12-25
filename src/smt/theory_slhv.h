@@ -91,7 +91,7 @@ namespace smt
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
         bool is_atom_hterm(app const* n) const {
-            return (is_points_to(n) || is_hvar(n));
+            return (is_points_to(n) || is_hvar(n) || is_emp(n));
         }
         bool is_locadd(app const* n) const {
             if(n->is_app_of(get_id(), OP_LOCADD)) {

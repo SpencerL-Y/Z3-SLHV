@@ -462,11 +462,12 @@ namespace smt {
             }
             // TODO: add reduction and solving
             std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
-            #ifdef SLHV_DEBUG
+            #if true
             std::cout << "all hterms: " << std::endl;
             for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
                 std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
             }
+            std::cout << "all eq pairs: " << std::endl;
             std::cout << std::endl;
             for(heap_term* ht : all_hterms.second) {
                 ht->print(std::cout);
@@ -477,9 +478,15 @@ namespace smt {
             }
             formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
             this->mem_mng->push_fec_ptr(fec);
-            // TODO: memleak here
+
+            // REDUCTION ENCODING
             expr* encoded_form  = fec->encode();
-            std::cout << "encoded form size: " ;
+
+            #if true
+            std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
+            debug_formula << mk_ismt2_pp(encoded_form, this->m);
+            #endif
+            // std::cout << "encoded form size: " ;
             // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
             // expr* encoded_form = this->get_manager().mk_false();
 
@@ -497,7 +504,6 @@ namespace smt {
                 final_sovler->assert_expr(e);
             }
             final_sovler->assert_expr(encoded_form);
-            // final_sovler->assert_expr(ff);
             lbool final_result = final_sovler->check_sat();
             std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
             if(final_result == l_true) {
@@ -527,7 +533,7 @@ namespace smt {
                 model_ref md;
                 final_sovler->get_model(md);
                 std::cout << "translated model: " << std::endl;
-                model_smt2_pp(std::cout, this->m, *md, 0);
+                // model_smt2_pp(std::cout, this->m, *md, 0);
                 model_core& mdc = *md;
                 for(int i = 0; i < mdc.get_num_constants(); i ++) {
                     expr_ref temp_val(this->m);
@@ -554,7 +560,6 @@ namespace smt {
         
                     } else {
                         SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
-                        // std::cout << "DEBUG: " << key_val_p.first << std::endl;
                         auto param = to_app(key_val_p.second)->get_parameter(0);
                         std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
                         std::cout << std::endl;
@@ -1024,7 +1029,7 @@ namespace smt {
             heap_term* eq_lhs = nullptr;
             heap_term* eq_rhs = nullptr;
 
-            #ifdef SLHV_DEBUG
+            #if true
             std::cout << "extract for " << mk_ismt2_pp(eq, this->m) << std::endl;
             #endif
             SASSERT(eq != nullptr);
@@ -1053,6 +1058,8 @@ namespace smt {
                 for(heap_term* ht : eq_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
+                        eq_lhs = ht;
+                        break;
                     }
                 }
                 if(!found) {
@@ -1082,6 +1089,8 @@ namespace smt {
                 for(heap_term* ht : eq_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
+                        eq_lhs = ht;
+                        break;
                     }
                 }
                 if(!found) {
@@ -1115,6 +1124,7 @@ namespace smt {
                 for(heap_term* ht : eq_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
+                        eq_rhs = ht;
                         break;
                     }
                 }
@@ -1145,6 +1155,8 @@ namespace smt {
                 for(heap_term* ht : eq_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
+                        eq_rhs = ht;
+                        break;
                     }
                 }
 
@@ -1850,6 +1862,7 @@ namespace smt {
                     )
                 );
                 expr* content_eq_temp_form = nullptr;
+                // ATTENTION: this is commented since the set of address is a subset of data
                 // if(ptp_content->get_family_id() == pt_content->get_family_id()) {
                     // std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
                     // std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;

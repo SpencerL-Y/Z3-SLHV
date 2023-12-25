@@ -64,9 +64,9 @@ bool contains(const std::unordered_map<A, B> & map, const A& key) {
     return map.find(key) != map.end();
 }
 
-#ifdef Z3DEBUG
-#define Z3DEBUG 1
-#endif
+// #ifdef Z3DEBUG
+// #define Z3DEBUG 1
+// #endif
 
 namespace lp {
 
