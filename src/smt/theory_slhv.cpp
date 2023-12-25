@@ -1850,7 +1850,7 @@ namespace smt {
                     )
                 );
                 expr* content_eq_temp_form = nullptr;
-                if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                // if(ptp_content->get_family_id() == pt_content->get_family_id()) {
                     // std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
                     // std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;
                     content_eq_temp_form = this->syntax_maker->mk_eq(
@@ -1858,9 +1858,9 @@ namespace smt {
                         this->translate_locterm_to_liaterm(ptp_content)
                     );
 
-                } else {
-                    content_eq_temp_form = this->th->get_manager().mk_false();
-                }
+                // } else {
+                //     content_eq_temp_form = this->th->get_manager().mk_false();
+                // }
                 expr* sh_temp_form = this->syntax_maker->mk_implies(
                     this->get_shrel_boolvar(pt, ptp),
                     this->th->mk_simplify_and(
