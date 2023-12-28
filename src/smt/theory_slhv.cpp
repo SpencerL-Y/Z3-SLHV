@@ -26,7 +26,7 @@ namespace smt {
 
         this->global_emp = nullptr;
         this->global_nil = nullptr;
-        this->reset_configs();
+        this->reset_outside_configs();
     }
 
 
@@ -315,7 +315,7 @@ namespace smt {
 
     bool theory_slhv::final_check() {
         
-        this->reset_configs();
+        this->reset_outside_configs();
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
@@ -370,8 +370,13 @@ namespace smt {
             item.second->print(std::cout);
         }
         #endif
+
+        #ifdef FRONTEND_NO_HEAP_NEQ
+        std::vector<expr_ref_vector> elim_enums = this->remove_heap_eqaulity_negation_in_assignments(refined_assignments);
+        #else
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
+        #endif
 
         #ifdef SLHV_DEBUG
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
@@ -408,7 +413,7 @@ namespace smt {
             std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
             #endif
             // reset info from previous curr_assignments
-            this->reset_configs();
+            this->reset_inside_configs();
             // record current outside assignments and inside assignments
             for(expr* e : assignments) {
                 this->curr_outside_assignments.push_back(e);
@@ -424,28 +429,28 @@ namespace smt {
                 numeral_solver->assert_expr(e);
             }
             lbool result =  numeral_solver->check_sat();
-            model_ref nmd;
-            numeral_solver->get_model(nmd);
-            std::cout << "translated model: " << std::endl;
-            model_smt2_pp(std::cout, this->m, *nmd, 0);
             #if true
             std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
             if(result == l_true) {
                 std::cout << "SAT" << std::endl;
             } else if(result == l_false) {
-                std::cout << "UNSAT" << std::endl;
+                std::cout << " FINAL CHECK UNSAT" << std::endl;
             } else {
                 std::cout << "UNDEF" << std::endl;
             }
             std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
             #endif
+            
             if(result == l_false) {
                 // this->set_conflict_slhv(true, numeral_cnstr_core);
                 this->check_status = slhv_unsat;
                 this->set_conflict_slhv(true);
                 return false;
             } else if(result == l_true){
-                
+                model_ref nmd;
+                numeral_solver->get_model(nmd);
+                std::cout << "translated model: " << std::endl;
+                model_smt2_pp(std::cout, this->m, *nmd, 0);
             } else {
                 #ifdef SLHV_DEBUG
                 std::cout << "ERROR: this should not happen" << std::endl;
@@ -724,8 +729,10 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << " eliminate heap negation for " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
                 #endif
+
                 temp_result = this->eliminate_heap_equality_negation(last_result, e);
                 last_result = temp_result;
+
                 #ifdef SLHV_DEBUG
                 std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
                 #endif
@@ -740,6 +747,37 @@ namespace smt {
             final_result.push_back(ref_v);
         }
         return final_result;
+    }
+
+    std::vector<expr_ref_vector> theory_slhv::remove_heap_eqaulity_negation_in_assignments(expr_ref_vector assigned_literals) {
+        std::vector<expr_ref_vector> result;
+        expr_ref_vector v(this->m);
+        for(auto e : assigned_literals) {
+            if(this->is_not_heap_or_loc_formula(to_app(e))) {
+                v.push_back(e);
+            } else {
+                app* curr_lit = to_app(e);
+                if(is_app_of(curr_lit, basic_family_id, OP_NOT) || is_app_of(curr_lit, basic_family_id, OP_DISTINCT)) {
+                    if(curr_lit->is_app_of(basic_family_id, OP_NOT)) {
+                        app* equality = to_app(curr_lit->get_arg(0));
+                        app* eq_lhs = to_app(equality->get_arg(0));
+                        app* eq_rhs = to_app(equality->get_arg(1));
+                        if(this->is_heapterm(eq_lhs) || this->is_heapterm(eq_rhs)) {
+                            continue;
+                        }
+                    } else {
+                        app* neq_lhs = to_app(curr_lit->get_arg(0));
+                        app* neq_rhs = to_app(curr_lit->get_arg(1));
+                        if(this->is_heapterm(neq_lhs) || this->is_heapterm(neq_rhs)) {
+                            continue;
+                        }
+                    }
+                }
+                v.push_back(e);
+            }
+        }
+        result.push_back(v);
+        return result;
     }
 
     std::vector<std::vector<expr*>> theory_slhv::eliminate_heap_equality_negation(std::vector<std::vector<expr*>> eliminated_neg_vec, expr* curr_neg_lit) {
@@ -997,7 +1035,7 @@ namespace smt {
     }
 
 
-    void theory_slhv::reset_configs() {
+    void theory_slhv::reset_outside_configs() {
         std::cout << "reset configs for slhv theory" << std::endl;
         this->curr_pts.clear();
         this->curr_disj_unions.clear();
@@ -1009,12 +1047,28 @@ namespace smt {
         this->curr_heap_cnstr.clear();
         this->curr_data_cnstr.clear();
 
-        this->curr_notnil_locterms_enodes.clear();
         this->check_status = slhv_unknown;
         
-        this->curr_outside_assignments.clear();
         this->curr_inside_assignments.clear();
+        this->curr_outside_assignments.clear();
+    }
 
+    void theory_slhv::reset_inside_configs() {
+        std::cout << "reset configs for slhv theory inner elim loop" << std::endl;
+        
+        this->curr_pts.clear();
+        this->curr_disj_unions.clear();
+        this->curr_hvars.clear();
+        this->curr_locvars.clear();
+        this->curr_atomic_hterms.clear();
+
+        this->curr_loc_cnstr.clear();
+        this->curr_heap_cnstr.clear();
+        this->curr_data_cnstr.clear();
+
+        this->check_status = slhv_unknown;
+        
+        this->curr_inside_assignments.clear();
     }
 
     // check_logic

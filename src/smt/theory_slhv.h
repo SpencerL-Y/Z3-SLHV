@@ -12,6 +12,8 @@
 #include <iostream>
 #include <bitset>
 #include <tuple>
+
+#define FRONTEND_NO_HEAP_NEQ
 namespace smt
 {
     class heap_term;
@@ -47,7 +49,6 @@ namespace smt
         std::set<app *> curr_heap_cnstr;
         std::set<app* > curr_data_cnstr;
 
-        std::set<enode*> curr_notnil_locterms_enodes;
 
         slhv_syntax_maker* syntax_maker;
 
@@ -170,6 +171,8 @@ namespace smt
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
+        std::vector<expr_ref_vector> remove_heap_eqaulity_negation_in_assignments(expr_ref_vector assigned_literals);
+
         std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
 
         void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
@@ -185,7 +188,8 @@ namespace smt
         std::set<app*> collect_points_tos(app* expression);
 
         
-        void reset_configs();
+        void reset_inside_configs();
+        void reset_outside_configs();
         // checking logic
 
         std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
