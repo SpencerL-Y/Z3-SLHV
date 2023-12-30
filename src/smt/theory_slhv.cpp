@@ -1716,6 +1716,9 @@ namespace smt {
         #ifdef SLHV_DEBUG
         std::cout << "formula encoder created" << std::endl;
         #endif
+
+        slhv_deducer* ded = alloc(slhv_deducer, th, this);
+        ded->deduce();
     }
 
 
@@ -2165,12 +2168,545 @@ namespace smt {
     }
 
 
-    std::set<std::pair<heap_term*, heap_term*>> formula_encoder::parse_model_shrel(model_core& mdc) {
-        std::set<std::pair<heap_term*, heap_term*>> result;
+    // deducer
 
-        return result;
+    void slhv_deducer::initialize_shdj() {
+        // RULE P2 and P3
+        SASSERT(fec != nullptr);
+        std::set<heap_term*> all_hterms = this->fec->get_all_hterms();
+        std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
+        heap_term* emp_ht = this->fec->get_emp_ht();
+        for(heap_term* ht : all_hterms) {
+            this->shpair_set.insert({this->ht2index[emp_ht], this->ht2index[ht]});
+        }
+        for(heap_term* ht1 : all_hterms) {
+            for(heap_term* ht2 : all_hterms) {
+                if(ht1->is_subhterm_of(ht2)) {
+                    this->shpair_set.insert({this->ht2index[ht1], this->ht2index[ht2]});
+                }
+            }
+        }
+        for(heap_term* ht : all_hterms) {
+            if(!(ht->is_atom_hvar() || ht->is_atom_pt())) {
+                auto pset = ht->get_all_distinct_atomic_pairs();
+                for(auto pair : pset) {
+                    auto ht_pair = this->fec->get_ht_pair_by_vec_pair(pair);
+                    this->djpair_set.insert({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
+                    this->djpair_set.insert({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
+                }
+            }
+        }
     }
 
+    void slhv_deducer::initialize_ldeqneq() {
+        // RULE P1
+        SASSERT(this->th != nullptr);
+        std::set<app*> data_cnstrs = this->th->curr_data_cnstr;
+        std::set<app*> loc_cnstrs = this->th->curr_loc_cnstr;
+
+        // deal with eq and neq vars in data constraints
+        for(app* dc : data_cnstrs) {
+            if(dc->is_app_of(basic_family_id, OP_EQ)) {
+                app* arg1 = to_app(dc->get_arg(0));
+                app* arg2 = to_app(dc->get_arg(1));
+                if(this->th->is_datavar(arg1) && this->th->is_datavar(arg2))  {
+                    if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                        // merge equivalence class
+                        if(this->ldvar2eqroot[arg1] != this->ldvar2eqroot[arg2]) {
+                            app* new_root = this->ldvar2eqroot[arg1];
+                            app* replaced_root = this->ldvar2eqroot[arg2];
+                            if(new_root == replaced_root) {
+                                continue;
+                            }
+                            for(auto item : this->ldvar2eqroot) {
+                                if(item.second == replaced_root) {
+                                    this->ldvar2eqroot[item.first] = new_root;
+                                }
+                            }
+                        }
+                    } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
+                        this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
+                    } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                        this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
+                    } else {
+                        app* new_root = arg1;
+                        this->ldvar2eqroot[arg1] = new_root;
+                        this->ldvar2eqroot[arg2] = new_root;
+                    }
+                }
+            } else if(dc->is_app_of(basic_family_id, OP_DISTINCT)) {
+                app* arg1 = to_app(dc->get_arg(0));
+                app* arg2 = to_app(dc->get_arg(1));
+                if(this->th->is_datavar(arg1) && this->th->is_datavar(arg2))  {
+                    if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg1].insert(arg2);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg2);
+                        this->ldvar2neqvars[arg1] = new_neq_set;
+                    }
+                    if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg2].insert(arg1);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg1);
+                        this->ldvar2neqvars[arg2] = new_neq_set;
+                    }
+                }
+            } else if(dc->is_app_of(basic_family_id, OP_NOT)) {
+                app* inner = to_app(dc->get_arg(0));
+                if(inner->is_app_of(basic_family_id, OP_EQ)) {
+                    app* arg1 = to_app(inner->get_arg(0));
+                    app* arg2 = to_app(inner->get_arg(1));
+                    if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2))  {
+                        if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                            this->ldvar2neqvars[arg1].insert(arg2);
+                        } else {
+                            std::set<app*> new_neq_set;
+                            new_neq_set.insert(arg2);
+                            this->ldvar2neqvars[arg1] = new_neq_set;
+                        }
+                        if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                            this->ldvar2neqvars[arg2].insert(arg1);
+                        } else {
+                            std::set<app*> new_neq_set;
+                            new_neq_set.insert(arg1);
+                            this->ldvar2neqvars[arg2] = new_neq_set;
+                        }
+                    }
+                }
+            } else {
+                std::cout << "unsupported data constraint operation" << std::endl;
+                SASSERT(false);
+            }
+        }
+
+        // deal with eq and neq vars in loc constraints
+        for(app* lc : loc_cnstrs) {
+            if(lc->is_app_of(basic_family_id, OP_EQ)) {
+                app* arg1 = to_app(lc->get_arg(0));
+                app* arg2 = to_app(lc->get_arg(1));
+                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                    if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                        // merge
+                        app* new_root = this->ldvar2eqroot[arg1];
+                        app* replaced_root = this->ldvar2eqroot[arg2];
+                        if(new_root == replaced_root) {
+                            continue;
+                        }
+                        for(auto item : this->ldvar2eqroot) {
+                            if(item.second == replaced_root) {
+                                this->ldvar2eqroot[item.first] = new_root;
+                            }
+                        }
+                    } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
+                        this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
+                    } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                        this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
+                    } else {
+                        app* new_root = arg1;
+                        this->ldvar2eqroot[arg1] = new_root;
+                        this->ldvar2eqroot[arg2] = new_root;
+                    }
+                }
+            } else if(lc->is_app_of(basic_family_id, OP_DISTINCT)) {
+                app* arg1 = to_app(lc->get_arg(0));
+                app* arg2 = to_app(lc->get_arg(1));
+                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                    if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg1].insert(arg2);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg2);
+                        this->ldvar2neqvars[arg1] = new_neq_set;
+                    }
+                    if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg2].insert(arg1);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg1);
+                        this->ldvar2neqvars[arg2] = new_neq_set;
+                    }
+                }
+            } else if(lc->is_app_of(basic_family_id, OP_NOT)) {
+                app* inner = to_app(lc->get_arg(0));
+                SASSERT(inner->is_app_of(basic_family_id, OP_EQ));
+                app* arg1 = to_app(inner->get_arg(0));
+                app* arg2 = to_app(inner->get_arg(1));
+                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                    if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                        if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                            this->ldvar2neqvars[arg1].insert(arg2);
+                        } else {
+                            std::set<app*> new_neq_set;
+                            new_neq_set.insert(arg2);
+                            this->ldvar2neqvars[arg1] = new_neq_set;
+                        }
+                        if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                            this->ldvar2neqvars[arg2].insert(arg1);
+                        } else {
+                            std::set<app*> new_neq_set;
+                            new_neq_set.insert(arg1);
+                            this->ldvar2neqvars[arg2] = new_neq_set;
+                        }
+                    }
+                }
+            } else {
+                std::cout << "unsupported loc constraint operation" << std::endl;
+                SASSERT(false);
+            }
+        }
+    }
+
+    bool slhv_deducer::propagate_eq_neq(){
+        bool has_new = false;
+        // RULE P4
+        for(auto htid_p : this->djpair_set) {
+            if(this->is_pt(htid_p.first) && this->is_pt(htid_p.second)) {
+                heap_term* first_ht = this->index2ht[htid_p.first];
+                heap_term* second_ht = this->index2ht[htid_p.second];
+
+                app* first_pt_app = first_ht->get_atoms()[0];
+                app* second_pt_app = second_ht->get_atoms()[0];
+
+                app* first_addr = to_app(first_pt_app->get_arg(0));
+                SASSERT(this->th->is_locvar(first_addr));
+                app* second_addr = to_app(second_pt_app->get_arg(0));
+                SASSERT(this->th->is_locvar(second_addr));
+                has_new = has_new || this->add_ld_neq_vars(first_addr, second_addr);
+            }
+        }
+
+        // RULE P5
+        for(auto htid_p : this->shpair_set) {
+            if(this->is_pt(htid_p.first) && this->is_pt(htid_p.second)) {
+                heap_term* first_ht = this->index2ht[htid_p.first];
+                heap_term* second_ht = this->index2ht[htid_p.second];
+
+                app* first_pt_app = first_ht->get_atoms()[0];
+                app* first_addr = to_app(first_pt_app->get_arg(0));
+                app* second_pt_app = second_ht->get_atoms()[0];
+                app* second_addr = to_app(second_pt_app->get_arg(0));
+                app* first_content_record = to_app(first_pt_app->get_arg(1));
+                app* first_content = to_app(first_content_record->get_arg(0));
+                app* second_content_record = to_app(second_pt_app->get_arg(1));
+                app* second_content = to_app(second_content_record->get_arg(0));
+                SASSERT(this->th->is_datavar(first_content) && this->th->is_datavar(second_content) || 
+                this->th->is_locvar(first_content) && this->th->is_locvar(second_content));
+                has_new = has_new || this->add_ld_eq_vars(first_addr, second_addr);
+                has_new = has_new || this->add_ld_eq_vars(first_content, second_content);
+            }
+        }
+        return has_new;
+    }
+
+    bool slhv_deducer::propagate_shdj_by_eq_neq() {
+        // RULE P7
+        bool new_sh_dj_found = false;
+        std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
+        for(auto sh_p1 : this->shpair_set) {
+            for(auto sh_p2 : this->shpair_set) {
+                if(sh_p1 != sh_p2 && sh_p1.second == sh_p2.second && 
+                   this->is_pt(sh_p1.first) && this->is_pt(sh_p2.first)) {
+                    heap_term* pt1 = this->index2ht[sh_p1.first];
+                    heap_term* pt2 = this->index2ht[sh_p2.first];
+                    SASSERT(pt1->is_atom_pt() && pt2->is_atom_pt());
+                    app* first_pt = pt1->get_atoms()[0];
+                    app* second_pt = pt2->get_atoms()[0];
+                    app* first_addr_var = to_app(first_pt->get_arg(0));
+                    app* second_addr_var = to_app(second_pt->get_arg(0));
+                    app* first_pt_content_record = to_app(first_pt->get_arg(1));
+                    app* second_pt_content_record = to_app(second_pt->get_arg(1));
+                    app* first_pt_content = to_app(first_pt_content_record->get_arg(0));
+                    app* second_pt_content = to_app(second_pt_content_record->get_arg(0));
+
+                    if(this->ldvar2neqvars[first_addr_var].find(second_addr_var) != this->ldvar2neqvars[first_addr_var].end()) {
+                        // if current setting find that address are not equal
+                        SASSERT(this->ldvar2neqvars[second_addr_var].find(first_addr_var) != this->ldvar2neqvars[second_addr_var].end());
+                        std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
+                        std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
+                        if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
+                            SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
+                            // pair exist, do nothing
+                        } else {
+                            new_sh_dj_found = true;
+                            nxt_djpair_set.insert(new_dj_pair);
+                            nxt_djpair_set.insert(mirror_pair);
+                        }
+                    } else if(this->ldvar2neqvars[first_pt_content].find(second_pt_content) != this->ldvar2neqvars[first_pt_content].end()) {
+                        // if current setting find that record content are not equal
+                        SASSERT(this->ldvar2neqvar[second_pt_content].find(first_pt_content) !=  this->ldvar2neqvars[second_pt_content].end());
+                        std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
+                        std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
+                        if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
+                            SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
+                            // pair exists, do nothing
+                        } else {
+                            new_sh_dj_found = true;
+                            nxt_djpair_set.insert(new_dj_pair);
+                            nxt_djpair_set.insert(mirror_pair);
+                        }
+                    } else if(this->ldvar2eqroot[first_addr_var] == this->ldvar2eqroot[second_addr_var]){
+                        std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
+                        std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
+                        if(this->shpair_set.find(new_sh_pair1) != this->shpair_set.end()) {
+                            // pair exists, do nothing
+                        } else {
+                            new_sh_dj_found = true;
+                            nxt_djpair_set.insert(new_sh_pair1);
+                        }
+                        if(this->shpair_set.find(new_sh_pair2) != this->shpair_set.end()) {
+                            // pair exists, do nothing
+                        } else {
+                            new_sh_dj_found = true;
+                            nxt_djpair_set.insert(new_sh_pair2);
+                        }
+                    } else {
+                        // do nothing, leave it to lia solving
+                    }
+                }
+            }
+        } 
+        this->djpair_set = nxt_djpair_set;
+        return new_sh_dj_found;
+    }
+
+    bool slhv_deducer::propagate_transitive_sh() {
+
+        std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
+        bool new_sh_found = false;
+        for(auto sh_pair1 : this->shpair_set) {
+            for(auto sh_pair2 : this->shpair_set) {
+                if(sh_pair1.second == sh_pair2.first) {
+                    std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
+                    if(this->shpair_set.find(new_pair) != this->shpair_set.end()) {
+                        // do nothing
+                    } else {
+                        new_sh_found = true;
+                        nxt_shpair_set.insert(new_pair);
+                    }
+                }
+            }
+        }
+        this->shpair_set = nxt_shpair_set;
+        return new_sh_found; 
+    }
+
+    bool slhv_deducer::propagate_transitive_dj() {
+        bool new_dj_found = false;
+        std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
+        for(auto sh_pair13 : this->shpair_set) {
+            for(auto sh_pair24 : this->shpair_set) {
+                if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
+                    std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
+                    if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
+                        // do nothing
+                    } else {
+                        new_dj_found = true;
+                        nxt_djpair_set.insert(new_dj_pair);
+                    }
+                }
+            }
+        }
+        return new_dj_found;
+    }
+
+    bool slhv_deducer::add_ld_eq_vars(app* v1, app* v2) {
+        if(this->th->is_locvar(v1) && this->th->is_locvar(v2)) {
+            app* arg1 = v1;
+            app* arg2 = v2;
+            if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                // merge
+                app* new_root = this->ldvar2eqroot[arg1];
+                app* replaced_root = this->ldvar2eqroot[arg2];
+                if(new_root == replaced_root) {
+                    return false;
+                }
+                for(auto item : this->ldvar2eqroot) {
+                    if(item.second == replaced_root) {
+                        this->ldvar2eqroot[item.first] = new_root;
+                    }
+                }
+            } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
+                this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
+            } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
+            } else {
+                app* new_root = arg1;
+                this->ldvar2eqroot[arg1] = new_root;
+                this->ldvar2eqroot[arg2] = new_root;
+            }
+        } else if(this->th->is_datavar(v1) && this->th->is_datavar(v2)) {
+            app* arg1 = v1;
+            app* arg2 = v2;
+            if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                // merge
+                app* new_root = this->ldvar2eqroot[arg1];
+                app* replaced_root = this->ldvar2eqroot[arg2];
+                if(new_root == replaced_root) {
+                    return false;;
+                }
+                for(auto item : this->ldvar2eqroot) {
+                    if(item.second == replaced_root) {
+                        this->ldvar2eqroot[item.first] = new_root;
+                    }
+                }
+            } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
+                this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
+            } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
+                this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
+            } else {
+                app* new_root = arg1;
+                this->ldvar2eqroot[arg1] = new_root;
+                this->ldvar2eqroot[arg2] = new_root;
+            }
+        } else {
+            std::cout << "add eq var error: different sort OR not vars" << std::endl;
+            SASSERT(false);
+            return false;
+        }
+        return true;
+    }   
+
+    bool slhv_deducer::add_ld_neq_vars(app* v1, app* v2) {
+        bool is_new = false;
+        if(this->th->is_locvar(v1) && this->th->is_locvar(v2)) {
+            app* arg1 = v1;
+            app* arg2 = v2;
+            if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                    is_new = this->ldvar2neqvars[arg1].insert(arg2).second;
+                } else {
+                    std::set<app*> new_neq_set;
+                    new_neq_set.insert(arg2);
+                    this->ldvar2neqvars[arg1] = new_neq_set;
+                    is_new = true;
+                }
+                if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                    is_new = this->ldvar2neqvars[arg2].insert(arg1).second;
+                } else {
+                    std::set<app*> new_neq_set;
+                    new_neq_set.insert(arg1);
+                    this->ldvar2neqvars[arg2] = new_neq_set;
+                    is_new = true;
+                }
+            }
+        } else if(this->th->is_datavar(v1) && this->th->is_datavar(v2)) {
+            app* arg1 = v1;
+            app* arg2 = v2;
+            if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                    is_new = this->ldvar2neqvars[arg1].insert(arg2).second;
+                } else {
+                    std::set<app*> new_neq_set;
+                    new_neq_set.insert(arg2);
+                    this->ldvar2neqvars[arg1] = new_neq_set;
+                    is_new = true;
+                }
+                if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                    is_new = this->ldvar2neqvars[arg2].insert(arg1).second;
+                } else {
+                    std::set<app*> new_neq_set;
+                    new_neq_set.insert(arg1);
+                    this->ldvar2neqvars[arg2] = new_neq_set;
+                    is_new = true;
+                }
+            }
+        } else {
+            std::cout << "add neq var error: different sort OR not vars" << std::endl;
+            SASSERT(false);
+        }
+        return is_new;
+    }
+
+    bool slhv_deducer::is_pt(int index) {
+        SASSERT(this->index2ht.find(index) != this->index2ht.end());
+        if(this->index2ht[index]->is_atom_pt()) {
+            return true;
+        }
+        return false;
+    }
+
+
+    bool slhv_deducer::is_emp(int index){
+        SASSERT(this->index2ht.find(index) != this->index2ht.end());
+        if(this->index2ht[index]->is_emp()) {
+           return true;
+        }
+        return false;
+    }
+
+    bool slhv_deducer::is_hvar(int index) {
+        SASSERT(this->index2ht.find(index) != this->index2ht.end());
+        if(this->index2ht[index]->is_atom_hvar()){
+            return true;
+        }
+        return false;
+    }
+
+    void slhv_deducer::check_ldvars_consistency() {
+        SASSERT(!this->unsat_found);
+        for(auto item : this->ldvar2neqvars) {
+            app* var1 = item.first;
+            for(app* var2 : item.second) {
+                if(this->ldvar2eqroot[var1] == this->ldvar2eqroot[var2]) {
+                    this->unsat_found = true;
+                    return;
+                }
+            }
+        }
+        this->unsat_found = false;
+    }
+
+    void slhv_deducer::check_sh_of_emp() {
+        SASSERT(!this->unsat_found);
+        for(auto sh_pair : this->shpair_set) {
+            if(this->is_pt(sh_pair.first) && this->is_emp(sh_pair.second)) {
+                this->unsat_found = true;
+                return;
+            }
+        }
+        this->unsat_found = false;
+    }
+
+    slhv_deducer::slhv_deducer(theory_slhv* th, formula_encoder* fec) {
+        this->th = th;
+        this->fec = fec;
+        this->ht2index = this->fec->get_ht2index_map();
+        this->index2ht = this->fec->get_index2ht();
+        this->initialize_shdj();
+        this->initialize_ldeqneq();
+        this->check_ldvars_consistency();
+    }
+    
+
+    bool slhv_deducer::deduce() {
+        bool has_change = false;
+        do
+        {
+            has_change = has_change || this->propagate_transitive_sh();
+            this->check_sh_of_emp();
+            if(this->unsat_found) {
+                return false;
+            }
+            has_change = has_change || this->propagate_transitive_dj();
+            this->check_sh_of_emp();
+            if(this->unsat_found) {
+                return false;
+            }
+            has_change = has_change || this->propagate_shdj_by_eq_neq();
+            this->check_sh_of_emp();
+            if(this->unsat_found) {
+                return false;
+            }
+            has_change = has_change || this->propagate_eq_neq();
+        } while (has_change && !this->unsat_found);
+        if(this->unsat_found) {
+            return false;
+        } else {
+            return true;
+        }
+    }
     // syntax maker
 
     slhv_syntax_maker::slhv_syntax_maker(theory_slhv* th, memsafe_wrapper* msw) {
