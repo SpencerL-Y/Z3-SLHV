@@ -2194,8 +2194,10 @@ namespace smt {
                 auto pset = ht->get_all_distinct_atomic_pairs();
                 for(auto pair : pset) {
                     auto ht_pair = this->fec->get_ht_pair_by_vec_pair(pair);
-                    this->djpair_set.insert({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
-                    this->djpair_set.insert({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
+                    if(!ht_pair.first->is_emp() && !ht_pair.second->is_emp()) {   
+                        this->djpair_set.insert({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
+                        this->djpair_set.insert({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
+                    }
                 }
             }
         }
@@ -2439,7 +2441,9 @@ namespace smt {
                     if(this->ldvar2neqvars[first_addr_var].find(second_addr_var) != this->ldvar2neqvars[first_addr_var].end()) {
                         // if current setting find that address are not equal
                         SASSERT(this->ldvar2neqvars[second_addr_var].find(first_addr_var) != this->ldvar2neqvars[second_addr_var].end());
-                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end()) {
+                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end() || 
+                        this->is_emp(sh_p1.first) || 
+                        this->is_emp(sh_p2.first)) {
                             SASSERT(this->djpair_set.find({sh_p2.first, sh_p1.first}) != this->djpair_set.end());
                             // pair exist, do nothing
                         } else {
@@ -2458,7 +2462,10 @@ namespace smt {
                         SASSERT(this->ldvar2neqvar[second_pt_content].find(first_pt_content) !=  this->ldvar2neqvars[second_pt_content].end());
                         std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
                         std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
-                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end()) {
+                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end() || 
+                        this->is_emp(sh_p1.first) ||
+                        this->is_emp(sh_p2.first)
+                        ) {
                             SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
                             // pair exists, do nothing
                         } else {
@@ -2538,7 +2545,9 @@ namespace smt {
 
                 std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
                 if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
-                    if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end()) {
+                    if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end() ||
+                    this->is_emp(sh_pair13.first) || 
+                    this->is_emp(sh_pair24.first)) {
                         // do nothing
                     } else {
                         std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
