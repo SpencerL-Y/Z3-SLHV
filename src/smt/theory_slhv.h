@@ -607,9 +607,6 @@ namespace smt
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
 
-        ~formula_encoder() {
-            dealloc(this->ded);
-        }
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
@@ -678,6 +675,7 @@ namespace smt
             // -----Check inconsistency-------
             void check_ldvars_consistency();
             void check_sh_of_emp();
+            void check_pt_addr_nil();
             // -----Theory propagation----
             bool propagate_eq_neq();
             bool propagate_shdj_by_eq_neq();
@@ -693,7 +691,11 @@ namespace smt
         public: 
             slhv_deducer(theory_slhv* th, formula_encoder* fec);
 
+            void print_current(std::ostream& os);
             bool deduce();
+            bool get_is_unsat() {
+                return this->unsat_found;
+            }
     };
 
 

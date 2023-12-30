@@ -472,6 +472,7 @@ namespace smt {
             for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
                 std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
             }
+            std::cout << std::endl;
             std::cout << "all eq pairs: " << std::endl;
             std::cout << std::endl;
             for(heap_term* ht : all_hterms.second) {
@@ -1719,6 +1720,8 @@ namespace smt {
 
         slhv_deducer* ded = alloc(slhv_deducer, th, this);
         ded->deduce();
+        ded->print_current(std::cout);
+        std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
     }
 
 
@@ -2199,6 +2202,15 @@ namespace smt {
     }
 
     void slhv_deducer::initialize_ldeqneq() {
+        // initialize eq classes
+        for(app* var : this->th->curr_datavars) {
+            this->ldvar2eqroot[var]  = var;
+        }
+        for(app* var : this->th->curr_locvars) {
+            this->ldvar2eqroot[var] = var;
+        }
+        this->ldvar2eqroot[this->th->global_nil] = this->th->global_nil;
+        
         // RULE P1
         SASSERT(this->th != nullptr);
         std::set<app*> data_cnstrs = this->th->curr_data_cnstr;
@@ -2287,6 +2299,9 @@ namespace smt {
                 app* arg1 = to_app(lc->get_arg(0));
                 app* arg2 = to_app(lc->get_arg(1));
                 if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                    #if true
+                    std::cout << "add eq vars: " << mk_ismt2_pp(arg1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(arg2, this->th->get_manager()) << std::endl;
+                    #endif
                     if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
                         // merge
                         app* new_root = this->ldvar2eqroot[arg1];
@@ -2403,6 +2418,7 @@ namespace smt {
     bool slhv_deducer::propagate_shdj_by_eq_neq() {
         // RULE P7
         bool new_sh_dj_found = false;
+        std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
         std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
         for(auto sh_p1 : this->shpair_set) {
             for(auto sh_p2 : this->shpair_set) {
@@ -2423,13 +2439,17 @@ namespace smt {
                     if(this->ldvar2neqvars[first_addr_var].find(second_addr_var) != this->ldvar2neqvars[first_addr_var].end()) {
                         // if current setting find that address are not equal
                         SASSERT(this->ldvar2neqvars[second_addr_var].find(first_addr_var) != this->ldvar2neqvars[second_addr_var].end());
-                        std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
-                        std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
-                        if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
-                            SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
+                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end()) {
+                            SASSERT(this->djpair_set.find({sh_p2.first, sh_p1.first}) != this->djpair_set.end());
                             // pair exist, do nothing
                         } else {
+                            std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
+                            std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
+                            #if true
+                            std::cout << "5new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                            std::cout << "6new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                            #endif
                             nxt_djpair_set.insert(new_dj_pair);
                             nxt_djpair_set.insert(mirror_pair);
                         }
@@ -2438,28 +2458,42 @@ namespace smt {
                         SASSERT(this->ldvar2neqvar[second_pt_content].find(first_pt_content) !=  this->ldvar2neqvars[second_pt_content].end());
                         std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
                         std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
-                        if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
+                        if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end()) {
                             SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
                             // pair exists, do nothing
                         } else {
+                            std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
+                            std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
+                            #if true
+                            std::cout << "1new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                            std::cout << "2new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                            #endif
                             nxt_djpair_set.insert(new_dj_pair);
                             nxt_djpair_set.insert(mirror_pair);
                         }
                     } else if(this->ldvar2eqroot[first_addr_var] == this->ldvar2eqroot[second_addr_var]){
-                        std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
-                        std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
-                        if(this->shpair_set.find(new_sh_pair1) != this->shpair_set.end()) {
+                        if(this->shpair_set.find({sh_p1.first, sh_p2.first}) != this->shpair_set.end()) {
                             // pair exists, do nothing
                         } else {
+                            std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
+                            std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            nxt_djpair_set.insert(new_sh_pair1);
+                            #if true
+                            std::cout << "new sh pair: " << new_sh_pair1.first << " << " << new_sh_pair1.second << std::endl;
+                            #endif
+                            nxt_shpair_set.insert(new_sh_pair1);
                         }
-                        if(this->shpair_set.find(new_sh_pair2) != this->shpair_set.end()) {
+                        if(this->shpair_set.find({sh_p2.first, sh_p1.first}) != this->shpair_set.end()) {
                             // pair exists, do nothing
                         } else {
+                            std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
+                            std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            nxt_djpair_set.insert(new_sh_pair2);
+                            #if true
+                            std::cout << "new sh pair: " << new_sh_pair2.first << " << " << new_sh_pair2.second << std::endl;
+                            #endif
+                            nxt_shpair_set.insert(new_sh_pair2);
                         }
                     } else {
                         // do nothing, leave it to lia solving
@@ -2467,52 +2501,70 @@ namespace smt {
                 }
             }
         } 
+        this->shpair_set = nxt_shpair_set;
         this->djpair_set = nxt_djpair_set;
         return new_sh_dj_found;
     }
 
     bool slhv_deducer::propagate_transitive_sh() {
 
-        std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
         bool new_sh_found = false;
+        std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
         for(auto sh_pair1 : this->shpair_set) {
             for(auto sh_pair2 : this->shpair_set) {
                 if(sh_pair1.second == sh_pair2.first) {
-                    std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
-                    if(this->shpair_set.find(new_pair) != this->shpair_set.end()) {
+                    if(this->shpair_set.find({sh_pair1.first, sh_pair2.second}) != this->shpair_set.end()) {
                         // do nothing
                     } else {
+                        std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
                         new_sh_found = true;
+                        #if true
+                        std::cout << "new sh pair: " << new_pair.first << " << " << new_pair.second << std::endl;
+                        #endif
                         nxt_shpair_set.insert(new_pair);
                     }
                 }
             }
         }
+
         this->shpair_set = nxt_shpair_set;
         return new_sh_found; 
     }
 
     bool slhv_deducer::propagate_transitive_dj() {
         bool new_dj_found = false;
-        std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
         for(auto sh_pair13 : this->shpair_set) {
             for(auto sh_pair24 : this->shpair_set) {
+
+                std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
                 if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
-                    std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
-                    if(this->djpair_set.find(new_dj_pair) != this->djpair_set.end()) {
+                    if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end()) {
                         // do nothing
                     } else {
+                        std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
+                        std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
                         new_dj_found = true;
+                        #if true
+                        std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                        std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                        #endif
                         nxt_djpair_set.insert(new_dj_pair);
+                        nxt_djpair_set.insert(mirror_pair);
                     }
                 }
+
+                this->djpair_set = nxt_djpair_set;
             }
         }
         return new_dj_found;
     }
 
     bool slhv_deducer::add_ld_eq_vars(app* v1, app* v2) {
-        if(this->th->is_locvar(v1) && this->th->is_locvar(v2)) {
+        #if true
+        std::cout << "add eq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(v1, this->th->get_manager()) << std::endl;
+        #endif
+        if((this->th->is_locvar(v1) || this->th->is_nil(v1)) &&
+           (this->th->is_locvar(v2) || this->th->is_nil(v2))) {
             app* arg1 = v1;
             app* arg2 = v2;
             if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
@@ -2544,7 +2596,7 @@ namespace smt {
                 app* new_root = this->ldvar2eqroot[arg1];
                 app* replaced_root = this->ldvar2eqroot[arg2];
                 if(new_root == replaced_root) {
-                    return false;;
+                    return false;
                 }
                 for(auto item : this->ldvar2eqroot) {
                     if(item.second == replaced_root) {
@@ -2562,6 +2614,7 @@ namespace smt {
             }
         } else {
             std::cout << "add eq var error: different sort OR not vars" << std::endl;
+            std::cout << mk_ismt2_pp(v1, this->th->get_manager()) << " " << mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
             SASSERT(false);
             return false;
         }
@@ -2569,6 +2622,9 @@ namespace smt {
     }   
 
     bool slhv_deducer::add_ld_neq_vars(app* v1, app* v2) {
+        #if true
+        std::cout << "add neq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " != " <<mk_ismt2_pp(v1, this->th->get_manager()) << std::endl;
+        #endif
         bool is_new = false;
         if(this->th->is_locvar(v1) && this->th->is_locvar(v2)) {
             app* arg1 = v1;
@@ -2669,6 +2725,9 @@ namespace smt {
         this->unsat_found = false;
     }
 
+
+    void check_pt_addr_nil();
+
     slhv_deducer::slhv_deducer(theory_slhv* th, formula_encoder* fec) {
         this->th = th;
         this->fec = fec;
@@ -2680,10 +2739,37 @@ namespace smt {
     }
     
 
+    void slhv_deducer::print_current(std::ostream& os) {
+        os << "=============================== " << std::endl;
+        os << "============== current eq" << std::endl;
+        for(auto item : this->ldvar2eqroot){
+            os << "var: " <<  mk_ismt2_pp(item.first, this->th->get_manager()) << " root: " << mk_ismt2_pp(item.second, this->th->get_manager()) << std::endl;
+        }
+        os << "============== current neqs" << std::endl;
+        for(auto item : this->ldvar2neqvars) {
+            os << "var: " << mk_ismt2_pp(item.first, this->th->get_manager()) << std::endl;
+            os << "neq vars: {" << std::endl;
+            for(app* neq_v : item.second) {
+                os << mk_ismt2_pp(neq_v, this->th->get_manager()) << ",";
+            }
+            os << "}" <<  std::endl;
+        }
+        os << "============== current dj pairs" << std::endl;
+        for(auto dj_p : this->djpair_set) {
+            std::cout << "(" << dj_p.first << ", " << dj_p.second << ")" << std::endl;
+        }
+        os << "============== current sh pairs" << std::endl;
+        for(auto sh_p : this->shpair_set) {
+            std::cout << "(" << sh_p.first << ", " << sh_p.second << ")" << std::endl;
+        }
+        os << "=============================== " << std::endl;
+    }
+
     bool slhv_deducer::deduce() {
         bool has_change = false;
         do
         {
+            has_change = false;
             has_change = has_change || this->propagate_transitive_sh();
             this->check_sh_of_emp();
             if(this->unsat_found) {
