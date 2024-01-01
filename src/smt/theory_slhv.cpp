@@ -2588,11 +2588,13 @@ namespace smt {
                 if(new_root == replaced_root) {
                     return false;
                 }
+                std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
                 for(auto item : this->ldvar2eqroot) {
                     if(item.second == replaced_root) {
-                        this->ldvar2eqroot[item.first] = new_root;
+                        tmp_ldvar2eqroot[item.first] = new_root;
                     }
                 }
+                this->ldvar2eqroot = tmp_ldvar2eqroot;
             } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
                 this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
             } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
@@ -2612,11 +2614,13 @@ namespace smt {
                 if(new_root == replaced_root) {
                     return false;
                 }
+                std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
                 for(auto item : this->ldvar2eqroot) {
                     if(item.second == replaced_root) {
-                        this->ldvar2eqroot[item.first] = new_root;
+                        tmp_ldvar2eqroot[item.first] = new_root;
                     }
                 }
+                this->ldvar2eqroot = tmp_ldvar2eqroot;
             } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
                 this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
             } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
