@@ -163,6 +163,8 @@ namespace smt
 
         
         std::vector<expr*> eliminate_not_or_assignments(expr* expression);
+        expr* eliminate_uplus_in_uplus_for_assignments(expr* expression);
+        app* eliminate_uplus_uplus_hterm(app* hterm);
 
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use

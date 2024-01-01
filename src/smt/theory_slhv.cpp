@@ -333,6 +333,7 @@ namespace smt {
         expr_ref_vector refined_assignments(this->m);
         for(expr* e : assignments) {
             std::vector<expr*> refined_e = this->eliminate_not_or_assignments(e);
+            
             if(refined_e.size() == 1) {
                 refined_assignments.push_back(refined_e[0]);
             } else {
@@ -351,6 +352,7 @@ namespace smt {
                 }
             }
         }
+        // eliminate outside assignments that are of the form (uplus (uplus ..)..)
         // print refined assignments
         #if true
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -689,6 +691,57 @@ namespace smt {
 
         result.push_back(expression);
         return result;
+    }
+
+
+    expr* theory_slhv::eliminate_uplus_in_uplus_for_assignments(expr* expression) {
+        app* apped_expr = to_app(expression);
+        if(apped_expr->is_app_of(basic_family_id, OP_NOT)) {
+            return expression;
+        } else if(apped_expr->is_app_of(basic_family_id, OP_DISTINCT)) {
+            return expression;
+        } else if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
+            app* arg1 = to_app(apped_expr->get_arg(0));
+            app* arg2 = to_app(apped_expr->get_arg(1));
+            if(this->is_uplus(arg2)) {
+                app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
+                if(eliminated_uplus == arg2) {
+                    return expression;
+                } else {
+                    expr* result = this->get_manager().mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+                    return result;
+                }
+            }
+        } else {
+            return expression;
+        }
+        return expression;
+    }
+
+    app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
+        if(this->is_uplus(hterm)) {
+            bool has_iter = false;
+            std::vector<app*> new_args;
+            for(int i = 0; i < hterm->get_num_args(); i ++) {
+                if(this->is_uplus(to_app(hterm->get_arg(i)))) {
+                    has_iter = true;
+                    app* uplus_i = this->eliminate_uplus_uplus_hterm(to_app(hterm->get_arg(i)));
+                    for(int j = 0; j < uplus_i->get_num_args(); j ++) {
+                        new_args.push_back(to_app(uplus_i->get_arg(j)));
+                    }
+                } else {
+                    new_args.push_back(to_app(hterm->get_arg(i)));
+                }
+            }
+            if(has_iter) {
+                app* new_uplus = this->syntax_maker->mk_uplus_app(new_args.size(), new_args);   
+                return new_uplus;
+            } else {
+                return hterm;
+            }
+        } else {
+            return hterm;
+        }
     }
 
     void theory_slhv::preprocessing(expr_ref_vector assigned_literals) {
@@ -2147,7 +2200,6 @@ namespace smt {
             all_conj.data()
         );
         std::cout << "==== end encode" << std::endl;
-
         return result;
     }
 
@@ -2575,7 +2627,7 @@ namespace smt {
 
     bool slhv_deducer::add_ld_eq_vars(app* v1, app* v2) {
         #if true
-        std::cout << "add eq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(v1, this->th->get_manager()) << std::endl;
+        std::cout << "add eq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
         #endif
         if((this->th->is_locvar(v1) || this->th->is_nil(v1)) &&
            (this->th->is_locvar(v2) || this->th->is_nil(v2))) {
@@ -2586,6 +2638,7 @@ namespace smt {
                 app* new_root = this->ldvar2eqroot[arg1];
                 app* replaced_root = this->ldvar2eqroot[arg2];
                 if(new_root == replaced_root) {
+                    std::cout << "eq root" << std::endl;
                     return false;
                 }
                 std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
@@ -2788,23 +2841,27 @@ namespace smt {
         do
         {
             has_change = false;
+            std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
+            std::cout << "propagate transitive dj" << std::endl;
             has_change = has_change || this->propagate_transitive_dj();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
+            std::cout << "propagate shdj by eq neq" << std::endl;
             has_change = has_change || this->propagate_shdj_by_eq_neq();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
+            std::cout << "propagate eq neq" << std::endl;
             has_change = has_change || this->propagate_eq_neq();
-            this->check_sh_of_emp();
+            this->check_ldvars_consistency();
             if(this->unsat_found) {
                 return false;
             }
