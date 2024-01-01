@@ -696,6 +696,12 @@ namespace smt
             bool get_is_unsat() {
                 return this->unsat_found;
             }
+            std::set<std::pair<int, int>> get_sh_pair_set() {
+                return  this->shpair_set;
+            }
+            std::set<std::pair<int, int>> get_dj_pair_set() {
+                return this->djpair_set;
+            }
     };
 
 

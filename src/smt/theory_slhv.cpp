@@ -1822,6 +1822,20 @@ namespace smt {
         }
     }
 
+    expr* formula_encoder::generate_deduced_premises() {
+        if(this->ded->get_is_unsat()) {
+            return this->th->get_manager().mk_false();
+        }
+        expr* result = this->th->get_manager().mk_true();
+        for(auto p : this->ded->get_dj_pair_set()) {
+            result = this->th->get_manager().mk_and(result, this->djrel_var_map[p]);
+        }
+        for(auto p : this->ded->get_sh_pair_set()) {
+            result = this->th->get_manager().mk_and(result, this->shrel_var_map[p]);
+        }
+        return result;
+    }
+
     expr* formula_encoder::generate_ld_formula() {
         #ifdef SLHV_DEBUG
         std::cout << "generate ld formula" << std::endl;
@@ -2134,6 +2148,7 @@ namespace smt {
         std::cout << "==== begin encode" << std::endl;
         expr_ref_vector all_conj(this->th->get_manager());
 
+        all_conj.push_back(this->generate_deduced_premises());
         all_conj.push_back(this->generate_ld_formula());
         all_conj.push_back(this->generate_init_formula());
         all_conj.push_back(this->generate_pto_formula());
