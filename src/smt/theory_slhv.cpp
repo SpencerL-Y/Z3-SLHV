@@ -2804,6 +2804,10 @@ namespace smt {
                 return false;
             }
             has_change = has_change || this->propagate_eq_neq();
+            this->check_sh_of_emp();
+            if(this->unsat_found) {
+                return false;
+            }
         } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
