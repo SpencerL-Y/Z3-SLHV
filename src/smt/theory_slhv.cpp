@@ -1718,7 +1718,7 @@ namespace smt {
         std::cout << "formula encoder created" << std::endl;
         #endif
 
-        slhv_deducer* ded = alloc(slhv_deducer, th, this);
+        this->ded = alloc(slhv_deducer, th, this);
         ded->deduce();
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
@@ -1823,6 +1823,7 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_deduced_premises() {
+        std::cout << "generate deduce premises" << std::endl;
         if(this->ded->get_is_unsat()) {
             return this->th->get_manager().mk_false();
         }
@@ -1837,9 +1838,7 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_ld_formula() {
-        #ifdef SLHV_DEBUG
         std::cout << "generate ld formula" << std::endl;
-        #endif
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
             result = this->th->mk_simplify_and(result, this->translate_locdata_formula(loc_constraint));
@@ -1851,10 +1850,7 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_init_formula() {
-
-        #ifdef SLHV_DEBUG
         std::cout << "generate init formula" << std::endl;
-        #endif
         expr* disj_form = this->th->get_manager().mk_true();
         for(heap_term* uplus_ht : this->hts) {
             if(uplus_ht->is_uplus_hterm()) {
@@ -1904,10 +1900,7 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_pto_formula() {
-
-        #ifdef SLHV_DEBUG
         std::cout << "generate pto formula" << std::endl;
-        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
@@ -1989,10 +1982,7 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_iso_formula() {
-
-        #ifdef SLHV_DEBUG
         std::cout << "generate iso formula" << std::endl;
-        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         expr* third_conj = this->th->get_manager().mk_true();
@@ -2065,9 +2055,8 @@ namespace smt {
 
     expr* formula_encoder::generate_idj_formula() {
 
-        #ifdef SLHV_DEBUG
         std::cout << "generate idj formula" << std::endl;
-        #endif
+
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->pt_hts) {
             if(ht1 == this->emp_ht) {break;}
@@ -2097,9 +2086,9 @@ namespace smt {
 
     expr* formula_encoder::generate_final_formula() {
 
-        #ifdef SLHV_DEBUG
+
         std::cout << "generate final formula" << std::endl;
-        #endif
+
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
             result = this->th->mk_simplify_and(
@@ -2113,10 +2102,7 @@ namespace smt {
 
     expr* formula_encoder::generate_loc_var_constraints() {
         // generate locvar constraints
-
-        #ifdef SLHV_DEBUG
         std::cout << "generate loc var constraints" << std::endl;
-        #endif
         expr* result = this->th->get_manager().mk_true();
         arith_util a(this->th->get_manager());
         for(auto item : this->locvar2intvar_map) {
@@ -2247,11 +2233,13 @@ namespace smt {
                             if(new_root == replaced_root) {
                                 continue;
                             }
+                            std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
                             for(auto item : this->ldvar2eqroot) {
                                 if(item.second == replaced_root) {
-                                    this->ldvar2eqroot[item.first] = new_root;
+                                    tmp_ldvar2eqroot[item.first] = new_root;
                                 }
                             }
+                            this->ldvar2eqroot = tmp_ldvar2eqroot;
                         }
                     } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
                         this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
@@ -2326,11 +2314,13 @@ namespace smt {
                         if(new_root == replaced_root) {
                             continue;
                         }
+                        std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
                         for(auto item : this->ldvar2eqroot) {
                             if(item.second == replaced_root) {
-                                this->ldvar2eqroot[item.first] = new_root;
+                                tmp_ldvar2eqroot[item.first] = new_root;
                             }
                         }
+                        this->ldvar2eqroot = tmp_ldvar2eqroot;
                     } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
                         this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
                     } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
