@@ -2186,6 +2186,9 @@ namespace smt {
 
     expr* formula_encoder:: encode() {
         std::cout << "==== begin encode" << std::endl;
+        if(this->ded->get_is_unsat()) {
+            return this->th->get_manager().mk_false();
+        }
         expr_ref_vector all_conj(this->th->get_manager());
 
         all_conj.push_back(this->generate_deduced_premises());
@@ -2232,6 +2235,10 @@ namespace smt {
         SASSERT(fec != nullptr);
         std::set<heap_term*> all_hterms = this->fec->get_all_hterms();
         std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
+        for(auto p : all_eq_pairs) {
+            this->shpair_set.insert({this->ht2index[p.first], this->ht2index[p.second]});
+            this->shpair_set.insert({this->ht2index[p.second], this->ht2index[p.first]});
+        }
         heap_term* emp_ht = this->fec->get_emp_ht();
         for(heap_term* ht : all_hterms) {
             this->shpair_set.insert({this->ht2index[emp_ht], this->ht2index[ht]});
@@ -2274,6 +2281,7 @@ namespace smt {
 
         // deal with eq and neq vars in data constraints
         for(app* dc : data_cnstrs) {
+            std::cout << "data constr: " << mk_ismt2_pp(dc, this->th->get_manager()) << std::endl;
             if(dc->is_app_of(basic_family_id, OP_EQ)) {
                 app* arg1 = to_app(dc->get_arg(0));
                 app* arg2 = to_app(dc->get_arg(1));
@@ -2328,7 +2336,7 @@ namespace smt {
                 if(inner->is_app_of(basic_family_id, OP_EQ)) {
                     app* arg1 = to_app(inner->get_arg(0));
                     app* arg2 = to_app(inner->get_arg(1));
-                    if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2))  {
+                    if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2)))  {
                         if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
                             this->ldvar2neqvars[arg1].insert(arg2);
                         } else {
@@ -2353,10 +2361,11 @@ namespace smt {
 
         // deal with eq and neq vars in loc constraints
         for(app* lc : loc_cnstrs) {
+            std::cout << "loc constr: " << mk_ismt2_pp(lc, this->th->get_manager()) << std::endl;
             if(lc->is_app_of(basic_family_id, OP_EQ)) {
                 app* arg1 = to_app(lc->get_arg(0));
                 app* arg2 = to_app(lc->get_arg(1));
-                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
                     #if true
                     std::cout << "add eq vars: " << mk_ismt2_pp(arg1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(arg2, this->th->get_manager()) << std::endl;
                     #endif
@@ -2387,7 +2396,7 @@ namespace smt {
             } else if(lc->is_app_of(basic_family_id, OP_DISTINCT)) {
                 app* arg1 = to_app(lc->get_arg(0));
                 app* arg2 = to_app(lc->get_arg(1));
-                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
+                if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
                     if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
                         this->ldvar2neqvars[arg1].insert(arg2);
                     } else {
@@ -2408,23 +2417,22 @@ namespace smt {
                 SASSERT(inner->is_app_of(basic_family_id, OP_EQ));
                 app* arg1 = to_app(inner->get_arg(0));
                 app* arg2 = to_app(inner->get_arg(1));
-                if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
-                    if(this->th->is_locvar(arg1) && this->th->is_locvar(arg2)) {
-                        if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
-                            this->ldvar2neqvars[arg1].insert(arg2);
-                        } else {
-                            std::set<app*> new_neq_set;
-                            new_neq_set.insert(arg2);
-                            this->ldvar2neqvars[arg1] = new_neq_set;
-                        }
-                        if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
-                            this->ldvar2neqvars[arg2].insert(arg1);
-                        } else {
-                            std::set<app*> new_neq_set;
-                            new_neq_set.insert(arg1);
-                            this->ldvar2neqvars[arg2] = new_neq_set;
-                        }
+                if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
+                    if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg1].insert(arg2);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg2);
+                        this->ldvar2neqvars[arg1] = new_neq_set;
                     }
+                    if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
+                        this->ldvar2neqvars[arg2].insert(arg1);
+                    } else {
+                        std::set<app*> new_neq_set;
+                        new_neq_set.insert(arg1);
+                        this->ldvar2neqvars[arg2] = new_neq_set;
+                    }
+                    
                 }
             } else {
                 std::cout << "unsupported loc constraint operation" << std::endl;
