@@ -12,12 +12,15 @@
 #include <iostream>
 #include <bitset>
 #include <tuple>
+
+#define FRONTEND_NO_HEAP_NEQ
 namespace smt
 {
     class heap_term;
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
     class atoms_subsumption;
+    class slhv_deducer;
     class formula_encoder;
     class heap_value_proc;
     class mem_management;
@@ -47,7 +50,6 @@ namespace smt
         std::set<app *> curr_heap_cnstr;
         std::set<app* > curr_data_cnstr;
 
-        std::set<enode*> curr_notnil_locterms_enodes;
 
         slhv_syntax_maker* syntax_maker;
 
@@ -91,7 +93,7 @@ namespace smt
             return n->is_app_of(get_id(), OP_LOCVAR_CONST);
         }
         bool is_atom_hterm(app const* n) const {
-            return (is_points_to(n) || is_hvar(n));
+            return (is_points_to(n) || is_hvar(n) || is_emp(n));
         }
         bool is_locadd(app const* n) const {
             if(n->is_app_of(get_id(), OP_LOCADD)) {
@@ -161,6 +163,8 @@ namespace smt
 
         
         std::vector<expr*> eliminate_not_or_assignments(expr* expression);
+        expr* eliminate_uplus_in_uplus_for_assignments(expr* expression);
+        app* eliminate_uplus_uplus_hterm(app* hterm);
 
         // obtain assigned literals from smt_context and analyze 
         // ast to obtain all location variables, heap variables for later use
@@ -169,6 +173,8 @@ namespace smt
 
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
+
+        std::vector<expr_ref_vector> remove_heap_eqaulity_negation_in_assignments(expr_ref_vector assigned_literals);
 
         std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
 
@@ -185,7 +191,8 @@ namespace smt
         std::set<app*> collect_points_tos(app* expression);
 
         
-        void reset_configs();
+        void reset_inside_configs();
+        void reset_outside_configs();
         // checking logic
 
         std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
@@ -565,8 +572,12 @@ namespace smt
             std::set<std::pair<std::vector<int>, std::vector<int>>> get_all_distinct_atomic_pairs();
 
             void print_ht();
+            void print_ht2file(std::ofstream& f);
     };
-// encoder from slhv to lia
+
+
+
+    // encoder from slhv to lia
     class formula_encoder {
         private:
         std::map<std::pair<int, int>, app*> djrel_var_map;
@@ -585,6 +596,7 @@ namespace smt
         heap_term* emp_ht;
 
         theory_slhv* th;
+        slhv_deducer* ded;
         slhv_syntax_maker* syntax_maker;
 
         
@@ -596,6 +608,7 @@ namespace smt
         public:
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
+
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
@@ -604,6 +617,7 @@ namespace smt
         }
         app* locvar2intvar(app* locvar);
 
+        expr* generate_deduced_premises();
         expr* generate_ld_formula();
         expr* generate_init_formula();
         expr* generate_pto_formula();
@@ -618,8 +632,80 @@ namespace smt
 
         std::pair<heap_term*, heap_term*> get_ht_pair_by_vec_pair(std::pair<std::vector<int>, std::vector<int>> vec_pair);
 
-        std::set<std::pair<heap_term*, heap_term*>> parse_model_shrel(model_core& mdc);
+        std::map<heap_term*, int> get_ht2index_map() {
+            return this->ht2index_map;
+        }
+        std::vector<heap_term*> get_index2ht() {
+            return this->index2ht;
+        }
+        std::set<heap_term*> get_all_hterms() {
+            return this->hts;
+        }
+        std::set<std::pair<heap_term*, heap_term*>> get_eq_ht_pairs() {
+            return this->eq_ht_pairs;
+        }
+        heap_term* get_emp_ht() {
+            return this->emp_ht;
+        }
+        theory_slhv* get_th() {
+            return this->th;
+        }
+        
     };
+
+    // deducer is used to simplify the formula. It is used to deduce subheap and disjoint relation before encoding and find trivial unsat situations.
+
+    class slhv_deducer {
+        private:
+            theory_slhv* th;
+            formula_encoder* fec;
+            std::vector<heap_term*> index2ht;
+            std::map<heap_term*, int> ht2index;
+
+            bool unsat_found;
+
+            // data structure used for deduction
+            std::set<std::pair<int, int>> shpair_set;
+            std::set<std::pair<int, int>> djpair_set;
+
+            std::map<app*, app*> ldvar2eqroot;
+            std::map<app*, std::set<app*>> ldvar2neqvars;
+
+            void initialize_shdj();
+            void initialize_ldeqneq();
+            
+            // -----Check inconsistency-------
+            void check_ldvars_consistency();
+            void check_sh_of_emp();
+            void check_pt_addr_nil();
+            // -----Theory propagation----
+            bool propagate_eq_neq();
+            bool propagate_shdj_by_eq_neq();
+            bool propagate_transitive_sh();
+            bool propagate_transitive_dj();
+
+            bool add_ld_eq_vars(app* v1, app* v2);
+            bool add_ld_neq_vars(app* v1, app* v2);
+
+            bool is_pt(int index);
+            bool is_emp(int index);
+            bool is_hvar(int index);
+        public: 
+            slhv_deducer(theory_slhv* th, formula_encoder* fec);
+
+            void print_current(std::ostream& os);
+            bool deduce();
+            bool get_is_unsat() {
+                return this->unsat_found;
+            }
+            std::set<std::pair<int, int>> get_sh_pair_set() {
+                return  this->shpair_set;
+            }
+            std::set<std::pair<int, int>> get_dj_pair_set() {
+                return this->djpair_set;
+            }
+    };
+
 
 // heap term atoms contained
     class atoms_subsumption {
@@ -892,7 +978,7 @@ namespace smt
          
     };
 
-
+ 
     class heap_value_proc : public model_value_proc {
         family_id m_fid;
         sort*     m_sort;
