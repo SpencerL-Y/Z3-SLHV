@@ -488,6 +488,12 @@ namespace smt {
             formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
             this->mem_mng->push_fec_ptr(fec);
 
+            // UNSAT FOUND in DEDUCTION
+            if(fec->get_unsat_found()) {
+                std::cout << "XXXXXXXX UNSAT in DEDUCTION XXXXXXXXXX" << std::endl;
+                this->mem_mng->dealloc_all();
+                continue;
+            }
             // REDUCTION ENCODING
             expr* encoded_form  = fec->encode();
 
@@ -1719,6 +1725,7 @@ namespace smt {
         // record all kinds of hts
         this->th = th;
         this->emp_ht = nullptr;
+        this->unsat_found = false;
         int i = 0;
         for(heap_term* ht : all_hterms) {
             this->ht2index_map[ht] = i;
@@ -1774,6 +1781,9 @@ namespace smt {
 
         this->ded = alloc(slhv_deducer, th, this);
         ded->deduce();
+        if(this->ded->get_is_unsat()) {
+            this->unsat_found = true;
+        }
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
     }
@@ -2186,9 +2196,6 @@ namespace smt {
 
     expr* formula_encoder:: encode() {
         std::cout << "==== begin encode" << std::endl;
-        if(this->ded->get_is_unsat()) {
-            return this->th->get_manager().mk_false();
-        }
         expr_ref_vector all_conj(this->th->get_manager());
 
         all_conj.push_back(this->generate_deduced_premises());
