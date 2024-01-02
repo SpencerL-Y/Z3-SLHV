@@ -333,9 +333,9 @@ namespace smt {
         expr_ref_vector refined_assignments(this->m);
         for(expr* e : assignments) {
             std::vector<expr*> refined_e = this->eliminate_not_or_assignments(e);
-            
             if(refined_e.size() == 1) {
-                refined_assignments.push_back(refined_e[0]);
+                expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(refined_e[0]);
+                refined_assignments.push_back(no_uplus_uplus_e);
             } else {
                 for(expr* re : refined_e) {
                     // this->ctx.internalize(re, false);
@@ -347,7 +347,8 @@ namespace smt {
                         }
                     }
                     if(!same_e) {
-                        refined_assignments.push_back(re);
+                        expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(re);
+                        refined_assignments.push_back(no_uplus_uplus_e);
                     }
                 }
             }
