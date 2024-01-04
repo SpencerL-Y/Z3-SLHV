@@ -13,7 +13,16 @@
 #include <bitset>
 #include <tuple>
 
+// debug macro
+// #define SLHV_PRINT
+// #define DED_INFO
+// #define MODEL_GEN_INFO
+#define SOLVING_INFO
+
+// frontend macro
 #define FRONTEND_NO_HEAP_NEQ
+
+
 namespace smt
 {
     class heap_term;
@@ -587,6 +596,8 @@ namespace smt
 
         std::map<app*, app*> locvar2intvar_map;
 
+        bool unsat_found = false;
+
 
         std::set<heap_term*> hts;
         std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
@@ -649,6 +660,9 @@ namespace smt
         }
         theory_slhv* get_th() {
             return this->th;
+        }
+        bool get_unsat_found() {
+            return this->unsat_found;
         }
         
     };
