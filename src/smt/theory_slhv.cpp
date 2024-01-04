@@ -388,7 +388,9 @@ namespace smt {
         // TODO implement inner CDCL framework here
         int elim_num = 0;
         for(expr_ref_vector curr_assignments : elim_enums) { 
+            #ifdef SOLVING_INFO
             std::cout << "elim_num: " << elim_num++  << " of " << elim_enums.size()<< std::endl;
+            #endif
             expr_ref_vector heap_cnstr_assignments(m);
             expr_ref_vector numeral_cnstr_assignments(m);
             for(expr* e : curr_assignments) {
@@ -452,8 +454,11 @@ namespace smt {
             } else if(result == l_true){
                 model_ref nmd;
                 numeral_solver->get_model(nmd);
+                #ifdef SOLVING_INFO
                 std::cout << "translated model: " << std::endl;
                 model_smt2_pp(std::cout, this->m, *nmd, 0);
+                #endif
+                
             } else {
                 #ifdef SLHV_PRINT
                 std::cout << "ERROR: this should not happen" << std::endl;
@@ -491,6 +496,7 @@ namespace smt {
             // UNSAT FOUND in DEDUCTION
             if(fec->get_unsat_found()) {
                 std::cout << "XXXXXXXX UNSAT in DEDUCTION XXXXXXXXXX" << std::endl;
+                numeral_solver->dec_ref();
                 this->mem_mng->dealloc_all();
                 continue;
             }
@@ -522,8 +528,10 @@ namespace smt {
             lbool final_result = final_sovler->check_sat();
             std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
             if(final_result == l_true) {
+                #ifdef SOLVING_INFO
                 std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
                 std::cout << " translated SAT " << std::endl;
+                #endif
                 // print current refined assignment to file
                 std::ofstream output2file("./outmodel.txt", std::ios::out);
                 output2file << "SAT" << std::endl;
@@ -1097,7 +1105,6 @@ namespace smt {
 
 
     void theory_slhv::reset_outside_configs() {
-        std::cout << "reset configs for slhv theory" << std::endl;
         this->curr_pts.clear();
         this->curr_disj_unions.clear();
         this->curr_hvars.clear();
@@ -1115,8 +1122,6 @@ namespace smt {
     }
 
     void theory_slhv::reset_inside_configs() {
-        std::cout << "reset configs for slhv theory inner elim loop" << std::endl;
-        
         this->curr_pts.clear();
         this->curr_disj_unions.clear();
         this->curr_hvars.clear();
@@ -1784,8 +1789,10 @@ namespace smt {
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
+        #ifdef SOLVING_INFO
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
+        #endif
     }
 
 
@@ -1893,10 +1900,10 @@ namespace smt {
         }
         expr* result = this->th->get_manager().mk_true();
         for(auto p : this->ded->get_dj_pair_set()) {
-            result = this->th->get_manager().mk_and(result, this->djrel_var_map[p]);
+            result = this->syntax_maker->mk_and(result, this->djrel_var_map[p]);
         }
         for(auto p : this->ded->get_sh_pair_set()) {
-            result = this->th->get_manager().mk_and(result, this->shrel_var_map[p]);
+            result = this->syntax_maker->mk_and(result, this->shrel_var_map[p]);
         }
         return result;
     }
@@ -2367,7 +2374,9 @@ namespace smt {
 
         // deal with eq and neq vars in loc constraints
         for(app* lc : loc_cnstrs) {
+            #ifdef SOLVING_INFO
             std::cout << "loc constr: " << mk_ismt2_pp(lc, this->th->get_manager()) << std::endl;
+            #endif
             if(lc->is_app_of(basic_family_id, OP_EQ)) {
                 app* arg1 = to_app(lc->get_arg(0));
                 app* arg2 = to_app(lc->get_arg(1));
@@ -2653,7 +2662,6 @@ namespace smt {
                 app* new_root = this->ldvar2eqroot[arg1];
                 app* replaced_root = this->ldvar2eqroot[arg2];
                 if(new_root == replaced_root) {
-                    std::cout << "eq root" << std::endl;
                     return false;
                 }
                 std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
@@ -2931,7 +2939,6 @@ namespace smt {
     app* slhv_syntax_maker::mk_boolvar(std::string name) {
         sort* bool_sort = this->th->get_manager().mk_bool_sort();
         app* boolvar = this->th->get_manager().mk_const(name, bool_sort);
-        this->th->get_context().internalize(boolvar, false);
         return boolvar;
     }
 
