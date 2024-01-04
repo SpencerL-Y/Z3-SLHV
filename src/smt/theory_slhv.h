@@ -13,7 +13,16 @@
 #include <bitset>
 #include <tuple>
 
+// debug macro
+// #define SLHV_PRINT
+// #define DED_INFO
+// #define MODEL_GEN_INFO
+#define SOLVING_INFO
+
+// frontend macro
 #define FRONTEND_NO_HEAP_NEQ
+
+
 namespace smt
 {
     class heap_term;

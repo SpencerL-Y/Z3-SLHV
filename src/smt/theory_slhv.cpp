@@ -17,7 +17,7 @@ namespace smt {
 
     // theory-slhv --------------------------------
     theory_slhv::theory_slhv(context& ctx) : theory(ctx, ctx.get_manager().mk_family_id("slhv")) {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "SLHV theory plugin created" << std::endl;
         #endif
         this->mem_mng = alloc(mem_management, this);
@@ -67,21 +67,21 @@ namespace smt {
 
     
     theory *theory_slhv::mk_fresh(context * new_ctx)  {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
             std::cout << "slhv mk_fresh" << std::endl;
         #endif
         return alloc(theory_slhv, *new_ctx);
     }
 
     bool theory_slhv::internalize_atom(app * atom, bool gate_ctx)  {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
             std::cout << "slhv internalize atom" << std::endl;
         #endif
         return true;
     }
 
     bool theory_slhv::internalize_term(app * term)  {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
             std::cout << "slhv internalize term" << std::endl;
         #endif
         if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term)) {
@@ -101,13 +101,13 @@ namespace smt {
             theory_var arg0_var = arg0_node->get_th_var(get_id());
             SASSERT(arg0_var != -1 );
             SASSERT(get_th_var(term) != -1);
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "term name: " << term->get_name() << " is_points_to: " << is_points_to(term) << " num args: " << term->get_num_args() << std::endl;
             #endif
         } else if(is_uplus(term)) {
             SASSERT(term->get_num_args() >= 2);
             SASSERT(get_th_var(term) != -1);
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "term name: " << term->get_name() << " is_uplus: " << is_uplus(term) << " num args: " << term->get_num_args() << std::endl;
             #endif
         } else if(is_locadd(term)) {
@@ -136,11 +136,11 @@ namespace smt {
         }
         enode* e = ctx.mk_enode(term, false, false, true);
         if(!is_attached_to_var(e)) {
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "mk_theory_var for " << mk_ismt2_pp(term, m) << std::endl;
             #endif
             mk_var(e);
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "theory var made: " << get_th_var(e) << std::endl;
             #endif
         }
@@ -153,13 +153,13 @@ namespace smt {
     }
 
     void theory_slhv::new_eq_eh(theory_var v1, theory_var v2)  {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
             std::cout << "slhv new eq eh" << std::endl;
         #endif
     }
 
     void theory_slhv::new_diseq_eh(theory_var v1, theory_var v2)  {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
             std::cout << "slhv internalize term" << std::endl;
         #endif
 
@@ -170,7 +170,7 @@ namespace smt {
     }
 
     void theory_slhv::propagate() {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "slhv propagate" << std::endl;
         #endif
     }
@@ -185,7 +185,7 @@ namespace smt {
             literal expr_lit = this->ctx.get_literal(e);
             unsat_core.push_back(expr_lit);
         }
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
             std::cout  << l << std::endl;
@@ -210,7 +210,7 @@ namespace smt {
             literal expr_lit = this->ctx.get_literal(e);
             unsat_core.push_back(expr_lit);
         }
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
             std::cout  << l << std::endl;
@@ -229,7 +229,7 @@ namespace smt {
     }
 
     void theory_slhv::set_conflict_inside() {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
         #endif
         // TODO use eliminated assignment to set conflict unsat core
@@ -237,7 +237,7 @@ namespace smt {
 
     void theory_slhv::set_conflict_inside(std::vector<expr*> inside_unsat_core) {
         
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
         #endif
     }
@@ -320,7 +320,7 @@ namespace smt {
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
         // print outside assignments
-        #if true
+        #ifdef SOLVING_INFO
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assignment ==============" << std::endl;
         for(expr* e : assignments) {
@@ -355,7 +355,7 @@ namespace smt {
         }
         // eliminate outside assignments that are of the form (uplus (uplus ..)..)
         // print refined assignments
-        #if true
+        #ifdef SOLVING_INFO
         std::cout << "================= current refined assignment ==============" << std::endl;
         for(expr* e : refined_assignments) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
@@ -367,7 +367,7 @@ namespace smt {
         this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
         SASSERT(this->slhv_plug->pt_record_map.size() > 0);
         // print records in plugin
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         for(auto item : this->slhv_plug->pt_record_map) {
             std::cout << "record type name: " << item.first << std::endl;
             item.second->print(std::cout);
@@ -381,7 +381,7 @@ namespace smt {
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
         #endif
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
         #endif
         
@@ -402,7 +402,7 @@ namespace smt {
             for(expr* e : curr_assignments) {
                 this->get_manager().inc_ref(e);
             }
-            #if true
+            #ifdef SOLVING_INFO
             std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
             
             std::cout << "heap constraints ========== " << std::endl;
@@ -432,7 +432,7 @@ namespace smt {
                 numeral_solver->assert_expr(e);
             }
             lbool result =  numeral_solver->check_sat();
-            #if true
+            #ifdef SOLVING_INFO
             std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
             if(result == l_true) {
                 std::cout << "SAT" << std::endl;
@@ -455,7 +455,7 @@ namespace smt {
                 std::cout << "translated model: " << std::endl;
                 model_smt2_pp(std::cout, this->m, *nmd, 0);
             } else {
-                #ifdef SLHV_DEBUG
+                #ifdef SLHV_PRINT
                 std::cout << "ERROR: this should not happen" << std::endl;
                 #endif
                 SASSERT(false);
@@ -470,7 +470,7 @@ namespace smt {
             }
             // TODO: add reduction and solving
             std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
-            #if true
+            #ifdef SOLVING_INFO
             std::cout << "all hterms: " << std::endl;
             for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
                 std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
@@ -497,7 +497,7 @@ namespace smt {
             // REDUCTION ENCODING
             expr* encoded_form  = fec->encode();
 
-            #if true
+            #ifdef SOLVING_INFO
             std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
             debug_formula << mk_ismt2_pp(encoded_form, this->m);
             #endif
@@ -507,7 +507,7 @@ namespace smt {
 
             this->get_manager().inc_ref(encoded_form);
             std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
-            #if true
+            #ifdef SOLVING_INFO
             std::cout << "============= encoded formula ========== " << std::endl;
             // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
             std::cout << "======================================== " << std::endl;
@@ -553,7 +553,7 @@ namespace smt {
                 for(int i = 0; i < mdc.get_num_constants(); i ++) {
                     expr_ref temp_val(this->m);
                     mdc.eval(mdc.get_constant(i), temp_val);
-                    // #ifdef SLHV_DEBUG
+                    // #ifdef SLHV_PRINT
                     std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                     std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
                     // #endif
@@ -752,13 +752,13 @@ namespace smt {
     }
 
     void theory_slhv::preprocessing(expr_ref_vector assigned_literals) {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "slhv preprocessing" << std::endl;
         #endif
         this->collect_and_analyze_assignments(assigned_literals);
         // collect different types of constraints
         this->collect_loc_heap_and_data_cnstr_in_assignments(assigned_literals);
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "slhv preprocessing end" << std::endl;
         #endif
     }
@@ -787,14 +787,14 @@ namespace smt {
                 }
                 last_result = temp_result;
             } else {
-                #ifdef SLHV_DEBUG
+                #ifdef SLHV_PRINT
                 std::cout << " eliminate heap negation for " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
                 #endif
 
                 temp_result = this->eliminate_heap_equality_negation(last_result, e);
                 last_result = temp_result;
 
-                #ifdef SLHV_DEBUG
+                #ifdef SLHV_PRINT
                 std::cout << " eliminated " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
                 #endif
             }
@@ -912,27 +912,27 @@ namespace smt {
     }
 
     void theory_slhv::collect_and_analyze_assignments(expr_ref_vector assigned_literals) {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "slhv collect and analyze assignments" << std::endl;
         #endif
         for(auto e : assigned_literals) {
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "collect expr: " << mk_ismt2_pp(e, m) << std::endl;
             #endif
             app* app_e = to_app(e);
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "collect vars in literal" << std::endl;
             #endif
             auto collected_vars = this->collect_vars(app_e);
             this->curr_locvars = slhv_util::setUnion(this->curr_locvars, std::get<0>(collected_vars));
             this->curr_hvars = slhv_util::setUnion(this->curr_hvars, std::get<1>(collected_vars));
             this->curr_datavars = slhv_util::setUnion(this->curr_datavars, std::get<2>(collected_vars));
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "collect disj unions in literal" << std::endl;
             #endif
             this->curr_disj_unions = slhv_util::setUnion(this->curr_disj_unions, this->collect_disj_unions(app_e));
 
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "collect pts in literal" << std::endl;
             #endif
             this->curr_pts = slhv_util::setUnion(this->curr_pts,  this->collect_points_tos(app_e));
@@ -943,7 +943,7 @@ namespace smt {
         SASSERT(plug != nullptr);
         slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*) plug;
         if(this->global_emp == nullptr) {
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "begin construct emp" << std::endl;
             #endif
             if(!this->curr_hvars_contain_emp()) {
@@ -961,7 +961,7 @@ namespace smt {
             this->get_context().internalize(this->global_emp, false);
         }
         if(this->global_nil == nullptr) {
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "begin construct nil" << std::endl;
             #endif
             if(!this->curr_locvars_contain_nil()) {
@@ -984,7 +984,7 @@ namespace smt {
             this->curr_atomic_hterms.push_back(hv);
         }
         this->curr_atomic_hterms.push_back(this->global_emp);
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "collect and analyze assignments end" << std::endl;
         #endif
     }
@@ -1012,7 +1012,7 @@ namespace smt {
             return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if(is_datavar(expression)) {
 
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "collect data var: " << mk_ismt2_pp(expression, this->m) << std::endl;
             #endif
             collected_datavars.insert(expression);
@@ -1068,7 +1068,7 @@ namespace smt {
                 } else if(is_locterm(to_app(negated_arg0))) {
                     this->curr_loc_cnstr.insert(to_app(e));
                 } else {
-                    #ifdef SLHV_DEBUG
+                    #ifdef SLHV_PRINT
                     std::cout << "collect data cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
                     #endif
                     this->curr_data_cnstr.insert(to_app(e));
@@ -1085,7 +1085,7 @@ namespace smt {
                         this->curr_loc_cnstr.insert(to_app(e));
                     } else {
 
-                    #ifdef SLHV_DEBUG
+                    #ifdef SLHV_PRINT
                     std::cout << "collect data cnstr: " << mk_ismt2_pp(e, this->m) << std::endl;
                     #endif
                         this->curr_data_cnstr.insert(to_app(e));
@@ -1135,7 +1135,7 @@ namespace smt {
     // check_logic
 
     std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>> theory_slhv::extract_all_hterms() {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "begin extract all hterms" << std::endl;
         #endif
         std::set<heap_term*> eq_hterms;
@@ -1144,14 +1144,14 @@ namespace smt {
             heap_term* eq_lhs = nullptr;
             heap_term* eq_rhs = nullptr;
 
-            #if true
+            #ifdef SOLVING_INFO
             std::cout << "extract for " << mk_ismt2_pp(eq, this->m) << std::endl;
             #endif
             SASSERT(eq != nullptr);
             SASSERT(eq->is_app_of(basic_family_id, OP_EQ));
             app* lhs_hterm = to_app(eq->get_arg(0));
             app* rhs_hterm = to_app(eq->get_arg(1));
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "extract lhs hterm" << std::endl;
             #endif
             if(this->is_atom_hterm(lhs_hterm)) {
@@ -1214,10 +1214,10 @@ namespace smt {
                     eq_lhs = lhs_bunch_hterm;
                 }
             }
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "extract lhs hterm end" << std::endl;
             #endif
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm" << std::endl;
             #endif
 
@@ -1283,12 +1283,12 @@ namespace smt {
             }
 
             eq_pair_hterms.insert({eq_lhs, eq_rhs});
-            #ifdef SLHV_DEBUG
+            #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm end" << std::endl;
             #endif
         }
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "eq hterm extracted" << std::endl;
         #endif
 
@@ -1317,7 +1317,7 @@ namespace smt {
             }
         }
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << " begin all heap term allocation" << std::endl;
         #endif
         for(std::vector<int> vec : next_all_counts) {
@@ -1325,7 +1325,7 @@ namespace smt {
             all_hterms.insert(atom);
         }
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "all heap term alloced" << std::endl;
         #endif
 
@@ -1344,7 +1344,7 @@ namespace smt {
         }
 
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "emp heap term alloced" << std::endl;
         #endif
 
@@ -1376,23 +1376,23 @@ namespace smt {
     std::set<atoms_subsumption*> theory_slhv::parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs) {
         std::set<std::pair<heap_term*, heap_term*>> subparent_pairs;
         for(std::string name : true_bool_strs) {
-        // #ifdef SLHV_DEBUG
+        // #ifdef SLHV_PRINT
         //     std::cout << "origin name: " << name << std::endl;
         // #endif
             if(name.find("ish") != name.npos) {
-        // #ifdef SLHV_DEBUG
+        // #ifdef SLHV_PRINT
         //         std::cout << "deal with sh" << std::endl;
         // #endif
                 std::vector<std::string> tokens = slhv_util::str_split(name, "_");
                 SASSERT(tokens[0].compare("ish") == 0);
                 int subsumed_id = atoi(tokens[1].data());
                 int parent_id = atoi(tokens[2].data());
-        // #ifdef SLHV_DEBUG
+        // #ifdef SLHV_PRINT
         //         std::cout << "subsumed id: " << subsumed_id << " parent id: " << parent_id << std::endl;
         // #endif
                 subparent_pairs.insert({enc->get_ht_by_id(subsumed_id), enc->get_ht_by_id(parent_id)});
             } else if(name.find("idj") != name.npos) {
-        // #ifdef SLHV_DEBUG
+        // #ifdef SLHV_PRINT
         //         std::cout << "deal with dj" << std::endl;
         // #endif
             } else {
@@ -1416,7 +1416,7 @@ namespace smt {
             atoms_subsumption* s = alloc(atoms_subsumption, r.first, r.second);
             result.insert(s);
         }
-        // #ifdef SLHV_DEBUG
+        // #ifdef SLHV_PRINT
         // std::cout << "result size: " << result.size() << std::endl;
         // #endif
         return result;
@@ -1775,7 +1775,7 @@ namespace smt {
             SASSERT(this->locvar2intvar_map.find(lv) == this->locvar2intvar_map.end());
             this->locvar2intvar_map[lv] = intvar;
         }
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "formula encoder created" << std::endl;
         #endif
 
@@ -1923,7 +1923,6 @@ namespace smt {
                     if(!htp.first->is_emp() && !htp.second->is_emp()) {
                         disj_form = this->th->mk_simplify_and(disj_form, this->get_djrel_boolvar(htp.first, htp.second));
                     }
-
                 }
             }
         }
@@ -2123,13 +2122,13 @@ namespace smt {
 
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->pt_hts) {
-            if(ht1 == this->emp_ht) {break;}
+            if(ht1 == this->emp_ht) {continue;}
             for(heap_term* ht2 : this->pt_hts) {
-                if(ht2 == this->emp_ht) {break;}
+                if(ht2 == this->emp_ht) {continue;}
                 for(heap_term* ht3 : this->hts) {
-                    if(ht3 == this->emp_ht) {break;}
+                    if(ht3 == this->emp_ht) {continue;}
                     for(heap_term* ht4 : this->hts) {
-                        if(ht4 == this->emp_ht) {break;}
+                        if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
                             this->get_shrel_boolvar(ht2, ht4),
@@ -2373,7 +2372,7 @@ namespace smt {
                 app* arg1 = to_app(lc->get_arg(0));
                 app* arg2 = to_app(lc->get_arg(1));
                 if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
-                    #if true
+                    #ifdef DED_INFO
                     std::cout << "add eq vars: " << mk_ismt2_pp(arg1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(arg2, this->th->get_manager()) << std::endl;
                     #endif
                     if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
@@ -2523,7 +2522,7 @@ namespace smt {
                             std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
                             std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            #if true
+                            #ifdef DED_INFO
                             std::cout << "5new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                             std::cout << "6new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                             #endif
@@ -2545,7 +2544,7 @@ namespace smt {
                             std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
                             std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            #if true
+                            #ifdef DED_INFO
                             std::cout << "1new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                             std::cout << "2new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                             #endif
@@ -2559,7 +2558,7 @@ namespace smt {
                             std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
                             std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            #if true
+                            #ifdef DED_INFO
                             std::cout << "new sh pair: " << new_sh_pair1.first << " << " << new_sh_pair1.second << std::endl;
                             #endif
                             nxt_shpair_set.insert(new_sh_pair1);
@@ -2570,7 +2569,7 @@ namespace smt {
                             std::pair<int, int> new_sh_pair1 = {sh_p1.first, sh_p2.first};
                             std::pair<int, int> new_sh_pair2 = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
-                            #if true
+                            #ifdef DED_INFO
                             std::cout << "new sh pair: " << new_sh_pair2.first << " << " << new_sh_pair2.second << std::endl;
                             #endif
                             nxt_shpair_set.insert(new_sh_pair2);
@@ -2598,7 +2597,7 @@ namespace smt {
                     } else {
                         std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
                         new_sh_found = true;
-                        #if true
+                        #ifdef DED_INFO
                         std::cout << "new sh pair: " << new_pair.first << " << " << new_pair.second << std::endl;
                         #endif
                         nxt_shpair_set.insert(new_pair);
@@ -2626,7 +2625,7 @@ namespace smt {
                         std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
                         std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
                         new_dj_found = true;
-                        #if true
+                        #ifdef DED_INFO
                         std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                         std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                         #endif
@@ -2642,7 +2641,7 @@ namespace smt {
     }
 
     bool slhv_deducer::add_ld_eq_vars(app* v1, app* v2) {
-        #if true
+        #ifdef DED_INFO
         std::cout << "add eq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
         #endif
         if((this->th->is_locvar(v1) || this->th->is_nil(v1)) &&
@@ -2709,7 +2708,7 @@ namespace smt {
     }   
 
     bool slhv_deducer::add_ld_neq_vars(app* v1, app* v2) {
-        #if true
+        #ifdef DED_INFO
         std::cout << "add neq vars: " << mk_ismt2_pp(v1, this->th->get_manager() ) << " != " <<mk_ismt2_pp(v1, this->th->get_manager()) << std::endl;
         #endif
         bool is_new = false;
@@ -2857,25 +2856,25 @@ namespace smt {
         do
         {
             has_change = false;
-            std::cout << "propagate transitive sh" << std::endl;
+            // std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate transitive dj" << std::endl;
+            // std::cout << "propagate transitive dj" << std::endl;
             has_change = has_change || this->propagate_transitive_dj();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate shdj by eq neq" << std::endl;
+            // std::cout << "propagate shdj by eq neq" << std::endl;
             has_change = has_change || this->propagate_shdj_by_eq_neq();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate eq neq" << std::endl;
+            // std::cout << "propagate eq neq" << std::endl;
             has_change = has_change || this->propagate_eq_neq();
             this->check_ldvars_consistency();
             if(this->unsat_found) {
@@ -2915,7 +2914,7 @@ namespace smt {
         unsigned num_args = 0;
         arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
         app* lia_intvar = this->th->get_manager().mk_const(name, range_sort);
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "lia intvar made: " << name << std::endl;
         #endif
         this->th->get_context().internalize(lia_intvar, false);
@@ -3371,7 +3370,7 @@ namespace smt {
     }
 
    std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality(app* lhs_hterm, app* rhs_hterm) {
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "mk_hterm_disequality" << std::endl;
         #endif
         app* h = this->mk_fresh_hvar();
@@ -3395,7 +3394,7 @@ namespace smt {
         app* first_conj_eq_lhs = ht1_hvar;
         std::vector<app*> first_conj_eq_rhs_uplus_args;
         app* first_eq_rhs_pt = this->mk_points_to(x, y);
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << " uplus rhs: " << mk_pp(h, this->th->get_manager()) << " " << h->get_sort()->get_name() << std::endl;
         std::cout << " uplus rhs: " << mk_pp(first_eq_rhs_pt, this->th->get_manager()) << " " << h->get_sort()->get_name() <<std::endl;
         first_eq_rhs_pt->get_sort();
@@ -3442,7 +3441,7 @@ namespace smt {
         final_result.push_back(first_disj);
 
         // second disjunct
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "second disjunct" << std::endl;
         #endif
         app* x_in_ht1 = this->mk_addr_in_hterm(ht1_hvar, x);
@@ -3458,7 +3457,7 @@ namespace smt {
 
         // third_disjunct
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "third disjunct" << std::endl;
         #endif
         app* x_in_ht2 = this->mk_addr_in_hterm(ht2_hvar, x);
@@ -3485,7 +3484,7 @@ namespace smt {
         pt_record* only_record = this->slhv_decl_plug->get_first_record();
         std::vector<std::vector<app*>> final_result;
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "mk hterm disequality new" << std::endl;
         #endif
 
@@ -3576,7 +3575,7 @@ namespace smt {
             final_result.push_back(first_disj);
         } 
         // second disjunct
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "second disjunct" << std::endl;
         #endif
         app* x_in_ht1 = this->mk_addr_in_hterm_new(ht1_hvar, x);
@@ -3592,7 +3591,7 @@ namespace smt {
 
         // third_disjunct
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "third disjunct" << std::endl;
         #endif
         app* x_in_ht2 = this->mk_addr_in_hterm_new(ht2_hvar, x);
@@ -3635,7 +3634,7 @@ namespace smt {
             second_eq_lhs = second_eq_lhs_fhvar;
         }
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "begin negation elimnation encoding" << std::endl;
         #endif
         for(pt_record* r1 : all_records) {
@@ -3665,7 +3664,7 @@ namespace smt {
 
                 app* lhs_hterm_record = this->mk_record(r1, lhs_fresh_locvars, lhs_fresh_datavars);
                 app* rhs_hterm_record = this->mk_record(r2, rhs_fresh_locvars, rhs_fresh_datavars);
-                #ifdef SLHV_DEBUG
+                #ifdef SLHV_PRINT
                 std::cout << "first equality" << std::endl;
                 #endif
                 // first equality
@@ -3678,7 +3677,7 @@ namespace smt {
 
                 app* first_eq = this->mk_eq(first_eq_lhs, first_eq_rhs);
                 // this->th->get_context().internalize(first_eq, false);
-                #ifdef SLHV_DEBUG
+                #ifdef SLHV_PRINT
                 std::cout << "second equality" << std::endl;
                 #endif
                 // second equality
@@ -3732,7 +3731,7 @@ namespace smt {
             }
         }
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "lhs does not have common addr" << std::endl;
         #endif
         // lhs does not have common addr
@@ -3752,7 +3751,7 @@ namespace smt {
         }
 
 
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "rhs does not have common addr" << std::endl;
         #endif
         // rhs does not have common addr
@@ -3891,12 +3890,12 @@ namespace smt {
             args_vec.push_back(arg);
         }
         func_decl* record_decl = this->slhv_decl_plug->pt_record_decls[r->get_pt_record_name()];
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "make record " << record_decl->get_name() << " sort: " << std::endl;
         
         #endif
         app* result = this->th->get_manager().mk_app(record_decl, args_vec);
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "record made: " << mk_ismt2_pp(result, this->th->get_manager()) << std::endl;
         #endif
         return result;
@@ -3947,7 +3946,7 @@ namespace smt {
         arith_decl_plugin* arith_plug = (arith_decl_plugin*)this->th->get_manager().get_plugin(arith_family_id);
         app* fresh_datavar = this->th->get_manager().mk_const(name, range_sort);
         curr_datavar_id ++;
-        #ifdef SLHV_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "fresh datavar made: " << name << std::endl;
         #endif
         return fresh_datavar;
@@ -3970,14 +3969,14 @@ namespace smt {
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
         theory_var v = n->get_th_var(get_id());
         expr* o = n->get_expr();
-        #if true
+        #ifdef MODEL_GEN_INFO
         std::cout << "mk_value for " << mk_ismt2_pp(o, this->m) << std::endl;
         #endif
         arith_util a(this->m);
         app* oapp = to_app(o);
         if(this->is_heapterm(oapp)) {
             if(this->is_points_to(oapp)) {
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is points to" << std::endl;
                 #endif
                 heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -3992,7 +3991,7 @@ namespace smt {
                 return pt_proc;
             } else if(this->is_hvar(oapp)) {
                 // TODO: add dependency here later
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is hvar" << std::endl;
                 #endif
                 heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -4011,7 +4010,7 @@ namespace smt {
                 return hvar_proc;
             } else if(this->is_emp(oapp)) {
                 
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is emp" << std::endl;
                 #endif
                 heap_value_proc* emp_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -4023,7 +4022,7 @@ namespace smt {
             }
             else {
                 SASSERT(this->is_uplus(oapp));
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is uplus" << std::endl;
                 #endif
                 heap_value_proc* uplus_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
@@ -4034,7 +4033,7 @@ namespace smt {
             }
         } else if(this->is_locterm(oapp)) {
             if(this->is_locvar(oapp)) {
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is locvar" << std::endl;
                 #endif
                 std::string locvar_name = oapp->get_name().str();
@@ -4042,7 +4041,7 @@ namespace smt {
                 app* val_expr = data_factory->mk_num_value(rational(int_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else if(this->is_nil(oapp)){
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is nil" << std::endl;
                 #endif
                 int nil_val = this->model_loc_data_var_val_info["nil"];
@@ -4050,7 +4049,7 @@ namespace smt {
                 return alloc(expr_wrapper_proc, val_expr);
             } else {
                 SASSERT(this->is_locadd(oapp));
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is locadd" << std::endl;
                 #endif
                 
@@ -4063,14 +4062,14 @@ namespace smt {
             }
         } else if(this->is_dataterm(oapp)) {
             if(this->is_datavar(oapp)) {
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is datavar" << std::endl;
                 #endif
                 int data_var_val = this->model_loc_data_var_val_info[oapp->get_name().str()];
                 app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else {
-                #if true
+                #ifdef MODEL_GEN_INFO
                 std::cout << "is arith term" << std::endl;
                 #endif
                 return alloc(expr_wrapper_proc, oapp);
