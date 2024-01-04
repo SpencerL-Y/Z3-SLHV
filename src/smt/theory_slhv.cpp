@@ -1894,7 +1894,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_deduced_premises() {
+        #ifdef SLHV_PRINT
         std::cout << "generate deduce premises" << std::endl;
+        #endif
         if(this->ded->get_is_unsat()) {
             return this->th->get_manager().mk_false();
         }
@@ -1909,7 +1911,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_ld_formula() {
+        #ifdef SLHV_PRINT
         std::cout << "generate ld formula" << std::endl;
+        #endif
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
             result = this->th->mk_simplify_and(result, this->translate_locdata_formula(loc_constraint));
@@ -1921,7 +1925,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_init_formula() {
+        #ifdef SLHV_PRINT
         std::cout << "generate init formula" << std::endl;
+        #endif
         expr* disj_form = this->th->get_manager().mk_true();
         for(heap_term* uplus_ht : this->hts) {
             if(uplus_ht->is_uplus_hterm()) {
@@ -1970,7 +1976,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_pto_formula() {
+        #ifdef SLHV_PRINT
         std::cout << "generate pto formula" << std::endl;
+        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
@@ -2052,7 +2060,9 @@ namespace smt {
     }
 
     expr* formula_encoder::generate_iso_formula() {
+        #ifdef SLHV_PRINT
         std::cout << "generate iso formula" << std::endl;
+        #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
         expr* third_conj = this->th->get_manager().mk_true();
@@ -2125,7 +2135,9 @@ namespace smt {
 
     expr* formula_encoder::generate_idj_formula() {
 
+        #ifdef SLHV_PRINT
         std::cout << "generate idj formula" << std::endl;
+        #endif
 
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->pt_hts) {
@@ -2157,7 +2169,9 @@ namespace smt {
     expr* formula_encoder::generate_final_formula() {
 
 
+        #ifdef SLHV_PRINT
         std::cout << "generate final formula" << std::endl;
+        #endif
 
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
@@ -2201,7 +2215,10 @@ namespace smt {
     }
 
     expr* formula_encoder:: encode() {
+
+        #ifdef SLHV_PRINT
         std::cout << "==== begin encode" << std::endl;
+        #endif
         expr_ref_vector all_conj(this->th->get_manager());
 
         all_conj.push_back(this->generate_deduced_premises());
@@ -2216,7 +2233,10 @@ namespace smt {
             all_conj.size(),
             all_conj.data()
         );
+
+        #ifdef SLHV_PRINT
         std::cout << "==== end encode" << std::endl;
+        #endif
         return result;
     }
 
@@ -2294,7 +2314,10 @@ namespace smt {
 
         // deal with eq and neq vars in data constraints
         for(app* dc : data_cnstrs) {
+
+            #ifdef SOLVING_INFO
             std::cout << "data constr: " << mk_ismt2_pp(dc, this->th->get_manager()) << std::endl;
+            #endif
             if(dc->is_app_of(basic_family_id, OP_EQ)) {
                 app* arg1 = to_app(dc->get_arg(0));
                 app* arg2 = to_app(dc->get_arg(1));
@@ -2661,7 +2684,7 @@ namespace smt {
                 // merge
                 app* new_root = this->ldvar2eqroot[arg1];
                 app* replaced_root = this->ldvar2eqroot[arg2];
-                if(new_root == replaced_root) {
+                if(new_root == replaced_root) { 
                     return false;
                 }
                 std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
