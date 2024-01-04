@@ -17,7 +17,9 @@
 // #define SLHV_PRINT
 // #define DED_INFO
 // #define MODEL_GEN_INFO
-#define SOLVING_INFO
+
+// minimal for debug
+// #define SOLVING_INFO
 
 // frontend macro
 #define FRONTEND_NO_HEAP_NEQ
@@ -1054,6 +1056,7 @@ namespace smt
         std::set<heap_term*> ht_ptrs;
         std::set<atoms_subsumption*> at_ptrs;
         std::set<formula_encoder*> fec_ptrs;
+        std::set<slhv_syntax_maker*> syntax_makers;
         
 
         mem_management(theory_slhv* t) {
@@ -1070,6 +1073,10 @@ namespace smt
 
         void push_fec_ptr(formula_encoder* fec) {
             fec_ptrs.insert(fec);
+        }
+
+        void push_syntax_mker(slhv_syntax_maker* syn_mker) {
+            this->syntax_makers.insert(syn_mker);
         }
 
         void dealloc_all() {
