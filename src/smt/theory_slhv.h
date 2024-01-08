@@ -19,7 +19,7 @@
 // #define MODEL_GEN_INFO
 
 // minimal for debug
-// #define SOLVING_INFO
+#define SOLVING_INFO
 
 // frontend macro
 #define FRONTEND_NO_HEAP_NEQ
@@ -719,6 +719,29 @@ namespace smt
             }
             std::set<std::pair<int, int>> get_dj_pair_set() {
                 return this->djpair_set;
+            }
+
+            std::map<app*, app*> get_ldvar2eqroot() {
+                return this->ldvar2eqroot;
+            }
+
+            std::map<app*, std::set<app*>> get_ldvar2neqvars() {
+                return this->ldvar2neqvars;
+            }
+
+            bool has_shrel(int ht1, int ht2) {
+                if(this->shpair_set.find({ht1, ht2}) != this->shpair_set.end()) {
+                    return true;
+                }
+                return false;
+            }
+
+            bool has_djrel(int ht1, int ht2) {
+                if(this->djpair_set.find({ht1, ht2}) != this->djpair_set.end() ||
+                   this->djpair_set.find({ht2, ht1}) != this->djpair_set.end()) {
+                        return true;
+                   }
+                return false;
             }
     };
 
