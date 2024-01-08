@@ -1997,14 +1997,8 @@ namespace smt {
         expr* second_conj = this->th->get_manager().mk_true();
         for(heap_term* pt : this->pt_hts) {
             for(heap_term* ptp : this->pt_hts) {
-                // use deduction information
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
-                if(this->ded->has_djrel(pt_index, ptp_index) || this->ded->has_shrel(pt_index, ptp_index) || 
-                   this->ded->has_shrel(ptp_index, pt_index)) {
-                    continue;
-                }
-                // encode the situation that is not deduced
                 std::vector<app*> pt_atom = pt->get_atoms();
                 SASSERT(pt_atom.size() == 1);
                 app* pt_addr = to_app(pt_atom[0]->get_arg(0));
