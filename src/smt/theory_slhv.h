@@ -19,7 +19,7 @@
 // #define MODEL_GEN_INFO
 
 // minimal for debug
-#define SOLVING_INFO
+// #define SOLVING_INFO
 
 // frontend macro
 #define FRONTEND_NO_HEAP_NEQ
