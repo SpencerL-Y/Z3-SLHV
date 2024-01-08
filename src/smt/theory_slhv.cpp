@@ -1921,7 +1921,6 @@ namespace smt {
                 );
             }
         }
-        std::cout << "here";
         return result;
     }
 
@@ -2059,7 +2058,7 @@ namespace smt {
                     sh_temp_form
                 );
 
-                for(heap_term* ht : this->atom_hts) {
+                for(heap_term* ht : this->hts) {
                     int ht_index = this->ht2index_map[ht];
                     // use deduction results
                     if(this->ded->has_shrel(pt_index, ht_index) && this->ded->has_shrel(ptp_index, ht_index)) {
@@ -2205,6 +2204,8 @@ namespace smt {
         // expr* result = this->syntax_maker->mk_and(first_conj, second_conj, third_conj);
 
         expr* result = this->syntax_maker->mk_and(first_conj, second_conj);
+
+        // expr* result = first_conj;
         return result;
     }
 
@@ -2213,7 +2214,7 @@ namespace smt {
         #ifdef SOLVING_INFO
         std::cout << "generate idj formula" << std::endl;
         #endif
-        // return this->th->get_manager().mk_true();
+        return this->th->get_manager().mk_true();
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->pt_hts) {
             if(ht1 == this->emp_ht) {continue;}
@@ -2304,7 +2305,7 @@ namespace smt {
 
         all_conj.push_back(this->generate_deduced_premises());
         all_conj.push_back(this->generate_ld_formula());
-        // all_conj.push_back(this->generate_init_formula());
+        all_conj.push_back(this->generate_init_formula());
         all_conj.push_back(this->generate_pto_formula());
         all_conj.push_back(this->generate_iso_formula());
         all_conj.push_back(this->generate_idj_formula());
