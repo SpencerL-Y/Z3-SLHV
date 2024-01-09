@@ -179,7 +179,7 @@ namespace smt {
 
     }
 
-    void theory_slhv::set_conflict_outside() {
+    void theory_slhv::set_conflict_slhv() {
         literal_vector unsat_core;
         for(expr* e : this->curr_outside_assignments) {
             literal expr_lit = this->ctx.get_literal(e);
@@ -204,12 +204,36 @@ namespace smt {
     }
 
 
-    void theory_slhv::set_conflict_outside(std::vector<expr*> outside_unsat_core) {
-        literal_vector unsat_core;
+    literal_vector theory_slhv::compute_current_unsat_core(std::vector<expr*> outside_unsat_core) {
+        expr_ref_vector original(this->get_manager());
         for(expr* e : outside_unsat_core) {
+            original.push_back(e);
+        }
+        expr_ref_vector disj_removed(this->get_manager());
+        for(expr* e : original) {
+            if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
+                continue;
+            }
+            disj_removed.push_back(e);
+        }
+        std::vector<expr*> disj_heapneg_removed;
+        std::vector<expr_ref_vector> temp_result = this->remove_heap_eqaulity_negation_in_assignments(disj_removed);
+        for(expr_ref_vector v : temp_result) {
+            for(expr* e : v) {
+                disj_heapneg_removed.push_back(e);
+            }
+        }
+        
+        literal_vector unsat_core;
+        for(expr* e : disj_heapneg_removed) {
             literal expr_lit = this->ctx.get_literal(e);
             unsat_core.push_back(expr_lit);
         }
+        return unsat_core;
+    }
+
+    void theory_slhv::set_conflict_slhv(std::vector<expr*> outside_unsat_core) {
+        literal_vector unsat_core = this->compute_current_unsat_core(outside_unsat_core);
         #ifdef SLHV_PRINT
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
@@ -226,34 +250,6 @@ namespace smt {
                 get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
             ))
         );
-    }
-
-    void theory_slhv::set_conflict_inside() {
-        #ifdef SLHV_PRINT
-        std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
-        #endif
-        // TODO use eliminated assignment to set conflict unsat core
-    }
-
-    void theory_slhv::set_conflict_inside(std::vector<expr*> inside_unsat_core) {
-        
-        #ifdef SLHV_PRINT
-        std::cout << "TODOTODOTODOTODOTODOTODOTODO: set conflict inside" << std::endl;
-        #endif
-    }
-
-
-    void theory_slhv::set_conflict_slhv(bool is_outside) {
-        if(is_outside) {
-            this->set_conflict_outside();
-        } else {
-            this->set_conflict_inside();
-        }
-    }
-
-
-    void theory_slhv::set_conflict_slhv(bool is_outside, std::vector<expr*> unsat_core) {
-
     }
 
 
@@ -319,6 +315,14 @@ namespace smt {
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+
+        // inference graph intiailization
+        std::set<expr*> initial_assignments;
+        for(expr* e : assignments) {
+            initial_assignments.insert(e);
+        }
+        inference_graph* inf_graph = alloc(inference_graph, initial_assignments);
+
         // print outside assignments
         #ifdef SOLVING_INFO
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
@@ -336,6 +340,8 @@ namespace smt {
             if(refined_e.size() == 1) {
                 expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(refined_e[0]);
                 refined_assignments.push_back(no_uplus_uplus_e);
+                // inference graph update
+                inf_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
             } else {
                 for(expr* re : refined_e) {
                     // this->ctx.internalize(re, false);
@@ -349,6 +355,8 @@ namespace smt {
                     if(!same_e) {
                         expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(re);
                         refined_assignments.push_back(no_uplus_uplus_e);
+                        // inference graph update
+                        inf_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
                     }
                 }
             }
@@ -449,7 +457,11 @@ namespace smt {
             if(result == l_false) {
                 // this->set_conflict_slhv(true, numeral_cnstr_core);
                 this->check_status = slhv_unsat;
-                this->set_conflict_slhv(true);
+                std::vector<expr*> unsat_core;
+                for(expr* nc : numeral_cnstr_assignments) {
+                    unsat_core.push_back(nc);
+                }
+                this->set_conflict_slhv(unsat_core);
                 return false;
             } else if(result == l_true){
                 model_ref nmd;
@@ -656,7 +668,6 @@ namespace smt {
             } else {    
                 std::cout << " translated UNKNOWN " << std::endl;
             }
-            this->set_conflict_slhv(true);
             final_sovler->dec_ref();
             numeral_solver->dec_ref();
             this->m.dec_ref(encoded_form);
@@ -674,8 +685,7 @@ namespace smt {
         std::ofstream output2file("./outmodel.txt", std::ios::out);
         output2file << "UNSAT" << std::endl;
         this->check_status = slhv_unsat;
-        // this->set_conflict_slhv(true, heap_cnstr_core);
-        this->set_conflict_slhv(true);
+        this->set_conflict_slhv(this->curr_outside_assignments);
 
         this->mem_mng->dealloc_all();
         return false;
@@ -2988,6 +2998,46 @@ namespace smt {
             return true;
         }
     }
+
+    // inference graph
+    inference_graph::inference_graph(std::set<expr*> initial_assignments) {
+
+    }
+
+    void inference_graph::add_refined_assignment_node(expr* new_assignment, expr* old_assignment) {
+
+    }
+    void inference_graph::add_compound_ht_node(heap_term* com_ht, expr* refined_assignment) {
+
+    }
+    void inference_graph::add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment) {
+
+    }
+    void inference_graph::add_disj_rel_pair(std::pair<int, int> dj_p, heap_term* com_ht) {
+
+    }
+    void inference_graph::add_disj_rel_pair_eqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt) {
+
+    }
+    void inference_graph::add_disj_rel_pair(std::pair<int, int> dj_p, std::pair<int, int> ht1InHt3, std::pair<int, int> ht2InHt4, std::pair<int, int> ht3DjHt4) {
+
+    }
+    void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht) {
+
+    }
+
+    void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> ht_eq_p) {
+
+    }
+    void inference_graph::add_sh_rel_pair_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt) {
+
+    }
+
+    void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<int, int> ht1InHt2, std::pair<int, int> ht2InHt3) {
+
+    }
+
+
     // syntax maker
 
     slhv_syntax_maker::slhv_syntax_maker(theory_slhv* th, memsafe_wrapper* msw) {

@@ -33,6 +33,7 @@ namespace smt
     class atoms_subsumption;
     class slhv_deducer;
     class formula_encoder;
+    class inference_graph;
     class heap_value_proc;
     class mem_management;
     class memsafe_wrapper;
@@ -211,6 +212,7 @@ namespace smt
         void print_all_hterms(std::ostream& os);
 
         std::set<atoms_subsumption*> parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs); 
+        
         public:
         theory_slhv(context& ctx);
         
@@ -276,12 +278,13 @@ namespace smt
 
         void set_conflict_or_lemma(literal_vector const& core, bool is_out_layer_conflict);
 
-        void set_conflict_slhv(bool is_outside);
-        void set_conflict_slhv(bool is_outside, std::vector<expr*> unsat_core);
+        void set_conflict_slhv();
 
         // set UNSAT core for outside CDCL framework
-        void set_conflict_outside();
-        void set_conflict_outside(std::vector<expr*> outside_unsat_core);
+        void set_conflict_slhv(std::vector<expr*> outside_unsat_core);
+        literal_vector compute_current_unsat_core(std::vector<expr*> outside_unsat_core);
+
+        literal_vector compute_unsat_core_by_inference_graph(inference_graph* inf_graph);
 
         // set UNSAT core and equivalence realtion for inner branch cutting
         void set_conflict_inside();
@@ -761,6 +764,114 @@ namespace smt
             std::set<heap_term*> get_pt_atoms() {
                 return this->pt_atoms;
             }
+    };
+// unsat core finder, used to record the inference path
+
+    class inf_node {
+        private:
+            bool is_outside_assignment;
+            expr* outside_assignment;
+
+            bool is_refined_assignment;
+            expr* refined_assignment;
+
+            bool is_compound_heap_term;
+            heap_term* compound_ht;
+
+            bool is_ht_eq_pair;
+            std::pair<heap_term*, heap_term*> ht_eq_pair;
+
+            bool is_dj_rel;
+            std::pair<int, int> dj_pair;
+            
+            bool is_sh_rel;
+            std::pair<int, int> sh_pair;
+
+            bool is_eq_class;
+            
+            std::set<inf_node*> premises;
+            bool is_conflict_node;
+        public:
+            inf_node(expr* outside);
+            inf_node(expr* refined_assignment, std::set<inf_node*> premises);
+            inf_node(std::pair<int, int> pair, bool is_dj, bool is_sh, std::set<inf_node*> premises);
+            inf_node(std::set<inf_node*> premises);
+
+            std::set<inf_node*> get_premises() {
+                return this->premises;
+            }
+            bool get_is_outside_assignment() {
+                return this->is_outside_assignment;
+            }
+            bool get_is_refined_assignment() {
+                return this->is_refined_assignment;
+            }
+            bool get_is_compound_heap_term() {
+                return this->is_compound_heap_term;
+            }
+            bool get_is_ht_eq_pair() {
+                return this->is_ht_eq_pair;
+            }
+            bool get_is_dj_rel() {
+                return this->is_dj_rel;
+            }
+            bool get_is_sh_rel() {
+                return this->is_sh_rel;
+            }
+            bool get_is_eq_class() {
+                return this->is_eq_class;
+            }
+            bool get_is_conflict_node() {
+                return this->is_conflict_node;
+            }
+
+            expr* get_outside_assignment() {
+                return this->outside_assignment;
+            }
+
+            expr* get_refined_assignment() {
+                return this->refined_assignment;
+            }
+
+            heap_term* get_compound_ht() {
+                return this->compound_ht;
+            }
+
+            std::pair<heap_term*, heap_term*> get_ht_eq_pair() {
+                return this->ht_eq_pair;
+            }
+
+            std::pair<int, int>  get_dj_pair() {
+                return this->dj_pair;
+            }
+            
+            std::pair<int, int>  get_sh_pair() {
+                return this->sh_pair;
+            }
+
+            // TODO: compute the minimal conflict sources
+            std::set<inf_node*> get_conflict_sources();
+
+
+    };
+
+    class inference_graph {
+        private:
+            std::set<inf_node*> nodes;
+        public:
+            inference_graph(std::set<expr*> initial_assignments);
+
+            void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
+            void add_compound_ht_node(heap_term* com_ht, expr* refined_assignment);
+            void add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment);
+            void add_disj_rel_pair(std::pair<int, int> dj_p, heap_term* com_ht);
+            void add_disj_rel_pair_eqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
+            void add_disj_rel_pair(std::pair<int, int> dj_p, std::pair<int, int> ht1InHt3, std::pair<int, int> ht2InHt4, std::pair<int, int> ht3DjHt4);
+            void add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht);
+            void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> ht_eq_p);
+            void add_sh_rel_pair_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
+
+            void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<int, int> ht1InHt2, std::pair<int, int> ht2InHt3);
     };
 
 // util class
