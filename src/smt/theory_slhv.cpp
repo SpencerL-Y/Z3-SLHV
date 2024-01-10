@@ -212,7 +212,7 @@ namespace smt {
             std::cout  << l << std::endl;
         }
         std::cout << "conflict unsat core exprs ====== " << std::endl;
-        for(expr* e : this->curr_outside_assignments) {
+        for(expr* e : this->outside_unsat_core) {
             std::cout << mk_pp(e, this->m) << std::endl;
         }
         #endif
@@ -232,7 +232,7 @@ namespace smt {
             std::cout  << l << std::endl;
         }
         std::cout << "conflict unsat core exprs ====== " << std::endl;
-        for(expr* e : this->curr_outside_assignments) {
+        for(expr* e : this->infer_graph->unsat_core) {
             std::cout << mk_pp(e, this->m) << std::endl;
         }
 
@@ -3046,6 +3046,8 @@ namespace smt {
         SASSERT(!this->unsat_found);
         for(auto sh_pair : this->shpair_set) {
             if(this->is_pt(sh_pair.first) && this->is_emp(sh_pair.second)) {
+                // inference graph record unsat
+                this->th->infer_graph->set_sh_emp_unsat_node(sh_pair);
                 this->unsat_found = true;
                 return;
             }
@@ -3185,10 +3187,11 @@ namespace smt {
         std::set<inf_node*> sources;
         std::set<inf_node*> nodes_to_process;
         nodes_to_process.insert(this);
-        while(nodes_to_process.size() > 0) {
+        int current_size = nodes_to_process.size();
+        while(current_size > 0) {
             std::set<inf_node*> nxt_nodes_to_process;
-            for(inf_node* n : nodes_to_process) {
-                if(n->is_outside_assignment) {
+            for(inf_node* n : nodes_to_process) {n->get_is_outside_assignment();
+                if(n->get_is_outside_assignment()) {
                     sources.insert(n);
                 } else {
                     for(inf_node* pn : n->get_premises()) {
@@ -3199,6 +3202,7 @@ namespace smt {
                 }
             }
             nodes_to_process = nxt_nodes_to_process;
+            current_size = nodes_to_process.size();
         }
         return sources;
     }
@@ -3326,7 +3330,7 @@ namespace smt {
         inf_node* outside_node = this->get_outside_assignment_premise(old_assignment);
         inf_node* refined_node = this->get_refine_assignment_premise(old_assignment);
         if(outside_node != nullptr) {
-            premises.insert(refined_node);
+            premises.insert(outside_node);
         } else if(refined_node != nullptr) {
             premises.insert(refined_node);
         } else {
@@ -3347,7 +3351,12 @@ namespace smt {
             }
         }
         std::set<inf_node*> premises;
-        premises.insert(this->get_refine_assignment_premise(refined_assignment));
+        inf_node* pre_refined_assign_node = this->get_refine_assignment_premise(refined_assignment);
+        if(pre_refined_assign_node != nullptr) {
+            premises.insert(pre_refined_assign_node);
+        } else {
+            std::cout << "ERROR: ref assignment " << mk_ismt2_pp(refined_assignment, this->th->get_manager()) << " does not exist in node" << std::endl;
+        }
         inf_node* com_ht_node = alloc(inf_node, com_ht, premises);
         this->nodes.insert(com_ht_node);
         this->compound_nodes.insert(com_ht_node);
@@ -3364,7 +3373,12 @@ namespace smt {
             }
         }
         std::set<inf_node*> premises;
-        premises.insert(this->get_refine_assignment_premise(refined_assignment));
+        inf_node* pre_refine_assign_node = this->get_refine_assignment_premise(refined_assignment);
+        if(pre_refine_assign_node != nullptr) {
+            premises.insert(pre_refine_assign_node);
+        } else {
+            std::cout << "ERROR: ref assignment " << mk_ismt2_pp(refined_assignment, this->th->get_manager()) << " does not exist in node" << std::endl;
+        }
         inf_node* ht_eq_pair_node = alloc(inf_node, ht_eq_p, premises);
         this->nodes.insert(ht_eq_pair_node);
         this->ht_eq_pair_nodes.insert(ht_eq_pair_node);
@@ -3380,6 +3394,8 @@ namespace smt {
             inf_node* temp_node = this->get_refine_assignment_premise(loc_eq);
             if(temp_node != nullptr) {
                 premises.insert(temp_node);
+            } else {
+                std::cout << "ERROR: ref assignment " << mk_ismt2_pp(loc_eq, this->th->get_manager()) << " does not exist in node" << std::endl;
             }
         }
         inf_node* first_loc_eq_node = alloc(inf_node, premises);
@@ -3396,6 +3412,8 @@ namespace smt {
             inf_node* temp_node = this->get_refine_assignment_premise(data_eq);
             if(temp_node != nullptr) {
                 premises.insert(temp_node);
+            } else {
+                std::cout << "ERROR: ref assignment " << mk_ismt2_pp(data_eq, this->th->get_manager()) << " does not exist in node" << std::endl;
             }
         }
         inf_node* first_data_eq_node = alloc(inf_node, premises);
@@ -3412,6 +3430,8 @@ namespace smt {
             inf_node* temp_node = this->get_refine_assignment_premise(loc_neq);
             if(temp_node != nullptr) {
                 premises.insert(temp_node);
+            } else {
+                std::cout << "ERROR: ref assignment " << mk_ismt2_pp(loc_neq, this->th->get_manager()) << " does not exist in node" << std::endl;
             }
         }
         inf_node* first_loc_neq_node = alloc(inf_node, premises);
@@ -3428,6 +3448,8 @@ namespace smt {
             inf_node* temp_node = this->get_refine_assignment_premise(data_neq);
             if(temp_node != nullptr) {
                 premises.insert(temp_node);
+            } else {
+                std::cout << "ERROR: ref assignment " << mk_ismt2_pp(data_neq, this->th->get_manager()) << " does not exist in node" << std::endl;
             }
         }
         inf_node* first_data_neq_node = alloc(inf_node, premises);
@@ -3440,10 +3462,17 @@ namespace smt {
         std::cout << "add  data_neqclass node dj pair" << std::endl;
         #endif
         std::set<inf_node*> premises;
-        SASSERT(this->newest_data_eq_node != nullptr);
-        SASSERT(this->newest_data_neq_node != nullptr);
-        premises.insert(this->newest_data_eq_node);
-        premises.insert(this->newest_data_neq_node);
+        if(this->newest_data_eq_node != nullptr) {
+            premises.insert(this->newest_data_eq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_data_neq_node != nullptr) {
+            premises.insert(this->newest_data_neq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
+        
         inf_node* dj_pair_node = this->get_disj_rel_premise(dj_pair);
         premises.insert(dj_pair_node);
         inf_node* next_data_neq_node = alloc(inf_node, premises);
@@ -3456,10 +3485,16 @@ namespace smt {
         std::cout << "add  loc_neqclass node dj pair" << std::endl;
         #endif
         std::set<inf_node*> premises;
-        SASSERT(this->newest_loc_eq_node != nullptr);
-        SASSERT(this->newest_loc_neq_node != nullptr);
-        premises.insert(this->newest_loc_eq_node);
-        premises.insert(this->newest_loc_neq_node);
+        if(this->newest_loc_eq_node != nullptr) {
+            premises.insert(this->newest_loc_eq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_loc_neq_node != nullptr) {
+            premises.insert(this->newest_loc_neq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
         inf_node* dj_pair_node = this->get_disj_rel_premise(dj_pair);
         premises.insert(dj_pair_node);
         inf_node* next_loc_neq_node = alloc(inf_node, premises);
@@ -3471,10 +3506,16 @@ namespace smt {
         std::cout << "add  data_eqclass node sh pair" << std::endl;
         #endif
         std::set<inf_node*> premises;
-        SASSERT(this->newest_data_eq_node != nullptr);
-        SASSERT(this->newest_data_neq_node != nullptr);
-        premises.insert(this->newest_data_eq_node);
-        premises.insert(this->newest_data_neq_node);
+        if(this->newest_data_eq_node != nullptr) {
+            premises.insert(this->newest_data_eq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_data_neq_node != nullptr) {
+            premises.insert(this->newest_data_neq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
         inf_node* sh_pair_node = this->get_sh_rel_premise(sh_pair);
         premises.insert(sh_pair_node);
         inf_node* next_data_eq_node = alloc(inf_node, premises);
@@ -3486,10 +3527,16 @@ namespace smt {
         std::cout << "add  loc_eqclass node sh pair" << std::endl;
         #endif
         std::set<inf_node*> premises;
-        SASSERT(this->newest_loc_eq_node != nullptr);
-        SASSERT(this->newest_loc_neq_node != nullptr);
-        premises.insert(this->newest_loc_eq_node);
-        premises.insert(this->newest_loc_neq_node);
+        if(this->newest_loc_eq_node != nullptr) {
+            premises.insert(this->newest_loc_eq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_loc_neq_node != nullptr) {
+            premises.insert(this->newest_loc_neq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
         inf_node* sh_pair_node = this->get_sh_rel_premise(sh_pair);
         premises.insert(sh_pair_node);
         inf_node* next_loc_neq_node = alloc(inf_node, premises);
@@ -3512,10 +3559,16 @@ namespace smt {
         std::cout << "add  disj_rel_pair two pt" << std::endl;
         #endif
         std::set<inf_node*> premises;
-        SASSERT(this->newest_data_neq_node != nullptr);
-        premises.insert(this->newest_data_neq_node);
-        SASSERT(this->newest_loc_neq_node != nullptr);
-        premises.insert(this->newest_loc_neq_node);
+        if(this->newest_data_neq_node != nullptr) {
+            premises.insert(this->newest_data_neq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_loc_neq_node != nullptr) {
+            premises.insert(this->newest_loc_neq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
         inf_node* pt1node = this->get_sh_rel_premise(pt1InHt);
         inf_node* pt2node = this->get_sh_rel_premise(pt2InHt);
         premises.insert(pt1node);
@@ -3572,10 +3625,16 @@ namespace smt {
         inf_node* pt2_sh_node = this->get_sh_rel_premise(pt2InHt);
         premises.insert(pt1_sh_node);
         premises.insert(pt2_sh_node);
-        SASSERT(this->newest_data_eq_node != nullptr);
-        premises.insert(this->newest_data_eq_node);
-        SASSERT(this->newest_loc_eq_node != nullptr);
-        premises.insert(this->newest_loc_eq_node);
+        if(this->newest_data_eq_node != nullptr) {
+            premises.insert(this->newest_data_eq_node);
+        } else {
+            std::cout << "ERROR: data eq node does not exist" << std::endl;
+        }
+        if(this->newest_loc_eq_node != nullptr) {
+            premises.insert(this->newest_loc_eq_node);
+        } else {
+            std::cout << "ERROR: data neq node does not exist" << std::endl;
+        }
         inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
         this->nodes.insert(new_sh_node);
         this->sh_rel_nodes.insert(new_sh_node);
@@ -3640,6 +3699,7 @@ namespace smt {
             SASSERT(n->get_is_outside_assignment());
             result.insert(n->get_outside_assignment());
         }
+        this->unsat_core = result;
         return result;
     }
 

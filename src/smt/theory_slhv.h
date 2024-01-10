@@ -17,10 +17,10 @@
 // #define SLHV_PRINT
 // #define DED_INFO
 // #define MODEL_GEN_INFO
-#define SLHV_UNSAT_CORE_DEBUG
+// #define SLHV_UNSAT_CORE_DEBUG
 
 // minimal for debug
-#define SOLVING_INFO
+// #define SOLVING_INFO
 
 // frontend macro
 
@@ -882,6 +882,8 @@ namespace smt
             inf_node* newest_data_neq_node;
 
             std::set<inf_node*> conflict_nodes;
+
+            std::set<expr*> unsat_core;
 
             inference_graph(theory_slhv* th, std::set<expr*> initial_assignments);
 
