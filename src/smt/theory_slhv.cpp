@@ -1323,7 +1323,7 @@ namespace smt {
             std::set<std::vector<int>> curr_atom_counts = eq_hterm->get_atomic_subhterms_counts();
             all_counts = slhv_util::setUnion(all_counts, curr_atom_counts);
             all_hterms.insert(eq_hterm);
-            atomics = eq_hterm->get_atomic_h`term_vec();
+            atomics = eq_hterm->get_atomic_hterm_vec();
         }
         SASSERT(atomics.size() > 0);
         
@@ -2215,22 +2215,21 @@ namespace smt {
         #ifdef SOLVING_INFO
         std::cout << "generate idj formula" << std::endl;
         #endif
-        return this->th->get_manager().mk_true();
         expr* result = this->th->get_manager().mk_true();
         for(heap_term* ht1 : this->pt_hts) {
             if(ht1 == this->emp_ht) {continue;}
             for(heap_term* ht2 : this->pt_hts) {
                 if(ht2 == this->emp_ht) {continue;}
+                int ht1_index = this->ht2index_map[ht1];
+                int ht2_index = this->ht2index_map[ht2];
+                // use deduction
+                if(this->ded->has_djrel(ht1_index, ht2_index)) {
+                    continue;
+                }
                 for(heap_term* ht3 : this->atom_hts) {
                     if(ht3 == this->emp_ht) {continue;}
                     for(heap_term* ht4 : this->atom_hts) {
                         if(ht4 == this->emp_ht) {continue;}
-                        int ht1_index = this->ht2index_map[ht1];
-                        int ht2_index = this->ht2index_map[ht2];
-                        // use deduction
-                        if(this->ded->has_djrel(ht1_index, ht2_index)) {
-                            continue;
-                        }
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
                             this->get_shrel_boolvar(ht2, ht4),
@@ -3208,7 +3207,7 @@ namespace smt {
 
     inference_graph::inference_graph(std::set<expr*> initial_assignments){
         for(expr* init_ass : initial_assignments) {
-            this->add_refined_assignment_node(init_ass);
+            this->create_init_assignment_node(init_ass);
         }
     }
 
@@ -3237,13 +3236,20 @@ namespace smt {
                 }
             }
         }
-        inf_node* refine_node = alloc(inf_node, new_assignment, old_assignment);
+        std::set<inf_node*> premises;
+        for(inf_node* on : this->outside_nodes) {
+            if(on->get_outside_assignment() == old_assignment) {
+                premises.insert(on);
+                break;
+            }
+        }
+        inf_node* refine_node = alloc(inf_node, new_assignment, premises);
         this->nodes.insert(refine_node);
         this->refine_nodes.insert(refine_node);
     }
 
     void inference_graph::add_compound_ht_node(heap_term* com_ht, expr* refined_assignment) {
-
+        
     }
 
     void inference_graph::add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment) {

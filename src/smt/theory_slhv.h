@@ -805,11 +805,7 @@ namespace smt
                 return this->premises;
             }
             bool get_is_outside_assignment() {
-                return this->is_outside_assignme
-            void create_ouside_assignment_node(expr* outside_ass);
-            void create_refine_assignment_node(expr* refined_ass, expr* old_ass);
-            void create_compound_ht_node(heap_term_ com_ht, expr* refined_ass);
-            void create_ht_eq_pair_nodent;
+                return this->is_outside_assignment;
             }
             bool get_is_refined_assignment() {
                 return this->is_refined_assignment;
