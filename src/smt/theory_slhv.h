@@ -17,13 +17,12 @@
 // #define SLHV_PRINT
 // #define DED_INFO
 // #define MODEL_GEN_INFO
+#define SLHV_UNSAT_CORE_DEBUG
 
 // minimal for debug
-// #define SOLVING_INFO
+#define SOLVING_INFO
 
 // frontend macro
-#define FRONTEND_NO_HEAP_NEQ
-
 
 namespace smt
 {
@@ -284,6 +283,9 @@ namespace smt
 
         // set UNSAT core for outside CDCL framework
         void set_conflict_slhv(std::vector<expr*> outside_unsat_core);
+
+        void set_conflict_slhv(inference_graph* inf_graph);
+
         literal_vector compute_current_unsat_core(std::vector<expr*> outside_unsat_core);
 
         literal_vector compute_unsat_core_by_inference_graph(inference_graph* inf_graph);
@@ -866,14 +868,29 @@ namespace smt
 
     class inference_graph {
         public:
+            theory_slhv* th;
             std::set<inf_node*> nodes;
             std::set<inf_node*> outside_nodes;
             std::set<inf_node*> refine_nodes;
+            std::set<inf_node*> compound_nodes;
+            std::set<inf_node*> ht_eq_pair_nodes;
+            std::set<inf_node*> disj_rel_nodes;
+            std::set<inf_node*> sh_rel_nodes;
             inf_node* newest_loc_eq_node;
             inf_node* newest_loc_neq_node;
             inf_node* newest_data_eq_node;
             inf_node* newest_data_neq_node;
-            inference_graph(std::set<expr*> initial_assignments);
+
+            std::set<inf_node*> conflict_nodes;
+
+            inference_graph(theory_slhv* th, std::set<expr*> initial_assignments);
+
+            inf_node* get_outside_assignment_premise(expr* out_assignment);
+            inf_node* get_refine_assignment_premise(expr* refine_assignment);
+            inf_node* get_compound_ht_premise(heap_term* com_ht);
+            inf_node* get_ht_eq_pair_premise(std::pair<heap_term*, heap_term*> ht_p);
+            inf_node* get_disj_rel_premise(std::pair<int, int> disj_p);
+            inf_node* get_sh_rel_premise(std::pair<int, int> sh_p);
 
             void create_init_assignment_node(expr* init_ass);
             void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
@@ -906,6 +923,9 @@ namespace smt
             void set_curr_loc_eqneq_unsat_node();
             void set_curr_data_eqneq_unsat_node();
             void set_sh_emp_unsat_node(std::pair<int, int> sh_emp_p);
+
+
+            std::set<expr*> compute_unsat_core_expressions();
     };
 
 // util class
@@ -1225,6 +1245,7 @@ namespace smt
         std::set<atoms_subsumption*> at_ptrs;
         std::set<formula_encoder*> fec_ptrs;
         std::set<slhv_syntax_maker*> syntax_makers;
+        inference_graph* inf_graph;
         
 
         mem_management(theory_slhv* t) {
@@ -1247,6 +1268,10 @@ namespace smt
             this->syntax_makers.insert(syn_mker);
         }
 
+        void set_inf_graph(inference_graph* inf_g) {
+            this->inf_graph = inf_g;
+        }
+
         void dealloc_all() {
             for(auto i : ht_ptrs) {
                 dealloc(i);
@@ -1260,6 +1285,11 @@ namespace smt
             this->ht_ptrs.clear();
             this->at_ptrs.clear();
             this->fec_ptrs.clear();
+
+            for(inf_node* n : this->inf_graph->nodes) {
+                dealloc(n);
+            }
+            dealloc(this->inf_graph);
         }
         
     };

@@ -204,38 +204,6 @@ namespace smt {
     }
 
 
-    literal_vector theory_slhv::compute_current_unsat_core(std::vector<expr*> outside_unsat_core) {
-        expr_ref_vector original(this->get_manager());
-        for(expr* e : outside_unsat_core) {
-            original.push_back(e);
-        }
-        expr_ref_vector disj_removed(this->get_manager());
-        for(expr* e : original) {
-            if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
-                continue;
-            }
-            disj_removed.push_back(e);
-        }
-        std::vector<expr*> disj_heapneg_removed;
-        #ifdef FRONTEND_NO_HEAP_NEQ
-        std::vector<expr_ref_vector> temp_result = this->remove_heap_equality_negation_in_assignments(disj_removed);
-        for(expr_ref_vector v : temp_result) {
-            for(expr* e : v) {
-                disj_heapneg_removed.push_back(e);
-            }
-        }
-        #else
-        disj_heapneg_removed = outside_unsat_core;
-        #endif
-        
-        literal_vector unsat_core;
-        for(expr* e : disj_heapneg_removed) {
-            literal expr_lit = this->ctx.get_literal(e);
-            unsat_core.push_back(expr_lit);
-        }
-        return unsat_core;
-    }
-
     void theory_slhv::set_conflict_slhv(std::vector<expr*> outside_unsat_core) {
         literal_vector unsat_core = this->compute_current_unsat_core(outside_unsat_core);
         #ifdef SLHV_PRINT
@@ -255,6 +223,74 @@ namespace smt {
             ))
         );
     }
+        
+    void theory_slhv::set_conflict_slhv(inference_graph* inf_graph) {
+        literal_vector unsat_core = this->compute_unsat_core_by_inference_graph(this->infer_graph);
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "conflict unsat core literals ====== " << std::endl;
+        for(literal l : unsat_core) {
+            std::cout  << l << std::endl;
+        }
+        std::cout << "conflict unsat core exprs ====== " << std::endl;
+        for(expr* e : this->curr_outside_assignments) {
+            std::cout << mk_pp(e, this->m) << std::endl;
+        }
+
+        #endif
+        ctx.set_conflict(
+            ctx.mk_justification(
+            ext_theory_conflict_justification(
+                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+            ))
+        );
+    }
+
+
+
+    literal_vector theory_slhv::compute_current_unsat_core(std::vector<expr*> outside_unsat_core) {
+        expr_ref_vector original(this->get_manager());
+        for(expr* e : outside_unsat_core) {
+            original.push_back(e);
+        }
+        expr_ref_vector disj_removed(this->get_manager());
+        for(expr* e : original) {
+            if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
+                continue;
+            }
+            disj_removed.push_back(e);
+        }
+        std::vector<expr*> disj_heapneg_removed;
+        #ifdef FRONTEND_HAS_HEAP_NEQ
+        disj_heapneg_removed = outside_unsat_core;
+        #else
+        std::vector<expr_ref_vector> temp_result = this->remove_heap_equality_negation_in_assignments(disj_removed);
+        for(expr_ref_vector v : temp_result) {
+            for(expr* e : v) {
+                disj_heapneg_removed.push_back(e);
+            }
+        }
+        #endif
+        
+        literal_vector unsat_core;
+        for(expr* e : disj_heapneg_removed) {
+            literal expr_lit = this->ctx.get_literal(e);
+            unsat_core.push_back(expr_lit);
+        }
+        return unsat_core;
+    }
+
+
+    literal_vector theory_slhv::compute_unsat_core_by_inference_graph(inference_graph* inf_graph) {
+        std::set<expr*> unsat_core_exprs = inf_graph->compute_unsat_core_expressions();
+        literal_vector unsat_core;
+        for(expr* e : unsat_core_exprs) {
+            literal expr_lit = this->ctx.get_literal(e);
+            unsat_core.push_back(expr_lit);
+        }
+        return unsat_core;
+    }
+
+
 
 
     app* theory_slhv::mk_simplify_and(expr* f1, expr* f2) {
@@ -325,9 +361,9 @@ namespace smt {
         for(expr* e : assignments) {
             initial_assignments.insert(e);
         }
-        inference_graph* inf_graph = alloc(inference_graph, initial_assignments);
-        this->infer_graph = infer_graph;
-        //TODO: add mem_mng
+        inference_graph* inf_graph = alloc(inference_graph, this, initial_assignments);
+        this->infer_graph = inf_graph;
+        this->mem_mng->set_inf_graph(this->infer_graph);
 
         // print outside assignments
         #ifdef SOLVING_INFO
@@ -347,7 +383,7 @@ namespace smt {
                 expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(refined_e[0]);
                 refined_assignments.push_back(no_uplus_uplus_e);
                 // inference graph update
-                inf_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
+                this->infer_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
             } else {
                 for(expr* re : refined_e) {
                     // this->ctx.internalize(re, false);
@@ -362,7 +398,7 @@ namespace smt {
                         expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(re);
                         refined_assignments.push_back(no_uplus_uplus_e);
                         // inference graph update
-                        inf_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
+                        this->infer_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
                     }
                 }
             }
@@ -388,302 +424,280 @@ namespace smt {
         }
         #endif
 
-        #ifdef FRONTEND_NO_HEAP_NEQ
-        std::vector<expr_ref_vector> elim_enums = this->remove_heap_equality_negation_in_assignments(refined_assignments);
-        #else
+        #ifdef FRONTEND_HAS_HEAP_NEQ
         //  enumerate all possible situations for negation imposed on hterm equalities
         std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
+        #else
+        std::vector<expr_ref_vector> elim_enums = this->remove_heap_equality_negation_in_assignments(refined_assignments);
         #endif
 
         #ifdef SLHV_PRINT
         std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
         #endif
         
-        // TODO implement inner CDCL framework here
-        int elim_num = 0;
-        for(expr_ref_vector curr_assignments : elim_enums) { 
+        expr_ref_vector curr_assignments = elim_enums[0];
+        expr_ref_vector heap_cnstr_assignments(m);
+        expr_ref_vector numeral_cnstr_assignments(m);
+        for(expr* e : curr_assignments) {
+            if(this->is_arith_formula(to_app(e)) || this->is_not_heap_or_loc_formula(to_app(e))) {
+                numeral_cnstr_assignments.push_back(e);
+            } else {
+                heap_cnstr_assignments.push_back(e);
+            }
+        }
+        // inc_ref for eliminated:
+        for(expr* e : curr_assignments) {
+            this->get_manager().inc_ref(e);
+        }
+        #ifdef SOLVING_INFO
+
+        std::cout << "heap constraints ========== " << std::endl;
+        for(expr* e : heap_cnstr_assignments) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        } 
+        std::cout << "numeral constraints ========== " << std::endl;
+        for(expr* e : numeral_cnstr_assignments) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        } 
+        #endif
+        // reset info from previous curr_assignments
+        this->reset_inside_configs();
+        // record current outside assignments and inside assignments
+        for(expr* e : assignments) {
+            this->curr_outside_assignments.push_back(e);
+        }
+        for(expr* e : curr_assignments) {
+            this->curr_inside_assignments.push_back(e);
+        }
+        // TODO elaborate the unsat core for CDCL outside
+        // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
+        solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+        numeral_solver->inc_ref();
+        for(expr* e: numeral_cnstr_assignments) {
+            numeral_solver->assert_expr(e);
+        }
+        lbool result =  numeral_solver->check_sat();
+        #ifdef SOLVING_INFO
+        std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
+        if(result == l_true) {
+            std::cout << "SAT" << std::endl;
+        } else if(result == l_false) {
+            std::cout << " FINAL CHECK UNSAT" << std::endl;
+        } else {
+            std::cout << "UNDEF" << std::endl;
+        }
+        std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
+        #endif
+
+        if(result == l_false) {
+            // this->set_conflict_slhv(true, numeral_cnstr_core);
+            this->check_status = slhv_unsat;
+            std::vector<expr*> unsat_core;
+            for(expr* nc : numeral_cnstr_assignments) {
+                unsat_core.push_back(nc);
+            }
+            this->set_conflict_slhv(unsat_core);
+            return false;
+        } else if(result == l_true){
+            model_ref nmd;
+            numeral_solver->get_model(nmd);
             #ifdef SOLVING_INFO
-            std::cout << "elim_num: " << elim_num++  << " of " << elim_enums.size()<< std::endl;
+            std::cout << "translated model: " << std::endl;
+            model_smt2_pp(std::cout, this->m, *nmd, 0);
             #endif
-            expr_ref_vector heap_cnstr_assignments(m);
-            expr_ref_vector numeral_cnstr_assignments(m);
-            for(expr* e : curr_assignments) {
-                if(this->is_arith_formula(to_app(e)) || this->is_not_heap_or_loc_formula(to_app(e))) {
-                    numeral_cnstr_assignments.push_back(e);
-                } else {
-                    heap_cnstr_assignments.push_back(e);
-                }
-            }
-            // inc_ref for eliminated:
-            for(expr* e : curr_assignments) {
-                this->get_manager().inc_ref(e);
-            }
+
+        } else {
+            #ifdef SLHV_PRINT
+            std::cout << "ERROR: this should not happen" << std::endl;
+            #endif
+            SASSERT(false);
+        }   
+        // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
+        // preprocessing
+        this->preprocessing(heap_cnstr_assignments);
+        // TODO: add reduction and solving
+        std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
+        #ifdef SOLVING_INFO
+        std::cout << "all hterms: " << std::endl;
+        for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
+            std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
+        }
+        std::cout << std::endl;
+        std::cout << "all eq pairs: " << std::endl;
+        std::cout << std::endl;
+        for(heap_term* ht : all_hterms.second) {
+            ht->print(std::cout);
+        }
+        #endif
+        for(heap_term* ht : all_hterms.second) {
+            this->mem_mng->push_ht_ptr(ht);
+        }
+        formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
+        this->mem_mng->push_fec_ptr(fec);   
+        // UNSAT FOUND in DEDUCTION
+        if(fec->get_unsat_found()) {
+            std::cout << "XXXXXXXX UNSAT in DEDUCTION XXXXXXXXXX" << std::endl;
+            numeral_solver->dec_ref();
+            this->set_conflict_slhv(this->infer_graph);
+            this->mem_mng->dealloc_all();
+            return false;
+        }
+        // REDUCTION ENCODING
+        expr* encoded_form  = fec->encode();    
+        #ifdef SOLVING_INFO
+        std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
+        debug_formula << mk_ismt2_pp(encoded_form, this->m);
+        #endif
+        // std::cout << "encoded form size: " ;
+        // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
+        // expr* encoded_form = this->get_manager().mk_false(); 
+        this->get_manager().inc_ref(encoded_form);
+        std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
+        #ifdef SOLVING_INFO
+        std::cout << "============= encoded formula ========== " << std::endl;
+        // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
+        std::cout << "======================================== " << std::endl;
+        #endif
+
+        solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
+        final_sovler->inc_ref();
+        for(expr* e: numeral_cnstr_assignments) {
+            final_sovler->assert_expr(e);
+        }
+        final_sovler->assert_expr(encoded_form);
+        lbool final_result = final_sovler->check_sat();
+        std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
+        if(final_result == l_true) {
             #ifdef SOLVING_INFO
-            std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
-            
-            std::cout << "heap constraints ========== " << std::endl;
+            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+            std::cout << " translated SAT " << std::endl;
+            #endif
+            // print current refined assignment to file
+            std::ofstream output2file("./outmodel.txt", std::ios::out);
+            output2file << "SAT" << std::endl;
+            output2file << "ORIGINAL FORMULA XXXXXX" << std::endl;
+            for(expr* e : refined_assignments) {
+                output2file << mk_ismt2_pp(e, this->m) << std::endl;
+            }   
+            output2file << "ELIMINATED FORMULA XXXXXX" << std::endl;    
+            output2file << "heap constraints ========== " << std::endl;
             for(expr* e : heap_cnstr_assignments) {
-                std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+                output2file << mk_ismt2_pp(e, this->m) << std::endl;
             } 
-            std::cout << "numeral constraints ========== " << std::endl;
+            output2file << "numeral constraints ========== " << std::endl;
             for(expr* e : numeral_cnstr_assignments) {
-                std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+                output2file << mk_ismt2_pp(e, this->m) << std::endl;
             } 
-            std::cout << "--------------------- CURR ELIM ASS -------------" << std::endl;
-            #endif
-            // reset info from previous curr_assignments
-            this->reset_inside_configs();
-            // record current outside assignments and inside assignments
-            for(expr* e : assignments) {
-                this->curr_outside_assignments.push_back(e);
-            }
-            for(expr* e : curr_assignments) {
-                this->curr_inside_assignments.push_back(e);
-            }
-            // TODO elaborate the unsat core for CDCL outside
-            // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
-            solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
-            numeral_solver->inc_ref();
-            for(expr* e: numeral_cnstr_assignments) {
-                numeral_solver->assert_expr(e);
-            }
-            lbool result =  numeral_solver->check_sat();
-            #ifdef SOLVING_INFO
-            std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
-            if(result == l_true) {
-                std::cout << "SAT" << std::endl;
-            } else if(result == l_false) {
-                std::cout << " FINAL CHECK UNSAT" << std::endl;
-            } else {
-                std::cout << "UNDEF" << std::endl;
-            }
-            std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
-            #endif
-            
-            if(result == l_false) {
-                // this->set_conflict_slhv(true, numeral_cnstr_core);
-                this->check_status = slhv_unsat;
-                std::vector<expr*> unsat_core;
-                for(expr* nc : numeral_cnstr_assignments) {
-                    unsat_core.push_back(nc);
-                }
-                this->set_conflict_slhv(unsat_core);
-                return false;
-            } else if(result == l_true){
-                model_ref nmd;
-                numeral_solver->get_model(nmd);
-                #ifdef SOLVING_INFO
-                std::cout << "translated model: " << std::endl;
-                model_smt2_pp(std::cout, this->m, *nmd, 0);
-                #endif
-                
-            } else {
-                #ifdef SLHV_PRINT
-                std::cout << "ERROR: this should not happen" << std::endl;
-                #endif
-                SASSERT(false);
-            }
+            output2file << "MODEL XXXXXX " << std::endl;
 
-            // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
-            // preprocessing
-            this->preprocessing(heap_cnstr_assignments);
-            if(this->check_status == slhv_unsat) {
-                this->check_status = slhv_unknown;
-                continue;
+            std::map<std::string, expr*> name2val;
+            model_ref md;
+            final_sovler->get_model(md);
+            std::cout << "translated model: " << std::endl;
+            // model_smt2_pp(std::cout, this->m, *md, 0);
+            model_core& mdc = *md;
+            for(int i = 0; i < mdc.get_num_constants(); i ++) {
+                expr_ref temp_val(this->m);
+                mdc.eval(mdc.get_constant(i), temp_val);
+                // #ifdef SLHV_PRINT
+                std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
+                // #endif
+                output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
+                name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
             }
-            // TODO: add reduction and solving
-            std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
-            #ifdef SOLVING_INFO
-            std::cout << "all hterms: " << std::endl;
-            for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
-                std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
-            }
-            std::cout << std::endl;
-            std::cout << "all eq pairs: " << std::endl;
-            std::cout << std::endl;
-            for(heap_term* ht : all_hterms.second) {
-                ht->print(std::cout);
-            }
-            #endif
-            for(heap_term* ht : all_hterms.second) {
-                this->mem_mng->push_ht_ptr(ht);
-            }
-            formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
-            this->mem_mng->push_fec_ptr(fec);
-
-            // UNSAT FOUND in DEDUCTION
-            if(fec->get_unsat_found()) {
-                std::cout << "XXXXXXXX UNSAT in DEDUCTION XXXXXXXXXX" << std::endl;
-                numeral_solver->dec_ref();
-                this->mem_mng->dealloc_all();
-                continue;
-            }
-            // REDUCTION ENCODING
-            expr* encoded_form  = fec->encode();
-
-            #ifdef SOLVING_INFO
-            std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
-            debug_formula << mk_ismt2_pp(encoded_form, this->m);
-            #endif
-            // std::cout << "encoded form size: " ;
-            // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
-            // expr* encoded_form = this->get_manager().mk_false();
-
-            this->get_manager().inc_ref(encoded_form);
-            std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
-            #ifdef SOLVING_INFO
-            std::cout << "============= encoded formula ========== " << std::endl;
-            // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
-            std::cout << "======================================== " << std::endl;
-            #endif
-            
-            solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
-            final_sovler->inc_ref();
-            for(expr* e: numeral_cnstr_assignments) {
-                final_sovler->assert_expr(e);
-            }
-            final_sovler->assert_expr(encoded_form);
-            lbool final_result = final_sovler->check_sat();
-            std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
-            if(final_result == l_true) {
-                #ifdef SOLVING_INFO
-                std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-                std::cout << " translated SAT " << std::endl;
-                #endif
-                // print current refined assignment to file
-                std::ofstream output2file("./outmodel.txt", std::ios::out);
-                output2file << "SAT" << std::endl;
-                output2file << "ORIGINAL FORMULA XXXXXX" << std::endl;
-                for(expr* e : refined_assignments) {
-                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
-                }
-
-                output2file << "ELIMINATED FORMULA XXXXXX" << std::endl;
-
-                output2file << "heap constraints ========== " << std::endl;
-                for(expr* e : heap_cnstr_assignments) {
-                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
-                } 
-                output2file << "numeral constraints ========== " << std::endl;
-                for(expr* e : numeral_cnstr_assignments) {
-                    output2file << mk_ismt2_pp(e, this->m) << std::endl;
-                } 
-                output2file << "MODEL XXXXXX " << std::endl;
-                
-                std::map<std::string, expr*> name2val;
-                model_ref md;
-                final_sovler->get_model(md);
-                std::cout << "translated model: " << std::endl;
-                // model_smt2_pp(std::cout, this->m, *md, 0);
-                model_core& mdc = *md;
-                for(int i = 0; i < mdc.get_num_constants(); i ++) {
-                    expr_ref temp_val(this->m);
-                    mdc.eval(mdc.get_constant(i), temp_val);
-                    // #ifdef SLHV_PRINT
-                    std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
-                    std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                    // #endif
-                    output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
-                    output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                    name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
-                }
-                std::set<std::string> true_var_names;
-                std::map<std::string, int> loc_data_var2val;
-                for(auto key_val_p : name2val) {
-                    if(key_val_p.second->get_sort()->get_name() == "Bool") {
-                        if(this->m.is_true(key_val_p.second)) {
-                            true_var_names.insert(key_val_p.first);
-                        } else if(this->m.is_false(key_val_p.second)) {
-
-                        } else {
-                            SASSERT(false);
-                        }
-        
+            std::set<std::string> true_var_names;
+            std::map<std::string, int> loc_data_var2val;
+            for(auto key_val_p : name2val) {
+                if(key_val_p.second->get_sort()->get_name() == "Bool") {
+                    if(this->m.is_true(key_val_p.second)) {
+                        true_var_names.insert(key_val_p.first);
+                    } else if(this->m.is_false(key_val_p.second)) { 
                     } else {
-                        SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
-                        auto param = to_app(key_val_p.second)->get_parameter(0);
-                        std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
-                        std::cout << std::endl;
+                        SASSERT(false);
+                    }
 
-                        std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
-                        for(std::string n : extracted_names) {
-                            std::cout << n << std::endl;
-                        }
-                        loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
+                } else {
+                    SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
+                    auto param = to_app(key_val_p.second)->get_parameter(0);
+                    std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
+                    std::cout << std::endl; 
+                    std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
+                    for(std::string n : extracted_names) {
+                        std::cout << n << std::endl;
                     }
+                    loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
                 }
-                std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
-                for(atoms_subsumption* sub : atoms_subs) {
-                    this->mem_mng->push_at_ptr(sub);
+            }
+            std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
+            for(atoms_subsumption* sub : atoms_subs) {
+                this->mem_mng->push_at_ptr(sub);
+            }
+            // record model information collected.
+            this->model_subsume_info = atoms_subs;
+            this->model_loc_data_var_val_info = loc_data_var2val;
+            std::cout << "model info recorded: " << std::endl;
+            output2file << "model info recorded: " << std::endl;
+            std::cout << "model subsume info size: " << this->model_subsume_info.size() << std::endl;
+            output2file << "model subsume info size: " << this->model_subsume_info.size() << std::endl; 
+            for(atoms_subsumption* ats : this->model_subsume_info) {
+                std::cout << "------- main" << std::endl;
+                output2file << "------- main" << std::endl;
+                ats->get_main_heap_term()->print_ht();
+                ats->get_main_heap_term()->print_ht2file(output2file);
+                std::cout << "------- subs" << std::endl;
+                output2file << "------- subs" << std::endl;
+                for(heap_term* h : ats->get_pt_atoms()) {
+                    h->print_ht();
+                    h->print_ht2file(output2file);
                 }
-                // record model information collected.
-                this->model_subsume_info = atoms_subs;
-                this->model_loc_data_var_val_info = loc_data_var2val;
-                std::cout << "model info recorded: " << std::endl;
-                output2file << "model info recorded: " << std::endl;
-                std::cout << "model subsume info size: " << this->model_subsume_info.size() << std::endl;
-                output2file << "model subsume info size: " << this->model_subsume_info.size() << std::endl; 
-                for(atoms_subsumption* ats : this->model_subsume_info) {
-                    std::cout << "------- main" << std::endl;
-                    output2file << "------- main" << std::endl;
-                    ats->get_main_heap_term()->print_ht();
-                    ats->get_main_heap_term()->print_ht2file(output2file);
-                    std::cout << "------- subs" << std::endl;
-                    output2file << "------- subs" << std::endl;
-                    for(heap_term* h : ats->get_pt_atoms()) {
-                        h->print_ht();
-                        h->print_ht2file(output2file);
+            }
+            std::cout << "locvar vals: " << std::endl;
+            output2file << "locvar vals: " << std::endl;
+            for(auto r : this->model_loc_data_var_val_info) {
+                std::cout << r.first << " " << r.second << std::endl;
+                output2file << r.first << " " << r.second << std::endl;
+            }
+            for(atoms_subsumption* sbs : this->model_subsume_info) {
+                if(sbs->get_main_heap_term()->is_atom_hvar()) {
+                    app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
+                    SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
+                    std::set<app*> pts_subsumed;
+                    for(heap_term* pt_ht : sbs->get_pt_atoms()) {
+                        pts_subsumed.insert(pt_ht->get_atoms()[0]);
                     }
+                    this->hvar2ptset[hvar_app] = pts_subsumed;
                 }
-                std::cout << "locvar vals: " << std::endl;
-                output2file << "locvar vals: " << std::endl;
-                for(auto r : this->model_loc_data_var_val_info) {
-                    std::cout << r.first << " " << r.second << std::endl;
-                    output2file << r.first << " " << r.second << std::endl;
+            }
+            std::cout << "free heap vars:" << std::endl;
+            output2file << "free heap vars: " << std::endl;
+            for(app* hv : this->curr_hvars) {
+                if(this->hvar2ptset.find(hv) == this->hvar2ptset.end()) {
+                    std::cout << "emp hvar: " << hv->get_name() << std::endl;
+                    output2file << "emp hvar: " << hv->get_name() << std::endl;
                 }
-                for(atoms_subsumption* sbs : this->model_subsume_info) {
-                    if(sbs->get_main_heap_term()->is_atom_hvar()) {
-                        app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
-                        SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
-                        std::set<app*> pts_subsumed;
-                        for(heap_term* pt_ht : sbs->get_pt_atoms()) {
-                            pts_subsumed.insert(pt_ht->get_atoms()[0]);
-                        }
-                        this->hvar2ptset[hvar_app] = pts_subsumed;
-                    }
-                }
-                std::cout << "free heap vars:" << std::endl;
-                output2file << "free heap vars: " << std::endl;
-                for(app* hv : this->curr_hvars) {
-                    if(this->hvar2ptset.find(hv) == this->hvar2ptset.end()) {
-                        std::cout << "emp hvar: " << hv->get_name() << std::endl;
-                        output2file << "emp hvar: " << hv->get_name() << std::endl;
-                    }
-                }
-                final_sovler->dec_ref();
-                numeral_solver->dec_ref();
-                this->m.dec_ref(encoded_form);
-
-                for(expr* e : curr_assignments) {
-                    this->get_manager().dec_ref(e);
-                }
-                this->mem_mng->dealloc_all();
-                return true;
-            } else if(final_result == l_false) { 
-                std::cout << " translated UNSAT " << std::endl;
-            } else {    
-                std::cout << " translated UNKNOWN " << std::endl;
             }
             final_sovler->dec_ref();
             numeral_solver->dec_ref();
-            this->m.dec_ref(encoded_form);
-
-            this->mem_mng->dealloc_all();
-            std::cout << "encoded form ref count after: " << encoded_form->get_ref_count() << std::endl;
-
+            this->m.dec_ref(encoded_form);  
             for(expr* e : curr_assignments) {
                 this->get_manager().dec_ref(e);
             }
+            this->mem_mng->dealloc_all();
+            return true;
+        } else if(final_result == l_false) { 
+            std::cout << " translated UNSAT " << std::endl;
+        } else {    
+            std::cout << " translated UNKNOWN " << std::endl;
+        }
+        final_sovler->dec_ref();
+        numeral_solver->dec_ref();
+        this->m.dec_ref(encoded_form);  
+        // TODO: this may be buggy when elim num is not 1
+        std::cout << "encoded form ref count after: " << encoded_form->get_ref_count() << std::endl;    
+        for(expr* e : curr_assignments) {
+            this->get_manager().dec_ref(e);
         }
 
         std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
@@ -692,7 +706,6 @@ namespace smt {
         output2file << "UNSAT" << std::endl;
         this->check_status = slhv_unsat;
         this->set_conflict_slhv(this->curr_outside_assignments);
-
         this->mem_mng->dealloc_all();
         return false;
     }
@@ -1024,7 +1037,7 @@ namespace smt {
             collected_hvars.insert(expression);
             return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if (is_emp(expression)){
-            collected_hvars.insert(expression);
+            // collected_hvars.insert(expression);
             this->global_emp = expression;
             return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if(is_locvar(expression)) {
@@ -2368,8 +2381,11 @@ namespace smt {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->shpair_set.insert({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
-                    this->th->infer_graph->add_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]}, ht1);
-                    this->th->infer_graph->add_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]}, ht2);
+                    if(!(ht2->is_atom_hvar() || ht2->is_atom_pt() || ht2->is_emp())) {
+                        this->th->infer_graph->add_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]}, ht2);
+                    } else {
+                        this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]});
+                    }
                 }
             }
         }
@@ -3205,15 +3221,83 @@ namespace smt {
     }
     // inference graph
 
-    inference_graph::inference_graph(std::set<expr*> initial_assignments){
+    inference_graph::inference_graph(theory_slhv* th, std::set<expr*> initial_assignments){
+        this->th = th;
         for(expr* init_ass : initial_assignments) {
             this->create_init_assignment_node(init_ass);
         }
     }
 
 
+    inf_node* inference_graph::get_outside_assignment_premise(expr* out_assignment) {
+        for(inf_node* n : this->outside_nodes) {
+            if(n->get_outside_assignment() == out_assignment) {
+                return n;
+            }
+        }
+        std::cout << "ERROR: out assign node not found" << std::endl;
+        return nullptr;
+    }
+
+    inf_node* inference_graph::get_refine_assignment_premise(expr* refine_assignment) {
+        for(inf_node* n : this->refine_nodes) {
+            if(n->get_refined_assignment() == refine_assignment) {
+                return n;
+            }
+        }
+        return nullptr;
+    }
+
+    inf_node* inference_graph::get_compound_ht_premise(heap_term* com_ht) {
+        for(inf_node* n : this->compound_nodes) {
+            if(n->get_compound_ht() == com_ht) {
+                return n;
+            }
+        }
+        std::cout << "ERROR: com ht node not found" << std::endl;
+        com_ht->print(std::cout);
+        return nullptr;
+    }
+
+    inf_node* inference_graph::get_ht_eq_pair_premise(std::pair<heap_term*, heap_term*> ht_p) {
+        std::pair<heap_term*, heap_term*> mirror_pair = {ht_p.second, ht_p.first};
+        for(inf_node* n : this->ht_eq_pair_nodes) {
+            if(n->get_ht_eq_pair() == ht_p || n->get_ht_eq_pair() == mirror_pair) {
+                return n;
+            }
+        }
+        std::cout << "ERROR: com ht node not found" << std::endl;
+        return nullptr;
+
+    }
+    inf_node* inference_graph::get_disj_rel_premise(std::pair<int, int> disj_p) {
+        
+        std::pair<int, int> mirror_pair = {disj_p.second, disj_p.first};
+        for(inf_node* n : this->disj_rel_nodes) {
+            if(n->get_dj_pair() == disj_p || n->get_dj_pair() == mirror_pair) {
+                return n;
+            }
+        }
+        std::cout << "ERROR: com ht node not found" << std::endl;
+        return nullptr;
+    }
+    inf_node* inference_graph::get_sh_rel_premise(std::pair<int, int> sh_p) {
+        
+        for(inf_node* n : this->sh_rel_nodes) {
+            if(n->get_sh_pair() == sh_p) {
+                return n;
+            }
+        }
+        std::cout << "ERROR: com ht node not found" << std::endl;
+        return nullptr;
+    }
+
+
     void inference_graph::create_init_assignment_node(expr* init_ass){
-        for(inf_node* in : this->nodes) {
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "create init assignment node" << std::endl;
+        #endif
+        for(inf_node* in : this->outside_nodes) {
             if(in->get_is_outside_assignment()) {
                 expr* existing_outside = in->get_outside_assignment();
                 if(existing_outside == init_ass) {
@@ -3227,8 +3311,10 @@ namespace smt {
     }
 
     void inference_graph::add_refined_assignment_node(expr* new_assignment, expr* old_assignment) {
-
-        for(inf_node* in : this->nodes) {
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add refined_assignment node" << std::endl;
+        #endif
+        for(inf_node* in : this->refine_nodes) {
             if(in->get_is_refined_assignment()) {
                 expr* existing_refine = in->get_refined_assignment();
                 if(existing_refine == new_assignment) {
@@ -3237,99 +3323,324 @@ namespace smt {
             }
         }
         std::set<inf_node*> premises;
-        for(inf_node* on : this->outside_nodes) {
-            if(on->get_outside_assignment() == old_assignment) {
-                premises.insert(on);
-                break;
-            }
+        inf_node* outside_node = this->get_outside_assignment_premise(old_assignment);
+        inf_node* refined_node = this->get_refine_assignment_premise(old_assignment);
+        if(outside_node != nullptr) {
+            premises.insert(refined_node);
+        } else if(refined_node != nullptr) {
+            premises.insert(refined_node);
+        } else {
+            std::cout << "ERROR: assignment " << mk_ismt2_pp(old_assignment, this->th->get_manager()) << " does not exist in node" << std::endl;
         }
-        inf_node* refine_node = alloc(inf_node, new_assignment, premises);
-        this->nodes.insert(refine_node);
-        this->refine_nodes.insert(refine_node);
+        inf_node* new_refine_node = alloc(inf_node, new_assignment, premises);
+        this->nodes.insert(new_refine_node);
+        this->refine_nodes.insert(new_refine_node);
     }
 
     void inference_graph::add_compound_ht_node(heap_term* com_ht, expr* refined_assignment) {
-        
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add compound ht node" << std::endl;
+        #endif
+        for(inf_node* node : this->compound_nodes) {
+            if(node->get_compound_ht() == com_ht) {
+                return;
+            }
+        }
+        std::set<inf_node*> premises;
+        premises.insert(this->get_refine_assignment_premise(refined_assignment));
+        inf_node* com_ht_node = alloc(inf_node, com_ht, premises);
+        this->nodes.insert(com_ht_node);
+        this->compound_nodes.insert(com_ht_node);
     }
 
     void inference_graph::add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment) {
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  ht_eq_pair node" << std::endl;
+        #endif
+        std::pair<heap_term*, heap_term*> mirror_pair = {ht_eq_p.second, ht_eq_p.first};
+        for(inf_node* eqp_n : this->ht_eq_pair_nodes) {
+            if(eqp_n->get_ht_eq_pair() == ht_eq_p || eqp_n->get_ht_eq_pair() == mirror_pair) {
+                return;
+            }
+        }
+        std::set<inf_node*> premises;
+        premises.insert(this->get_refine_assignment_premise(refined_assignment));
+        inf_node* ht_eq_pair_node = alloc(inf_node, ht_eq_p, premises);
+        this->nodes.insert(ht_eq_pair_node);
+        this->ht_eq_pair_nodes.insert(ht_eq_pair_node);
     }
+
     void inference_graph::add_loc_eqclass_node(std::set<app*> loc_eq_constr) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  loc_eqclass node" << std::endl;
+        #endif
+        
+        std::set<inf_node*> premises;
+        for(app* loc_eq : loc_eq_constr) {
+            inf_node* temp_node = this->get_refine_assignment_premise(loc_eq);
+            if(temp_node != nullptr) {
+                premises.insert(temp_node);
+            }
+        }
+        inf_node* first_loc_eq_node = alloc(inf_node, premises);
+        this->nodes.insert(first_loc_eq_node);
+        this->newest_loc_eq_node = first_loc_eq_node;
     }
+
     void inference_graph::add_data_eqclass_node(std::set<app*> data_eq_constr) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  data_eqclass node" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        for(app* data_eq : data_eq_constr) {
+            inf_node* temp_node = this->get_refine_assignment_premise(data_eq);
+            if(temp_node != nullptr) {
+                premises.insert(temp_node);
+            }
+        }
+        inf_node* first_data_eq_node = alloc(inf_node, premises);
+        this->nodes.insert(first_data_eq_node);
+        this->newest_data_eq_node = first_data_eq_node;
     }
+
     void inference_graph::add_loc_neqclass_node(std::set<app*> loc_neq_constr){
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  loc_neqclass node" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        for(app* loc_neq : loc_neq_constr) {
+            inf_node* temp_node = this->get_refine_assignment_premise(loc_neq);
+            if(temp_node != nullptr) {
+                premises.insert(temp_node);
+            }
+        }
+        inf_node* first_loc_neq_node = alloc(inf_node, premises);
+        this->nodes.insert(first_loc_neq_node);
+        this->newest_loc_neq_node = first_loc_neq_node;
     }
-    void inference_graph::add_data_neqclass_node(std::set<app*> data_neq_constr) {
 
-        // TODO
+    void inference_graph::add_data_neqclass_node(std::set<app*> data_neq_constr) {
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  data_neqclass node" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        for(app* data_neq : data_neq_constr) {
+            inf_node* temp_node = this->get_refine_assignment_premise(data_neq);
+            if(temp_node != nullptr) {
+                premises.insert(temp_node);
+            }
+        }
+        inf_node* first_data_neq_node = alloc(inf_node, premises);
+        this->nodes.insert(first_data_neq_node);
+        this->newest_data_neq_node = first_data_neq_node;
     }
     
     void inference_graph::add_data_neqclass_node(std::pair<int, int> dj_pair){
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  data_neqclass node dj pair" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        SASSERT(this->newest_data_eq_node != nullptr);
+        SASSERT(this->newest_data_neq_node != nullptr);
+        premises.insert(this->newest_data_eq_node);
+        premises.insert(this->newest_data_neq_node);
+        inf_node* dj_pair_node = this->get_disj_rel_premise(dj_pair);
+        premises.insert(dj_pair_node);
+        inf_node* next_data_neq_node = alloc(inf_node, premises);
+        this->nodes.insert(next_data_neq_node);
+        this->newest_data_neq_node = next_data_neq_node;
     }
-    void inference_graph::add_loc_neqclass_node(std::pair<int, int> dj_pair){
 
-        // TODO
+    void inference_graph::add_loc_neqclass_node(std::pair<int, int> dj_pair){
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  loc_neqclass node dj pair" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        SASSERT(this->newest_loc_eq_node != nullptr);
+        SASSERT(this->newest_loc_neq_node != nullptr);
+        premises.insert(this->newest_loc_eq_node);
+        premises.insert(this->newest_loc_neq_node);
+        inf_node* dj_pair_node = this->get_disj_rel_premise(dj_pair);
+        premises.insert(dj_pair_node);
+        inf_node* next_loc_neq_node = alloc(inf_node, premises);
+        this->nodes.insert(next_loc_neq_node);
+        this->newest_loc_neq_node = next_loc_neq_node;
     }
     void inference_graph::add_data_eqclass_node(std::pair<int, int> sh_pair) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  data_eqclass node sh pair" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        SASSERT(this->newest_data_eq_node != nullptr);
+        SASSERT(this->newest_data_neq_node != nullptr);
+        premises.insert(this->newest_data_eq_node);
+        premises.insert(this->newest_data_neq_node);
+        inf_node* sh_pair_node = this->get_sh_rel_premise(sh_pair);
+        premises.insert(sh_pair_node);
+        inf_node* next_data_eq_node = alloc(inf_node, premises);
+        this->nodes.insert(next_data_eq_node);
+        this->newest_data_eq_node = next_data_eq_node;
     }
     void inference_graph::add_loc_eqclass_node(std::pair<int, int> sh_pair) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  loc_eqclass node sh pair" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        SASSERT(this->newest_loc_eq_node != nullptr);
+        SASSERT(this->newest_loc_neq_node != nullptr);
+        premises.insert(this->newest_loc_eq_node);
+        premises.insert(this->newest_loc_neq_node);
+        inf_node* sh_pair_node = this->get_sh_rel_premise(sh_pair);
+        premises.insert(sh_pair_node);
+        inf_node* next_loc_neq_node = alloc(inf_node, premises);
+        this->nodes.insert(next_loc_neq_node);
+        this->newest_loc_neq_node = next_loc_neq_node;
     }
     void inference_graph::add_disj_rel_pair(std::pair<int, int> dj_p, heap_term* com_ht) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  disj_rel_pair comht" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        inf_node* com_ht_node = this->get_compound_ht_premise(com_ht);
+        premises.insert(com_ht_node);
+        inf_node* new_dj_node = alloc(inf_node, dj_p, true, false, premises);
+        this->nodes.insert(new_dj_node);
+        this->disj_rel_nodes.insert(new_dj_node);
     }
     void inference_graph::add_disj_rel_pair_locdata_neqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  disj_rel_pair two pt" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        SASSERT(this->newest_data_neq_node != nullptr);
+        premises.insert(this->newest_data_neq_node);
+        SASSERT(this->newest_loc_neq_node != nullptr);
+        premises.insert(this->newest_loc_neq_node);
+        inf_node* pt1node = this->get_sh_rel_premise(pt1InHt);
+        inf_node* pt2node = this->get_sh_rel_premise(pt2InHt);
+        premises.insert(pt1node);
+        premises.insert(pt2node);
+        inf_node* new_dj_node = alloc(inf_node, dj_p, true, false, premises);
+        this->nodes.insert(new_dj_node);
+        this->disj_rel_nodes.insert(new_dj_node);
     }
+
     void inference_graph::add_disj_rel_pair(std::pair<int, int> dj_p, std::pair<int, int> ht1InHt3, std::pair<int, int> ht2InHt4, std::pair<int, int> ht3DjHt4) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  disj_rel_pair ht1ht3 ht2ht4" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        inf_node* ht1InHt3_node = this->get_sh_rel_premise(ht1InHt3);
+        inf_node* ht2InHt4_node = this->get_sh_rel_premise(ht2InHt4);
+        inf_node* ht3DjHt4_node = this->get_disj_rel_premise(ht3DjHt4);
+        premises.insert(ht1InHt3_node);
+        premises.insert(ht2InHt4_node);
+        premises.insert(ht3DjHt4_node);
+        inf_node* new_dj_node = alloc(inf_node, dj_p, true, false, premises);
+        this->nodes.insert(new_dj_node);
+        this->disj_rel_nodes.insert(new_dj_node);
     }
+
     void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  sh_rel_pair com_ht" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        premises.insert(this->get_compound_ht_premise(com_ht));
+        inf_node* new_sh_pair = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(new_sh_pair);
+        this->sh_rel_nodes.insert(new_sh_pair);
     }
+
     void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> ht_eq_p) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  sh_rel_pair ht_eq_p" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        premises.insert(this->get_ht_eq_pair_premise(ht_eq_p));
+        inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(new_sh_node);
+        this->sh_rel_nodes.insert(new_sh_node);
     }
+
     void inference_graph::add_sh_rel_pair_locdata_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  sh_rel_pair locdata_eqclass" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        inf_node* pt1_sh_node = this->get_sh_rel_premise(pt1InHt);
+        inf_node* pt2_sh_node = this->get_sh_rel_premise(pt2InHt);
+        premises.insert(pt1_sh_node);
+        premises.insert(pt2_sh_node);
+        SASSERT(this->newest_data_eq_node != nullptr);
+        premises.insert(this->newest_data_eq_node);
+        SASSERT(this->newest_loc_eq_node != nullptr);
+        premises.insert(this->newest_loc_eq_node);
+        inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(new_sh_node);
+        this->sh_rel_nodes.insert(new_sh_node);
     }
+
     void inference_graph::add_isolated_sh_rel_pair(std::pair<int, int> sh_p) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  sh_rel_pair isolated" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        inf_node* iso_node = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(iso_node);
+        this->sh_rel_nodes.insert(iso_node);
     }
+
     void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<int, int> ht1InHt2, std::pair<int, int> ht2InHt3) {
-
-        // TODO
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add  sh_rel_pair transitive" << std::endl;
+        #endif
+        std::set<inf_node*> premises;
+        inf_node* ht1InHt2_node = this->get_sh_rel_premise(ht1InHt2);
+        inf_node* ht2InHt3_node = this->get_sh_rel_premise(ht2InHt3);
+        premises.insert(ht1InHt2_node);
+        premises.insert(ht2InHt3_node);
+        inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(new_sh_node);
+        this->sh_rel_nodes.insert(new_sh_node);
     }
+
     void inference_graph::set_curr_loc_eqneq_unsat_node() {
-
-        // TODO
+        this->newest_loc_eq_node->set_conflict();
+        this->newest_loc_neq_node->set_conflict();
+        this->conflict_nodes.insert(newest_loc_eq_node);
+        this->conflict_nodes.insert(newest_loc_neq_node);
     }
+
     void inference_graph::set_curr_data_eqneq_unsat_node() {
-
-        // TODO
+        this->newest_data_eq_node->set_conflict();
+        this->newest_data_neq_node->set_conflict();
+        this->conflict_nodes.insert(this->newest_data_eq_node);
+        this->conflict_nodes.insert(this->newest_data_neq_node);
     }
-    void inference_graph::set_sh_emp_unsat_node(std::pair<int, int> sh_emp_p) {
 
-        // TODO
+    void inference_graph::set_sh_emp_unsat_node(std::pair<int, int> sh_emp_p) {
+        inf_node* sh_emp_p_node = this->get_sh_rel_premise(sh_emp_p);
+        sh_emp_p_node->set_conflict();
+        this->conflict_nodes.insert(sh_emp_p_node); 
+    }
+
+
+    std::set<expr*> inference_graph::compute_unsat_core_expressions() {
+        SASSERT(this->conflict_nodes.size() > 0);
+        std::set<expr*> result;
+        std::set<inf_node*> unsat_core_outside_nodes;
+        for(inf_node* n : this->conflict_nodes) {
+            unsat_core_outside_nodes = slhv_util::setUnion(
+                unsat_core_outside_nodes,
+                n->get_conflict_sources()
+            );
+        }
+        for(inf_node* n : unsat_core_outside_nodes) {
+            SASSERT(n->get_is_outside_assignment());
+            result.insert(n->get_outside_assignment());
+        }
+        return result;
     }
 
     // syntax maker
