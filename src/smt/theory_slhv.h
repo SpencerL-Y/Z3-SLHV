@@ -82,6 +82,8 @@ namespace smt
         // model generation
 
         arith_factory* data_factory;
+
+        inference_graph* infer_graph;
         
         std::map<app*, std::set<app*>> hvar2ptset;
 
@@ -186,7 +188,7 @@ namespace smt
 
         std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
-        std::vector<expr_ref_vector> remove_heap_eqaulity_negation_in_assignments(expr_ref_vector assigned_literals);
+        std::vector<expr_ref_vector> remove_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
 
         std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
 
@@ -794,6 +796,8 @@ namespace smt
         public:
             inf_node(expr* outside);
             inf_node(expr* refined_assignment, std::set<inf_node*> premises);
+            inf_node(std::pair<heap_term*, heap_term*> ht_eq_pair, std::set<inf_node*> premises);
+            inf_node(heap_term* com_ht, std::set<inf_node*> premises);
             inf_node(std::pair<int, int> pair, bool is_dj, bool is_sh, std::set<inf_node*> premises);
             inf_node(std::set<inf_node*> premises);
 
@@ -801,7 +805,11 @@ namespace smt
                 return this->premises;
             }
             bool get_is_outside_assignment() {
-                return this->is_outside_assignment;
+                return this->is_outside_assignme
+            void create_ouside_assignment_node(expr* outside_ass);
+            void create_refine_assignment_node(expr* refined_ass, expr* old_ass);
+            void create_compound_ht_node(heap_term_ com_ht, expr* refined_ass);
+            void create_ht_eq_pair_nodent;
             }
             bool get_is_refined_assignment() {
                 return this->is_refined_assignment;
@@ -852,26 +860,56 @@ namespace smt
             // TODO: compute the minimal conflict sources
             std::set<inf_node*> get_conflict_sources();
 
+            void reset_configs();
+            void set_conflict() {
+                this->is_conflict_node = true;
+            }
+
 
     };
 
     class inference_graph {
-        private:
-            std::set<inf_node*> nodes;
         public:
+            std::set<inf_node*> nodes;
+            std::set<inf_node*> outside_nodes;
+            std::set<inf_node*> refine_nodes;
+            inf_node* newest_loc_eq_node;
+            inf_node* newest_loc_neq_node;
+            inf_node* newest_data_eq_node;
+            inf_node* newest_data_neq_node;
             inference_graph(std::set<expr*> initial_assignments);
 
+            void create_init_assignment_node(expr* init_ass);
             void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
             void add_compound_ht_node(heap_term* com_ht, expr* refined_assignment);
             void add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment);
+            void add_loc_eqclass_node(std::set<app*> loc_eq_constr);
+            void add_data_eqclass_node(std::set<app*> data_eq_constr);
+            void add_loc_neqclass_node(std::set<app*> loc_neq_constr);
+            void add_data_neqclass_node(std::set<app*> data_neq_constr);
+            
+            void add_data_neqclass_node(std::pair<int, int> dj_pair);
+            void add_loc_neqclass_node(std::pair<int, int> dj_pair);
+            void add_data_eqclass_node(std::pair<int, int> sh_pair);
+            void add_loc_eqclass_node(std::pair<int, int> sh_pair);
+
+
             void add_disj_rel_pair(std::pair<int, int> dj_p, heap_term* com_ht);
-            void add_disj_rel_pair_eqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
+            void add_disj_rel_pair_locdata_neqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
             void add_disj_rel_pair(std::pair<int, int> dj_p, std::pair<int, int> ht1InHt3, std::pair<int, int> ht2InHt4, std::pair<int, int> ht3DjHt4);
+
+
+
             void add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht);
             void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> ht_eq_p);
-            void add_sh_rel_pair_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
+            void add_sh_rel_pair_locdata_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
+            void add_isolated_sh_rel_pair(std::pair<int, int> sh_p);
 
             void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<int, int> ht1InHt2, std::pair<int, int> ht2InHt3);
+
+            void set_curr_loc_eqneq_unsat_node();
+            void set_curr_data_eqneq_unsat_node();
+            void set_sh_emp_unsat_node(std::pair<int, int> sh_emp_p);
     };
 
 // util class
