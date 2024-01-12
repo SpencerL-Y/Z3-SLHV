@@ -3196,8 +3196,8 @@ namespace smt {
 
     bool slhv_deducer::deduce() {
         bool has_change = false;
-        // do
-        // {
+        do
+        {
             std::cout << "deduce loop begin" << std::endl;
             has_change = false;
             // std::cout << "propagate transitive sh" << std::endl;
@@ -3225,7 +3225,7 @@ namespace smt {
                 return false;
             }
             std::cout << "deduce loop end" << std::endl;
-        // } while (has_change && !this->unsat_found);
+        } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
         } else {
