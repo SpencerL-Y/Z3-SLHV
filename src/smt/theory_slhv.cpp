@@ -2955,8 +2955,8 @@ namespace smt {
                         std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
                         std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
                         new_dj_found = true;
-                        std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
-                        std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                        // std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                        // std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                         #ifdef DED_INFO
                         std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                         std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
@@ -3198,7 +3198,7 @@ namespace smt {
         bool has_change = false;
         do
         {
-            std::cout << "deduce loop begin" << std::endl;
+            // std::cout << "deduce loop begin" << std::endl;
             has_change = false;
             // std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
@@ -3206,25 +3206,25 @@ namespace smt {
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate transitive dj" << std::endl;
+            // std::cout << "propagate transitive dj" << std::endl;
             has_change = has_change || this->propagate_transitive_dj();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate shdj by eq neq" << std::endl;
+            // std::cout << "propagate shdj by eq neq" << std::endl;
             has_change = has_change || this->propagate_shdj_by_eq_neq();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate eq neq" << std::endl;
+            // std::cout << "propagate eq neq" << std::endl;
             has_change = has_change || this->propagate_eq_neq();
             this->check_ldvars_consistency();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "deduce loop end" << std::endl;
+            // std::cout << "deduce loop end" << std::endl;
         } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
