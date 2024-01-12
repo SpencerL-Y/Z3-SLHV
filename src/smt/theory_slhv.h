@@ -30,6 +30,8 @@ namespace smt
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
     class atoms_subsumption;
+    class ld_recov_node;
+    class shdj_recov_node;
     class slhv_deducer;
     class formula_encoder;
     class inference_graph;
@@ -83,6 +85,9 @@ namespace smt
         arith_factory* data_factory;
 
         inference_graph* infer_graph;
+
+        std::set<shdj_recov_node*> relation_recovery;
+        std::set<ld_recov_node*> ld_recovery;
         
         std::map<app*, std::set<app*>> hvar2ptset;
 
@@ -277,7 +282,7 @@ namespace smt
         */
         void propagate() override;
 
-        void set_conflict_or_lemma(literal_vector const& core, bool is_out_layer_conflict);
+        std::set<expr*> recover_unsat_core(expr_ref_vector unsat_core);
 
         void set_conflict_slhv();
 
@@ -285,6 +290,7 @@ namespace smt
         void set_conflict_slhv(std::vector<expr*> outside_unsat_core);
 
         void set_conflict_slhv(inference_graph* inf_graph);
+
 
         literal_vector compute_current_unsat_core(std::vector<expr*> outside_unsat_core);
 
@@ -637,8 +643,8 @@ namespace smt
         }
         app* locvar2intvar(app* locvar);
 
-        expr* generate_deduced_premises();
-        expr* generate_ld_formula();
+        std::pair<expr*, std::set<shdj_recov_node*>> generate_deduced_premises();
+        std::pair<expr*, std::set<ld_recov_node*>> generate_ld_formula();
         expr* generate_init_formula();
         expr* generate_pto_formula();
         expr* generate_iso_formula();
@@ -646,7 +652,7 @@ namespace smt
         expr* generate_final_formula();
         expr* generate_loc_var_constraints();
 
-        expr* encode();
+        std::pair<expr*, expr_ref_vector> encode();
 
 
 
@@ -749,6 +755,37 @@ namespace smt
                         return true;
                    }
                 return false;
+            }
+    };
+
+    class ld_recov_node {
+        public:
+            expr* original_formula;
+            expr* translated_formula;
+
+            ld_recov_node(expr* orig, expr* trans) {
+                this->original_formula = orig;
+                this->translated_formula = trans;
+            }
+    };
+
+    class shdj_recov_node {
+        public:
+            bool is_sh;
+            bool is_dj;
+            std::pair<int, int> original_pair;
+            expr* boolean_expr;
+
+            shdj_recov_node(std::pair<int, int> p, expr* e, bool sh){
+                this->original_pair = p;
+                this->boolean_expr = e;
+                if(sh) {
+                    this->is_sh = true;
+                    this->is_dj = false;
+                } else {
+                    this->is_dj = true;
+                    this->is_sh = false;
+                }
             }
     };
 
@@ -925,6 +962,9 @@ namespace smt
             void set_curr_loc_eqneq_unsat_node();
             void set_curr_data_eqneq_unsat_node();
             void set_sh_emp_unsat_node(std::pair<int, int> sh_emp_p);
+
+            void set_dj_unsat_node(std::pair<int, int> dj_pair);
+            void set_sh_unsat_node(std::pair<int, int> sh_pair);
 
 
             std::set<expr*> compute_unsat_core_expressions();
@@ -1247,6 +1287,8 @@ namespace smt
         std::set<atoms_subsumption*> at_ptrs;
         std::set<formula_encoder*> fec_ptrs;
         std::set<slhv_syntax_maker*> syntax_makers;
+        std::set<ld_recov_node*> ld_recov_nodes;
+        std::set<shdj_recov_node*> rel_recov_nodes;
         inference_graph* inf_graph;
         
 
@@ -1270,6 +1312,14 @@ namespace smt
             this->syntax_makers.insert(syn_mker);
         }
 
+        void push_recov_node_ptr(ld_recov_node* recov_node) {
+            this->ld_recov_nodes.insert(recov_node);
+        }
+
+        void push_recov_node_ptr(shdj_recov_node* recov_node) {
+            this->rel_recov_nodes.insert(recov_node);
+        }
+
         void set_inf_graph(inference_graph* inf_g) {
             this->inf_graph = inf_g;
         }
@@ -1284,10 +1334,21 @@ namespace smt
             for(auto i : fec_ptrs) {
                 dealloc(i);
             }
+            for(auto i : syntax_makers) {
+                dealloc(i);
+            }
+            for(auto i : ld_recov_nodes) {
+                dealloc(i);
+            }
+            for(auto i : rel_recov_nodes) {
+                dealloc(i);
+            }
             this->ht_ptrs.clear();
             this->at_ptrs.clear();
             this->fec_ptrs.clear();
-
+            this->syntax_makers.clear();
+            this->ld_recov_nodes.clear();
+            this->rel_recov_nodes.clear();
             for(inf_node* n : this->inf_graph->nodes) {
                 dealloc(n);
             }

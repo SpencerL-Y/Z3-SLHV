@@ -3390,12 +3390,14 @@ namespace smt {
         m_literal2assumption.reset();
         m_unsat_core.reset();
         if (!asms.empty()) {
+            std::cout << "ass not emp" << std::endl;
             // We must give a chance to the theories to propagate before we create a new scope...
             propagate();
             // Internal backtracking scopes (created with push_scope()) must only be created when we are
             // in a consistent context.
             if (inconsistent())
                 return;
+            
             if (get_cancel_flag())
                 return;
             push_scope();
@@ -3448,7 +3450,7 @@ namespace smt {
         return false;
     }
 
-    lbool context::mk_unsat_core(lbool r) {        
+    lbool context::mk_unsat_core(lbool r) {     
         if (r != l_false) return r;
         SASSERT(inconsistent());
         if (!tracking_assumptions()) {
@@ -3458,6 +3460,7 @@ namespace smt {
         uint_set already_found_assumptions;
         literal_vector::const_iterator it  = m_conflict_resolution->begin_unsat_core();
         literal_vector::const_iterator end = m_conflict_resolution->end_unsat_core();
+        
         for (; it != end; ++it) {
             literal l = *it;
             TRACE("unsat_core_bug", tout << "answer literal: " << l << "\n";);
@@ -3471,6 +3474,7 @@ namespace smt {
                 TRACE("assumptions", tout << l << ": " << mk_pp(orig_assumption, m) << "\n";);
             }
         }
+
         reset_assumptions();
         pop_to_base_lvl(); // undo the push_scope() performed by init_assumptions
         m_search_lvl = m_base_lvl;
@@ -3484,6 +3488,7 @@ namespace smt {
                 return l_undef;
             }
         }
+
         return l_false;
     }
 
@@ -3699,6 +3704,7 @@ namespace smt {
                 internalize_assertions();
                 add_theory_assumptions(asms);
                 TRACE("unsat_core_bug", tout << asms << '\n';);
+                // std::cout << asms << '\n';
                 init_assumptions(asms);
             } catch (cancel_exception&) {
                 VERIFY(resource_limits_exceeded());

@@ -164,9 +164,8 @@ public:
     }
 
     lbool check_sat_core(unsigned sz, expr * const * _assumptions) override {
-#ifdef SLHV_DEBUG
     std::cout << "check_sat_core for sat smt solver" << std::endl;
-#endif
+
         init_check_sat();
 
         if (m_solver.inconsistent())
