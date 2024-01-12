@@ -175,8 +175,50 @@ namespace smt {
         #endif
     }
 
-    void theory_slhv::set_conflict_or_lemma(literal_vector const& core, bool is_outer_layer_conflict) {
 
+    std::set<expr*> theory_slhv::recover_unsat_core(expr_ref_vector unsat_core){
+        std::set<expr*> result;
+        std::map<expr*, bool> recoved;
+        // make sure all expressions are  recovered
+        for(expr* e : unsat_core) {
+            recoved[e] = false;
+        }
+        // recover ld constraints
+        for(expr* e : unsat_core) {
+            for(ld_recov_node* ldn : this->ld_recovery) {
+                if(ldn->translated_formula == e) {
+                    result.insert(ldn->original_formula);
+                    recoved[e] = true;
+                    break;
+                }
+            }
+        }
+
+        // set infer graph conflict
+        for(expr* e : unsat_core) {
+            for(shdj_recov_node* shdjn : this->relation_recovery) {
+                if(shdjn->boolean_expr == e) {
+                    if(shdjn->is_dj) {
+                        this->infer_graph->set_dj_unsat_node(shdjn->original_pair);
+                        recoved[e] = true;
+                    } else if(shdjn->is_sh) {
+                        this->infer_graph->set_sh_unsat_node(shdjn->original_pair);
+                        recoved[e] = true;
+                    } else {
+                        SASSERT(false);
+                    }
+                    break;
+                }
+            }
+        }
+        for(auto i : recoved) {
+            if(!i.second) {
+                std::cout << "ERROR: unsat core not recovered: " << mk_ismt2_pp(i.first, this->get_manager()) << std::endl;
+            }
+        }
+        std::set<expr*> inf_graph_unsatcore = this->infer_graph->compute_unsat_core_expressions();
+        result = slhv_util::setUnion(result, inf_graph_unsatcore);
+        return result;
     }
 
     void theory_slhv::set_conflict_slhv() {
@@ -253,6 +295,7 @@ namespace smt {
             original.push_back(e);
         }
         expr_ref_vector disj_removed(this->get_manager());
+        // TODO: this might be buggy
         for(expr* e : original) {
             if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
                 continue;
@@ -543,7 +586,9 @@ namespace smt {
             return false;
         }
         // REDUCTION ENCODING
-        expr* encoded_form  = fec->encode();    
+        std::pair<expr*, expr_ref_vector> encoded_results = fec->encode();
+        expr* encoded_form = encoded_results.first;    
+        expr_ref_vector assumptions = encoded_results.second;
         #ifdef SOLVING_INFO
         std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
         debug_formula << mk_ismt2_pp(encoded_form, this->m);
@@ -558,14 +603,17 @@ namespace smt {
         // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
         std::cout << "======================================== " << std::endl;
         #endif
-
-        solver* final_sovler = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
-        final_sovler->inc_ref();
+        params_ref final_solver_param = params_ref();
+        final_solver_param.set_bool("unsat_core", true);
+        solver* final_solver = mk_smt_solver(this->m, final_solver_param, symbol("QF_LIA"));
+        final_solver->inc_ref();
         for(expr* e: numeral_cnstr_assignments) {
-            final_sovler->assert_expr(e);
+            final_solver->assert_expr(e);
         }
-        final_sovler->assert_expr(encoded_form);
-        lbool final_result = final_sovler->check_sat();
+        
+        final_solver->assert_expr(encoded_form);
+        std::cout << "assumption size: " << assumptions.size() << std::endl;
+        lbool final_result = final_solver->check_sat(assumptions.size(), assumptions.data());
         std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
         if(final_result == l_true) {
             #ifdef SOLVING_INFO
@@ -592,7 +640,7 @@ namespace smt {
 
             std::map<std::string, expr*> name2val;
             model_ref md;
-            final_sovler->get_model(md);
+            final_solver->get_model(md);
             std::cout << "translated model: " << std::endl;
             // model_smt2_pp(std::cout, this->m, *md, 0);
             model_core& mdc = *md;
@@ -678,7 +726,7 @@ namespace smt {
                     output2file << "emp hvar: " << hv->get_name() << std::endl;
                 }
             }
-            final_sovler->dec_ref();
+            final_solver->dec_ref();
             numeral_solver->dec_ref();
             this->m.dec_ref(encoded_form);  
             for(expr* e : curr_assignments) {
@@ -688,10 +736,30 @@ namespace smt {
             return true;
         } else if(final_result == l_false) { 
             std::cout << " translated UNSAT " << std::endl;
+            SASSERT(final_solver->get_manager() == this->get_manager());
+            expr_ref_vector final_solver_unsat_core(this->get_manager());
+            final_solver->get_unsat_core(final_solver_unsat_core);
+            std::cout << "Final solver unsat core: " << std::endl;
+            for(expr* e : final_solver_unsat_core) {
+                std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+            }
+            
+            
+            if(final_solver_unsat_core.size() == 0) {
+                this->set_conflict_slhv(this->curr_outside_assignments);
+            } else {
+                std::vector<expr*> translated_unsat_core;
+                std::set<expr*> unsat_core_set = this->recover_unsat_core(final_solver_unsat_core);
+                for(expr* e : unsat_core_set) {
+                    translated_unsat_core.push_back(e);
+                }
+                this->set_conflict_slhv(translated_unsat_core);
+            }
         } else {    
             std::cout << " translated UNKNOWN " << std::endl;
+            SASSERT(false);
         }
-        final_sovler->dec_ref();
+        final_solver->dec_ref();
         numeral_solver->dec_ref();
         this->m.dec_ref(encoded_form);  
         // TODO: this may be buggy when elim num is not 1
@@ -705,7 +773,6 @@ namespace smt {
         std::ofstream output2file("./outmodel.txt", std::ios::out);
         output2file << "UNSAT" << std::endl;
         this->check_status = slhv_unsat;
-        this->set_conflict_slhv(this->curr_outside_assignments);
         this->mem_mng->dealloc_all();
         return false;
     }
@@ -1911,19 +1978,26 @@ namespace smt {
         }
     }
 
-    expr* formula_encoder::generate_deduced_premises() {
+    std::pair<expr*, std::set<shdj_recov_node*>> formula_encoder::generate_deduced_premises() {
         #ifdef SOLVING_INFO
         std::cout << "generate deduce premises" << std::endl;
         #endif
+        std::set<shdj_recov_node*> heap_assumptions;
         if(this->ded->get_is_unsat()) {
-            return this->th->get_manager().mk_false();
+            return {this->th->get_manager().mk_false(), heap_assumptions};
         }
         expr* result = this->th->get_manager().mk_true();
         for(auto p : this->ded->get_dj_pair_set()) {
             result = this->syntax_maker->mk_and(result, this->djrel_var_map[p]);
+            shdj_recov_node* recov_node = alloc(shdj_recov_node, p, this->djrel_var_map[p], false);
+            this->th->mem_mng->push_recov_node_ptr(recov_node);
+            heap_assumptions.insert(recov_node);
         }
         for(auto p : this->ded->get_sh_pair_set()) {
             result = this->syntax_maker->mk_and(result, this->shrel_var_map[p]);
+            shdj_recov_node* recov_node = alloc(shdj_recov_node, p, this->shrel_var_map[p], true);
+            this->th->mem_mng->push_recov_node_ptr(recov_node);
+            heap_assumptions.insert(recov_node);
         }
         
         for(auto i : this->ded->get_ldvar2eqroot()) {
@@ -1941,21 +2015,31 @@ namespace smt {
                 );
             }
         }
-        return result;
+        return {result, heap_assumptions};
     }
 
-    expr* formula_encoder::generate_ld_formula() {
+    
+        std::pair<expr*, std::set<ld_recov_node*>>  formula_encoder::generate_ld_formula() {
         #ifdef SOLVING_INFO
         std::cout << "generate ld formula" << std::endl;
         #endif
+        std::set<ld_recov_node*> recov_nodes;
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
-            result = this->syntax_maker->mk_and(result, this->translate_locdata_formula(loc_constraint));
+            expr* translated_loc_constraint =  this->translate_locdata_formula(loc_constraint);
+            result = this->syntax_maker->mk_and(result, translated_loc_constraint);
+            ld_recov_node* rec_node = alloc(ld_recov_node, loc_constraint, translated_loc_constraint);
+            this->th->mem_mng->push_recov_node_ptr(rec_node);
+            recov_nodes.insert(rec_node);
         }
         for(app* data_constraint : this->th->curr_data_cnstr) {
-            result = this->syntax_maker->mk_and(result, this->translate_locdata_formula(data_constraint));
+            expr* translated_data_constraint = this->translate_locdata_formula(data_constraint);
+            result = this->syntax_maker->mk_and(result, translated_data_constraint);
+            ld_recov_node* rec_node = alloc(ld_recov_node, data_constraint, translated_data_constraint);
+            this->th->mem_mng->push_recov_node_ptr(rec_node);
+            recov_nodes.insert(rec_node);
         }
-        return result;
+        return {result, recov_nodes};
     }
 
     expr* formula_encoder::generate_init_formula() {
@@ -2309,16 +2393,29 @@ namespace smt {
         return result;
     }
 
-    expr* formula_encoder:: encode() {
+    std::pair<expr*, expr_ref_vector> formula_encoder::encode() {
 
         #ifdef SOLVING_INFO
         std::cout << "==== begin encode" << std::endl;
         #endif
+        expr_ref_vector assumptions(this->th->get_manager());
         expr_ref_vector all_conj(this->th->get_manager());
 
-        all_conj.push_back(this->generate_deduced_premises());
-        all_conj.push_back(this->generate_ld_formula());
-        all_conj.push_back(this->generate_init_formula());
+        std::pair<expr*, std::set<shdj_recov_node*>> deduced_result = this->generate_deduced_premises();        
+        // all_conj.push_back(deduced_result.first);
+        std::pair<expr*, std::set<ld_recov_node*>> ld_result = this->generate_ld_formula();
+        std::set<shdj_recov_node*> rel_assumptions = deduced_result.second;
+        std::set<ld_recov_node*> ld_assumptions = ld_result.second;
+        for(shdj_recov_node* n : rel_assumptions) {
+            assumptions.push_back(n->boolean_expr);
+        }
+        for(ld_recov_node* n : ld_assumptions) {
+            assumptions.push_back(n->translated_formula);
+        }
+        this->th->relation_recovery = deduced_result.second;
+        this->th->ld_recovery = ld_result.second;
+        // all_conj.push_back(ld_result.first);
+        // all_conj.push_back(this->generate_init_formula());
         all_conj.push_back(this->generate_pto_formula());
         all_conj.push_back(this->generate_iso_formula());
         all_conj.push_back(this->generate_idj_formula());
@@ -2332,7 +2429,7 @@ namespace smt {
         #ifdef SOLVING_INFO
         std::cout << "==== end encode" << std::endl;
         #endif
-        return result;
+        return {result, assumptions};
     }
 
 
@@ -2848,7 +2945,6 @@ namespace smt {
         bool new_dj_found = false;
         for(auto sh_pair13 : this->shpair_set) {
             for(auto sh_pair24 : this->shpair_set) {
-
                 std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
                 if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
                     if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end() ||
@@ -2859,6 +2955,8 @@ namespace smt {
                         std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
                         std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
                         new_dj_found = true;
+                        // std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                        // std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                         #ifdef DED_INFO
                         std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                         std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
@@ -3100,6 +3198,7 @@ namespace smt {
         bool has_change = false;
         do
         {
+            // std::cout << "deduce loop begin" << std::endl;
             has_change = false;
             // std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
@@ -3125,6 +3224,7 @@ namespace smt {
             if(this->unsat_found) {
                 return false;
             }
+            // std::cout << "deduce loop end" << std::endl;
         } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
@@ -3682,6 +3782,29 @@ namespace smt {
         inf_node* sh_emp_p_node = this->get_sh_rel_premise(sh_emp_p);
         sh_emp_p_node->set_conflict();
         this->conflict_nodes.insert(sh_emp_p_node); 
+    }
+
+
+    void inference_graph::set_dj_unsat_node(std::pair<int, int> dj_pair){
+        for(inf_node* n : this->disj_rel_nodes) {
+            if(n->get_dj_pair() == dj_pair) {
+                n->set_conflict();
+                this->conflict_nodes.insert(n);
+                return;
+            } 
+        }
+        std::cout << "ERROR: set dj unsat node failed" << std::endl;
+    }
+
+    void inference_graph::set_sh_unsat_node(std::pair<int, int> sh_pair){
+        for(inf_node* n : this->sh_rel_nodes) {
+            if(n->get_sh_pair() == sh_pair) {
+                n->set_conflict();
+                this->conflict_nodes.insert(n);
+                return;
+            }
+        }
+        std::cout << "ERROR: set sh unsat node failed" << std::endl;
     }
 
 
