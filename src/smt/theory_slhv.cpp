@@ -317,12 +317,16 @@ namespace smt {
         }
 
         #endif
-        ctx.set_conflict(
-            ctx.mk_justification(
-            ext_theory_conflict_justification(
-                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
-            ))
-        );
+        if(this->infer_graph->unsat_core.size() > 0) {
+            ctx.set_conflict(
+                ctx.mk_justification(
+                ext_theory_conflict_justification(
+                    get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+                ))
+            );
+        } else {
+            this->set_conflict_slhv();
+        }
     }
 
 
