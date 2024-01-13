@@ -31,7 +31,6 @@ namespace smt
     class slhv_syntax_maker;
     class atoms_subsumption;
     class ld_recov_node;
-    class shdj_recov_node;
     class slhv_deducer;
     class formula_encoder;
     class inference_graph;
@@ -80,14 +79,17 @@ namespace smt
         app* global_emp;
         app* global_nil;
 
+        // deduction unsat core generation
+        std::map<expr*, std::set<heap_term*>> constraint2hts;
+
+        inference_graph* infer_graph;
+
+        std::set<ld_recov_node*> ld_recovery;
+
         // model generation
 
         arith_factory* data_factory;
 
-        inference_graph* infer_graph;
-
-        std::set<shdj_recov_node*> relation_recovery;
-        std::set<ld_recov_node*> ld_recovery;
         
         std::map<app*, std::set<app*>> hvar2ptset;
 
@@ -282,7 +284,9 @@ namespace smt
         */
         void propagate() override;
 
-        std::set<expr*> recover_unsat_core(expr_ref_vector unsat_core);
+        std::set<expr*> extract_unsat_core_booleans(expr* e);
+        std::set<expr*> recover_unsat_core(formula_encoder* fec, expr_ref_vector unsat_core);
+
 
         void set_conflict_slhv();
 
@@ -606,6 +610,8 @@ namespace smt
         private:
         std::map<std::pair<int, int>, app*> djrel_var_map;
         std::map<std::pair<int, int>, app*> shrel_var_map;
+        std::map<app*, std::pair<int, int>> djrel_var2pair;
+        std::map<app*, std::pair<int, int>> shrel_var2pair;
         std::map<heap_term*, int> ht2index_map;
         std::vector<heap_term*> index2ht;
 
@@ -638,21 +644,35 @@ namespace smt
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
+        std::pair<std::pair<int, int>, bool> get_boolvar_id_type(app* boolvar);
         heap_term* get_ht_by_id(int id) {
             return this->index2ht[id];
         }
         app* locvar2intvar(app* locvar);
 
-        std::pair<expr*, std::set<shdj_recov_node*>> generate_deduced_premises();
-        std::pair<expr*, std::set<ld_recov_node*>> generate_ld_formula();
+        std::set<expr*> generate_deduced_assumptions();
+        std::pair<std::set<expr*>, std::set<ld_recov_node*>> generate_ld_assumptions();
+        std::set<expr*> generate_init_assumptions();
+        std::set<expr*> generate_pto_assumptions();
+        std::set<expr*> generate_iso_assumptions();
+        std::set<expr*> generate_idj_assumptions();
+        std::set<expr*> generate_final_assumptions();
+
+
+        expr* generate_deduced_premises();
+        expr* generate_ld_formula();
         expr* generate_init_formula();
         expr* generate_pto_formula();
         expr* generate_iso_formula();
         expr* generate_idj_formula();
         expr* generate_final_formula();
+
+        // hard encoded formula
         expr* generate_loc_var_constraints();
 
         std::pair<expr*, expr_ref_vector> encode();
+
+        std::pair<expr*, expr_ref_vector> encode_with_ass();
 
 
 
@@ -697,6 +717,16 @@ namespace smt
             std::set<std::pair<int, int>> shpair_set;
             std::set<std::pair<int, int>> djpair_set;
 
+            std::map<int, std::set<std::pair<int, int>>> sh_pair_1st_elem_map;
+            std::map<int, std::set<std::pair<int, int>>> sh_pair_2nd_elem_map;
+            std::map<int, std::set<std::pair<int, int>>> dj_pair_1st_elem_map;
+            std::map<int, std::set<std::pair<int, int>>> dj_pair_2nd_elem_map;
+
+            bool insert_sh_pair(std::pair<int, int> sh_pair, std::set<std::pair<int, int>>& nxt_sh_pair_set, std::map<int, std::set<std::pair<int, int>>>& nxt_sh_1nd_elem_map, std::map<int, std::set<std::pair<int, int>>>& nxt_sh_2nd_elem_map);
+            bool insert_dj_pair(std::pair<int, int> dj_pair, std::set<std::pair<int, int>>& nxt_dj_pair_set, std::map<int, std::set<std::pair<int, int>>>& nxt_dj_1nd_elem_map, std::map<int, std::set<std::pair<int, int>>>& nxt_dj_2nd_elem_map);  
+            bool insert_sh_pair(std::pair<int, int> sh_pair);
+            bool insert_dj_pair(std::pair<int, int> dj_pair);  
+
             std::map<app*, app*> ldvar2eqroot;
             std::map<app*, std::set<app*>> ldvar2neqvars;
 
@@ -719,6 +749,9 @@ namespace smt
             bool is_pt(int index);
             bool is_emp(int index);
             bool is_hvar(int index);
+
+            bool has_dj_pair(std::pair<int, int> dj_p);
+            bool has_sh_pair(std::pair<int, int> sh_p);
         public: 
             slhv_deducer(theory_slhv* th, formula_encoder* fec);
 
@@ -769,25 +802,7 @@ namespace smt
             }
     };
 
-    class shdj_recov_node {
-        public:
-            bool is_sh;
-            bool is_dj;
-            std::pair<int, int> original_pair;
-            expr* boolean_expr;
 
-            shdj_recov_node(std::pair<int, int> p, expr* e, bool sh){
-                this->original_pair = p;
-                this->boolean_expr = e;
-                if(sh) {
-                    this->is_sh = true;
-                    this->is_dj = false;
-                } else {
-                    this->is_dj = true;
-                    this->is_sh = false;
-                }
-            }
-    };
 
 
 // heap term atoms contained
@@ -930,6 +945,9 @@ namespace smt
             inf_node* get_ht_eq_pair_premise(std::pair<heap_term*, heap_term*> ht_p);
             inf_node* get_disj_rel_premise(std::pair<int, int> disj_p);
             inf_node* get_sh_rel_premise(std::pair<int, int> sh_p);
+
+            bool contain_dj_node(std::pair<int, int> dj_p);
+            bool contain_sh_node(std::pair<int, int> sh_p);
 
             void create_init_assignment_node(expr* init_ass);
             void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
@@ -1288,7 +1306,6 @@ namespace smt
         std::set<formula_encoder*> fec_ptrs;
         std::set<slhv_syntax_maker*> syntax_makers;
         std::set<ld_recov_node*> ld_recov_nodes;
-        std::set<shdj_recov_node*> rel_recov_nodes;
         inference_graph* inf_graph;
         
 
@@ -1316,9 +1333,6 @@ namespace smt
             this->ld_recov_nodes.insert(recov_node);
         }
 
-        void push_recov_node_ptr(shdj_recov_node* recov_node) {
-            this->rel_recov_nodes.insert(recov_node);
-        }
 
         void set_inf_graph(inference_graph* inf_g) {
             this->inf_graph = inf_g;
@@ -1340,15 +1354,11 @@ namespace smt
             for(auto i : ld_recov_nodes) {
                 dealloc(i);
             }
-            for(auto i : rel_recov_nodes) {
-                dealloc(i);
-            }
             this->ht_ptrs.clear();
             this->at_ptrs.clear();
             this->fec_ptrs.clear();
             this->syntax_makers.clear();
             this->ld_recov_nodes.clear();
-            this->rel_recov_nodes.clear();
             for(inf_node* n : this->inf_graph->nodes) {
                 dealloc(n);
             }
