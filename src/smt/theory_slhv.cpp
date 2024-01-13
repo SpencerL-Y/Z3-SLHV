@@ -626,7 +626,7 @@ namespace smt {
         // REDUCTION ENCODING
         std::pair<expr*, expr_ref_vector> encoded_results = fec->encode_with_ass();
         expr* encoded_form = encoded_results.first;    
-        expr_ref_vector assumptions = encoded_results.second;
+        expr_ref_vector assertions = encoded_results.second;
         #ifdef SOLVING_INFO
         std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
         debug_formula << mk_ismt2_pp(encoded_form, this->m);
@@ -635,7 +635,7 @@ namespace smt {
         // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
         // expr* encoded_form = this->get_manager().mk_false(); 
         this->get_manager().inc_ref(encoded_form);
-        std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
+        // std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
         #ifdef SOLVING_INFO
         std::cout << "============= encoded formula ========== " << std::endl;
         // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
@@ -648,10 +648,12 @@ namespace smt {
         for(expr* e: numeral_cnstr_assignments) {
             final_solver->assert_expr(e);
         }
-        
+        for(expr* e : assertions) {
+            final_solver->assert_expr(e);
+        }
         final_solver->assert_expr(encoded_form);
-        std::cout << "assumption size: " << assumptions.size() << std::endl;
-        lbool final_result = final_solver->check_sat(assumptions.size(), assumptions.data());
+        std::cout << "assertion size: " << assertions.size() << std::endl;
+        lbool final_result = final_solver->check_sat();
         std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
         if(final_result == l_true) {
             #ifdef SOLVING_INFO
@@ -1914,7 +1916,7 @@ namespace smt {
         #endif
 
         this->ded = alloc(slhv_deducer, th, this);
-        std::cout << "begin deducing" << std::endl;
+        // std::cout << "begin deducing" << std::endl;
         ded->deduce();
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
@@ -3698,33 +3700,33 @@ namespace smt {
         bool has_change = false;
         do
         {
-            std::cout << "deduce loop begin" << std::endl;
+            // std::cout << "deduce loop begin" << std::endl;
             has_change = false;
-            std::cout << "propagate transitive sh" << std::endl;
+            // std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate transitive dj" << std::endl;
+            // std::cout << "propagate transitive dj" << std::endl;
             has_change = has_change || this->propagate_transitive_dj();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate shdj by eq neq" << std::endl;
+            // std::cout << "propagate shdj by eq neq" << std::endl;
             has_change = has_change || this->propagate_shdj_by_eq_neq();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "propagate eq neq" << std::endl;
+            // std::cout << "propagate eq neq" << std::endl;
             has_change = has_change || this->propagate_eq_neq();
             this->check_ldvars_consistency();
             if(this->unsat_found) {
                 return false;
             }
-            std::cout << "deduce loop end" << std::endl;
+            // std::cout << "deduce loop end" << std::endl;
         } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
