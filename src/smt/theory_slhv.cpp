@@ -175,49 +175,87 @@ namespace smt {
         #endif
     }
 
-
-    std::set<expr*> theory_slhv::recover_unsat_core(expr_ref_vector unsat_core){
+    
+    std::set<expr*> theory_slhv::extract_unsat_core_booleans(expr* e) {
         std::set<expr*> result;
-        std::map<expr*, bool> recoved;
-        // make sure all expressions are  recovered
-        for(expr* e : unsat_core) {
-            recoved[e] = false;
+        app* apped_expr = to_app(e);
+        if(apped_expr->get_sort() == this->get_manager().mk_bool_sort() &&
+           apped_expr->get_num_args() == 0 && !this->get_manager().is_false(apped_expr) && !this->get_manager().is_true(apped_expr)) {
+            result.insert(apped_expr);
+        } else {
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                result = slhv_util::setUnion(result, this->extract_unsat_core_booleans(apped_expr->get_arg(i)));
+            }
         }
+        return result;
+    }
+
+    std::set<expr*> theory_slhv::recover_unsat_core(formula_encoder* fec,  expr_ref_vector unsat_core){
+        std::set<expr*> result;
+        std::set<std::pair<int, int>> related_sh_pairs;
+        std::set<std::pair<int, int>> related_dj_pairs;
+
         // recover ld constraints
         for(expr* e : unsat_core) {
-            for(ld_recov_node* ldn : this->ld_recovery) {
-                if(ldn->translated_formula == e) {
-                    result.insert(ldn->original_formula);
-                    recoved[e] = true;
-                    break;
-                }
-            }
-        }
-
-        // set infer graph conflict
-        for(expr* e : unsat_core) {
-            for(shdj_recov_node* shdjn : this->relation_recovery) {
-                if(shdjn->boolean_expr == e) {
-                    if(shdjn->is_dj) {
-                        this->infer_graph->set_dj_unsat_node(shdjn->original_pair);
-                        recoved[e] = true;
-                    } else if(shdjn->is_sh) {
-                        this->infer_graph->set_sh_unsat_node(shdjn->original_pair);
-                        recoved[e] = true;
+            // bool is_ld = false;
+            // for(ld_recov_node* ldn : this->ld_recovery) {
+            //     if(ldn->translated_formula == e) {
+            //         result.insert(ldn->original_formula);
+            //         is_ld = true;
+            //         break;
+            //     }
+            // }
+            // if(is_ld) {continue;}
+            std::set<expr*> boolvars = this->extract_unsat_core_booleans(e);
+            for(expr* boolvar : boolvars) {
+                auto result = fec->get_boolvar_id_type(to_app(boolvar));
+                if(result.first.first != -1) {
+                    if(result.second) {
+                        related_sh_pairs.insert(result.first);
                     } else {
-                        SASSERT(false);
+                        related_dj_pairs.insert(result.first);
                     }
-                    break;
                 }
             }
         }
-        for(auto i : recoved) {
-            if(!i.second) {
-                std::cout << "ERROR: unsat core not recovered: " << mk_ismt2_pp(i.first, this->get_manager()) << std::endl;
+        // set infer graph conflict
+        for(auto p : related_sh_pairs) {
+            if(this->infer_graph->contain_sh_node(p)) {
+                this->infer_graph->set_sh_unsat_node(p);
+            } else {
+                for(auto c2hts : this->constraint2hts) {
+                    for(heap_term* ht : c2hts.second) {
+                        if(fec->get_index2ht()[p.first] == ht || 
+                           fec->get_index2ht()[p.second] == ht ||
+                           fec->get_index2ht()[p.first]->is_subhterm_of(ht) || 
+                           fec->get_index2ht()[p.second]->is_subhterm_of(ht)) {
+                            result.insert(c2hts.first);
+                        }
+                    }
+                }
+            }
+        }
+        for(auto p : related_dj_pairs) {
+            if(this->infer_graph->contain_dj_node(p)) {
+                this->infer_graph->set_dj_unsat_node(p);
+            } else {
+                for(auto c2hts : this->constraint2hts) {
+                    for(heap_term* ht : c2hts.second) {
+                        if(fec->get_index2ht()[p.first] == ht || 
+                           fec->get_index2ht()[p.second] == ht ||
+                           fec->get_index2ht()[p.first]->is_subhterm_of(ht) || 
+                           fec->get_index2ht()[p.second]->is_subhterm_of(ht)) {
+                            result.insert(c2hts.first);
+                        }
+                    }
+                }
             }
         }
         std::set<expr*> inf_graph_unsatcore = this->infer_graph->compute_unsat_core_expressions();
         result = slhv_util::setUnion(result, inf_graph_unsatcore);
+        for(auto ld_recov : this->ld_recovery) {
+            result.insert(ld_recov->original_formula);
+        }
         return result;
     }
 
@@ -586,7 +624,7 @@ namespace smt {
             return false;
         }
         // REDUCTION ENCODING
-        std::pair<expr*, expr_ref_vector> encoded_results = fec->encode();
+        std::pair<expr*, expr_ref_vector> encoded_results = fec->encode_with_ass();
         expr* encoded_form = encoded_results.first;    
         expr_ref_vector assumptions = encoded_results.second;
         #ifdef SOLVING_INFO
@@ -744,13 +782,13 @@ namespace smt {
                 std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
             }
             
-            
             if(final_solver_unsat_core.size() == 0) {
                 this->set_conflict_slhv(this->curr_outside_assignments);
             } else {
                 std::vector<expr*> translated_unsat_core;
-                std::set<expr*> unsat_core_set = this->recover_unsat_core(final_solver_unsat_core);
+                std::set<expr*> unsat_core_set = this->recover_unsat_core(fec, final_solver_unsat_core);
                 for(expr* e : unsat_core_set) {
+                    std::cout << "unsat core: " << mk_ismt2_pp(e, this->m) << std::endl;
                     translated_unsat_core.push_back(e);
                 }
                 this->set_conflict_slhv(translated_unsat_core);
@@ -1242,6 +1280,7 @@ namespace smt {
         std::set<heap_term*> eq_hterms;
         std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
         for(app* eq : this->curr_heap_cnstr) {
+            std::set<heap_term*> eq_hts;
             heap_term* eq_lhs = nullptr;
             heap_term* eq_rhs = nullptr;
 
@@ -1387,6 +1426,10 @@ namespace smt {
             eq_pair_hterms.insert({eq_lhs, eq_rhs});
             // inference graph update
             this->infer_graph->add_ht_eq_pair_node({eq_lhs, eq_rhs}, eq);
+            std::set<heap_term*> curr_eq_constraint_ht;
+            curr_eq_constraint_ht.insert(eq_lhs);
+            curr_eq_constraint_ht.insert(eq_rhs);
+            this->constraint2hts[eq] = curr_eq_constraint_ht;
             #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm end" << std::endl;
             #endif
@@ -1852,6 +1895,8 @@ namespace smt {
 
                     this->djrel_var_map[key_pair] = idj_boolvar;
                     this->shrel_var_map[key_pair] = ish_boolvar;
+                    this->djrel_var2pair[idj_boolvar] = key_pair;
+                    this->shrel_var2pair[ish_boolvar] = key_pair;
                 } 
             }
         }
@@ -1897,6 +1942,18 @@ namespace smt {
 
         std::pair<int, int> key = {first_index, second_index};
         return this->djrel_var_map[key];
+    }
+
+
+    std::pair<std::pair<int, int>, bool> formula_encoder::get_boolvar_id_type(app* boolvar) {
+        if(this->djrel_var2pair.find(boolvar) != this->djrel_var2pair.end()) {
+            return {this->djrel_var2pair[boolvar], false};
+        } else if(this->shrel_var2pair.find(boolvar) != this->shrel_var2pair.end()) {
+            return {this->shrel_var2pair[boolvar], true};
+        } else {
+            std::cout << "ERROR: boolvar not found: " << mk_ismt2_pp(boolvar, this->th->get_manager()) << std::endl;
+            return {{-1, -1}, false};
+        }
     }
     
     app* formula_encoder::locvar2intvar(app* locvar) {
@@ -1978,26 +2035,19 @@ namespace smt {
         }
     }
 
-    std::pair<expr*, std::set<shdj_recov_node*>> formula_encoder::generate_deduced_premises() {
+    expr* formula_encoder::generate_deduced_premises() {
         #ifdef SOLVING_INFO
         std::cout << "generate deduce premises" << std::endl;
         #endif
-        std::set<shdj_recov_node*> heap_assumptions;
         if(this->ded->get_is_unsat()) {
-            return {this->th->get_manager().mk_false(), heap_assumptions};
+            return this->th->get_manager().mk_false();
         }
         expr* result = this->th->get_manager().mk_true();
         for(auto p : this->ded->get_dj_pair_set()) {
             result = this->syntax_maker->mk_and(result, this->djrel_var_map[p]);
-            shdj_recov_node* recov_node = alloc(shdj_recov_node, p, this->djrel_var_map[p], false);
-            this->th->mem_mng->push_recov_node_ptr(recov_node);
-            heap_assumptions.insert(recov_node);
         }
         for(auto p : this->ded->get_sh_pair_set()) {
             result = this->syntax_maker->mk_and(result, this->shrel_var_map[p]);
-            shdj_recov_node* recov_node = alloc(shdj_recov_node, p, this->shrel_var_map[p], true);
-            this->th->mem_mng->push_recov_node_ptr(recov_node);
-            heap_assumptions.insert(recov_node);
         }
         
         for(auto i : this->ded->get_ldvar2eqroot()) {
@@ -2015,31 +2065,78 @@ namespace smt {
                 );
             }
         }
-        return {result, heap_assumptions};
+        return result;
+    }
+
+    std::set<expr*> formula_encoder::generate_deduced_assumptions() {
+        #ifdef SOLVING_INFO
+        std::cout << "generate deduce assumptions" << std::endl;
+        #endif
+        std::set<expr*> result_ass;
+        if(this->ded->get_is_unsat()) {
+            return result_ass;
+        }
+        expr* result = this->th->get_manager().mk_true();
+        for(auto p : this->ded->get_dj_pair_set()) {
+            result_ass.insert(this->djrel_var_map[p]);
+        }
+        for(auto p : this->ded->get_sh_pair_set()) {
+            result_ass.insert(this->shrel_var_map[p]);
+        }
+        
+        for(auto i : this->ded->get_ldvar2eqroot()) {
+            app* translated_first = this->translate_locterm_to_liaterm(i.first);
+            app* translated_second = this->translate_locterm_to_liaterm(i.second);
+            result_ass.insert(this->syntax_maker->mk_eq(translated_first, translated_second));
+        }
+        for(auto i : this->ded->get_ldvar2neqvars()) {
+            app* translated_first = this->translate_locterm_to_liaterm(i.first);
+            for(auto neq_var : i.second) {
+                app* translated_neq_var = this->translate_locterm_to_liaterm(neq_var);
+                result_ass.insert(this->syntax_maker->mk_distinct(translated_first, translated_neq_var));
+            }
+        }
+        return result_ass;
     }
 
     
-        std::pair<expr*, std::set<ld_recov_node*>>  formula_encoder::generate_ld_formula() {
+    expr* formula_encoder::generate_ld_formula() {
         #ifdef SOLVING_INFO
         std::cout << "generate ld formula" << std::endl;
         #endif
-        std::set<ld_recov_node*> recov_nodes;
         expr* result = this->th->get_manager().mk_true();
         for(app* loc_constraint : this->th->curr_loc_cnstr) {
             expr* translated_loc_constraint =  this->translate_locdata_formula(loc_constraint);
             result = this->syntax_maker->mk_and(result, translated_loc_constraint);
+        }
+        for(app* data_constraint : this->th->curr_data_cnstr) {
+            expr* translated_data_constraint = this->translate_locdata_formula(data_constraint);
+            result = this->syntax_maker->mk_and(result, translated_data_constraint);
+        }
+        return result;
+    }
+
+    std::pair<std::set<expr*>, std::set<ld_recov_node*>> formula_encoder::generate_ld_assumptions() {
+        #ifdef SOLVING_INFO
+        std::cout << "generate ld assumptions" << std::endl;
+        #endif
+        std::set<expr*> result_ass;
+        std::set<ld_recov_node*> recov_nodes;
+        for(app* loc_constraint : this->th->curr_loc_cnstr) {
+            expr* translated_loc_constraint =  this->translate_locdata_formula(loc_constraint);
+            result_ass.insert(translated_loc_constraint);
             ld_recov_node* rec_node = alloc(ld_recov_node, loc_constraint, translated_loc_constraint);
             this->th->mem_mng->push_recov_node_ptr(rec_node);
             recov_nodes.insert(rec_node);
         }
         for(app* data_constraint : this->th->curr_data_cnstr) {
             expr* translated_data_constraint = this->translate_locdata_formula(data_constraint);
-            result = this->syntax_maker->mk_and(result, translated_data_constraint);
+            result_ass.insert(translated_data_constraint);
             ld_recov_node* rec_node = alloc(ld_recov_node, data_constraint, translated_data_constraint);
             this->th->mem_mng->push_recov_node_ptr(rec_node);
             recov_nodes.insert(rec_node);
         }
-        return {result, recov_nodes};
+        return {result_ass, recov_nodes};
     }
 
     expr* formula_encoder::generate_init_formula() {
@@ -2091,6 +2188,41 @@ namespace smt {
         expr* result = this->syntax_maker->mk_and(4, expr_vec.data());
 
         return result;
+    }
+
+    std::set<expr*> formula_encoder::generate_init_assumptions() {
+        #ifdef SOLVING_INFO
+        std::cout << "generate init formula" << std::endl;
+        #endif
+        std::set<expr*> result_ass;
+        for(heap_term* uplus_ht : this->hts) {
+            if(uplus_ht->is_uplus_hterm()) {
+                for(auto vec_pair : uplus_ht->get_all_distinct_atomic_pairs()) {
+                    std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);
+                    if(!htp.first->is_emp() && !htp.second->is_emp()) {
+                        result_ass.insert(this->get_djrel_boolvar(htp.first, htp.second));
+                    }
+                }
+            }
+        }
+        
+        for(heap_term* ht : this->hts) {
+            result_ass.insert(this->get_shrel_boolvar(this->emp_ht, ht));
+        }
+
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                if(!(ht1->is_emp() || ht2->is_emp()) && ht1->is_subhterm_of(ht2)) {
+                    result_ass.insert(this->get_shrel_boolvar(ht1, ht2));
+                }
+            }
+        }
+        for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
+            result_ass.insert(this->get_shrel_boolvar(p.first, p.second));
+            result_ass.insert(this->get_shrel_boolvar(p.second, p.first));
+        }
+
+        return result_ass;
     }
 
     expr* formula_encoder::generate_pto_formula() {
@@ -2197,6 +2329,104 @@ namespace smt {
 
         
         return result;
+    }
+
+
+    std::set<expr*> formula_encoder::generate_pto_assumptions() {
+        std::set<expr*> result_ass;
+        #ifdef SOLVING_INFO
+        std::cout << "generate pto formula" << std::endl;
+        #endif
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ptp : this->pt_hts) {
+                int pt_index = this->ht2index_map[pt];
+                int ptp_index = this->ht2index_map[ptp];
+                std::vector<app*> pt_atom = pt->get_atoms();
+                SASSERT(pt_atom.size() == 1);
+                app* pt_addr = to_app(pt_atom[0]->get_arg(0));
+                app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* pt_content = to_app(pt_rcd->get_arg(0));
+                
+                std::vector<app*> ptp_atom = ptp->get_atoms();
+                SASSERT(ptp_atom.size() == 1);
+                app* ptp_addr = to_app(ptp_atom[0]->get_arg(0));
+                app* ptp_rcd = to_app(ptp_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* ptp_content = to_app(ptp_rcd->get_arg(0));
+
+                expr* disj_temp_form = this->syntax_maker->mk_implies(
+                    this->get_djrel_boolvar(pt, ptp),
+                    this->syntax_maker->mk_not(
+                        this->syntax_maker->mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        )
+                    )
+                );
+                expr* content_eq_temp_form = nullptr;
+                // ATTENTION: this is commented since the set of address is a subset of data
+                // if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                    // std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
+                    // std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;
+                    content_eq_temp_form = this->syntax_maker->mk_eq(
+                        this->translate_locterm_to_liaterm(pt_content),
+                        this->translate_locterm_to_liaterm(ptp_content)
+                    );
+
+                // } else {
+                //     content_eq_temp_form = this->th->get_manager().mk_false();
+                // }
+                expr* sh_temp_form = this->syntax_maker->mk_implies(
+                    this->get_shrel_boolvar(pt, ptp),
+                    this->syntax_maker->mk_and(
+                        this->syntax_maker->mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        ),
+                        content_eq_temp_form
+                    )
+                );
+                result_ass.insert(disj_temp_form);
+                result_ass.insert(sh_temp_form);
+
+                for(heap_term* ht : this->hts) {
+                    int ht_index = this->ht2index_map[ht];
+                    // use deduction results
+                    if(this->ded->has_shrel(pt_index, ht_index) && this->ded->has_shrel(ptp_index, ht_index)) {
+                        result_ass.insert(
+                            this->syntax_maker->mk_or(
+                                this->syntax_maker->mk_and(
+                                    this->get_shrel_boolvar(ptp, pt), 
+                                    this->get_shrel_boolvar(pt, ptp)
+                                ),
+                                this->get_djrel_boolvar(pt, ptp)
+                            )
+                        );
+                    }
+                    else {
+                        result_ass.insert(
+                            this->syntax_maker->mk_implies(
+                                this->syntax_maker->mk_and(
+                                    this->get_shrel_boolvar(pt, ht),
+                                    this->get_shrel_boolvar(ptp, ht)
+                                ),
+                                this->syntax_maker->mk_or(
+                                    this->syntax_maker->mk_and(
+                                        this->get_shrel_boolvar(ptp, pt), 
+                                        this->get_shrel_boolvar(pt, ptp)
+                                    ),
+                                    this->get_djrel_boolvar(pt, ptp)
+                                )
+                            )
+                        );
+                    }
+                }
+            }
+        }
+
+        
+        return result_ass;
     }
 
     expr* formula_encoder::generate_iso_formula() {
@@ -2307,6 +2537,80 @@ namespace smt {
         return result;
     }
 
+    std::set<expr*> formula_encoder::generate_iso_assumptions() {
+        #ifdef SOLVING_INFO
+        std::cout << "generate iso formula" << std::endl;
+        #endif
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        expr* third_conj = this->th->get_manager().mk_true();
+
+        std::set<expr*> result_ass;
+
+        for(heap_term* pt : this->pt_hts) {
+            for(heap_term* ht : this->hts) {
+                if(ht != this->emp_ht) {
+                    int pt_index = this->ht2index_map[pt];
+                    int ht_index = this->ht2index_map[ht];
+                    // use deduction information
+                    bool atom_selected = false;
+                    for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                        int a_index = this->ht2index_map[a];
+                        if(this->ded->has_shrel(pt_index, a_index)) {
+                            atom_selected = true;
+                            break;
+                        }
+                    }
+                    if(atom_selected) {
+                        continue;
+                    }
+                    // use deduction information
+                    if(this->ded->has_shrel(pt_index, ht_index)) {
+                        expr* atom_belonging_disj = this->th->get_manager().mk_false();
+                        for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                            atom_belonging_disj = this->syntax_maker->mk_or(atom_belonging_disj, this->get_shrel_boolvar(pt, a));
+                        }
+                        result_ass.insert(
+                            atom_belonging_disj
+                        );
+                    } else {
+                        expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
+                        expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
+                        for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                            first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, a));
+                        }
+                        result_ass.insert(
+                            this->syntax_maker->mk_implies(first_conj_ipl_lhs, first_conj_ipl_rhs)
+                        );
+                    }
+                }
+            }
+        }
+
+        for(heap_term* ht1 : this->pt_hts) {
+            for(heap_term* ht2 : this->hts) {
+                for(heap_term* ht3 : this->hts) {
+                    int ht1_index = this->ht2index_map[ht1];
+                    int ht3_index = this->ht2index_map[ht3];
+                    // use deduction
+                    if(this->ded->has_shrel(ht1_index, ht3_index)) {
+                        continue;
+                    }
+                    expr* second_conj_ipl_lhs = this->syntax_maker->mk_and(
+                        this->get_shrel_boolvar(ht1, ht2),
+                        this->get_shrel_boolvar(ht2, ht3)
+                    );
+                    expr* second_conj_ipl_rhs =  this->get_shrel_boolvar(ht1, ht3);
+                    result_ass.insert(
+                        this->syntax_maker->mk_implies(second_conj_ipl_lhs, second_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        return result_ass;
+    }
+
     expr* formula_encoder::generate_idj_formula() {
 
         #ifdef SOLVING_INFO
@@ -2345,6 +2649,43 @@ namespace smt {
         return result;
     }
 
+    std::set<expr*> formula_encoder::generate_idj_assumptions() {
+
+        #ifdef SOLVING_INFO
+        std::cout << "generate idj formula" << std::endl;
+        #endif
+        std::set<expr*> result_ass;
+        for(heap_term* ht1 : this->pt_hts) {
+            if(ht1 == this->emp_ht) {continue;}
+            for(heap_term* ht2 : this->pt_hts) {
+                if(ht2 == this->emp_ht) {continue;}
+                int ht1_index = this->ht2index_map[ht1];
+                int ht2_index = this->ht2index_map[ht2];
+                // use deduction
+                if(this->ded->has_djrel(ht1_index, ht2_index)) {
+                    continue;
+                }
+                for(heap_term* ht3 : this->atom_hts) {
+                    if(ht3 == this->emp_ht) {continue;}
+                    for(heap_term* ht4 : this->atom_hts) {
+                        if(ht4 == this->emp_ht) {continue;}
+                        expr* impl_lhs = this->syntax_maker->mk_and(
+                            this->get_shrel_boolvar(ht1, ht3),
+                            this->get_shrel_boolvar(ht2, ht4),
+                            this->get_djrel_boolvar(ht3, ht4)
+                        );
+                        expr* impl_rhs = this->get_djrel_boolvar(ht1, ht2);
+                        result_ass.insert(
+                            this->syntax_maker->mk_implies(impl_lhs, impl_rhs)
+                        );
+                    }
+                }
+            }
+        }
+
+        return result_ass;
+    }
+
     expr* formula_encoder::generate_final_formula() {
 
 
@@ -2361,6 +2702,16 @@ namespace smt {
         }
 
         return result;
+    }
+
+    std::set<expr*> formula_encoder::generate_final_assumptions() {
+        std::set<expr*> result_ass;
+        for(heap_term* pt : this->pt_hts) {
+            result_ass.insert(
+                this->syntax_maker->mk_not(this->get_shrel_boolvar(pt, this->emp_ht))
+            );
+        }
+        return result_ass;
     }
 
     expr* formula_encoder::generate_loc_var_constraints() {
@@ -2401,24 +2752,15 @@ namespace smt {
         expr_ref_vector assumptions(this->th->get_manager());
         expr_ref_vector all_conj(this->th->get_manager());
 
-        std::pair<expr*, std::set<shdj_recov_node*>> deduced_result = this->generate_deduced_premises();        
-        // all_conj.push_back(deduced_result.first);
-        std::pair<expr*, std::set<ld_recov_node*>> ld_result = this->generate_ld_formula();
-        std::set<shdj_recov_node*> rel_assumptions = deduced_result.second;
-        std::set<ld_recov_node*> ld_assumptions = ld_result.second;
-        for(shdj_recov_node* n : rel_assumptions) {
-            assumptions.push_back(n->boolean_expr);
-        }
-        for(ld_recov_node* n : ld_assumptions) {
-            assumptions.push_back(n->translated_formula);
-        }
-        this->th->relation_recovery = deduced_result.second;
-        this->th->ld_recovery = ld_result.second;
-        // all_conj.push_back(ld_result.first);
+        expr* deduced_result = this->generate_deduced_premises();        
+        all_conj.push_back(deduced_result);
+        expr* ld_result = this->generate_ld_formula();
+        all_conj.push_back(ld_result);
         // all_conj.push_back(this->generate_init_formula());
         all_conj.push_back(this->generate_pto_formula());
         all_conj.push_back(this->generate_iso_formula());
         all_conj.push_back(this->generate_idj_formula());
+
         all_conj.push_back(this->generate_final_formula());
         all_conj.push_back(this->generate_loc_var_constraints());
         expr* result = this->syntax_maker->mk_and(
@@ -2430,6 +2772,26 @@ namespace smt {
         std::cout << "==== end encode" << std::endl;
         #endif
         return {result, assumptions};
+    }
+
+
+    std::pair<expr*, expr_ref_vector> formula_encoder::encode_with_ass() {
+        expr_ref_vector v(this->th->get_manager());
+        std::set<expr*> asses;
+        expr* formula = this->th->get_manager().mk_true();
+        asses = slhv_util::setUnion(asses, this->generate_deduced_assumptions());
+        auto ld_assumptions = this->generate_ld_assumptions();
+        this->th->ld_recovery = ld_assumptions.second;
+        asses = slhv_util::setUnion(asses, ld_assumptions.first);
+        asses = slhv_util::setUnion(asses, this->generate_pto_assumptions());
+        asses = slhv_util::setUnion(asses, this->generate_iso_assumptions());
+        asses = slhv_util::setUnion(asses, this->generate_idj_assumptions());
+        asses = slhv_util::setUnion(asses, this->generate_final_assumptions());
+        for(expr* e : asses) {
+            v.push_back(e);
+        }
+        formula = this->syntax_maker->mk_and(formula, this->generate_loc_var_constraints());
+        return {formula, v};
     }
 
 
@@ -2455,28 +2817,79 @@ namespace smt {
 
     // deducer
 
+    bool slhv_deducer::insert_sh_pair(std::pair<int, int> sh_pair, std::set<std::pair<int, int>>& nxt_sh_pair_set, std::map<int, std::set<std::pair<int, int>>>& nxt_sh_1nd_elem_map, std::map<int, std::set<std::pair<int, int>>>& nxt_sh_2nd_elem_map) {
+
+        bool result = nxt_sh_pair_set.insert(sh_pair).second;
+        if(result) {
+            if(nxt_sh_1nd_elem_map.find(sh_pair.first) != nxt_sh_1nd_elem_map.end()) {
+                nxt_sh_1nd_elem_map[sh_pair.first].insert(sh_pair);
+            } else {
+                std::set<std::pair<int, int>> new_pair_set;
+                new_pair_set.insert(sh_pair);
+                nxt_sh_1nd_elem_map[sh_pair.first] = new_pair_set;
+            }
+            if(nxt_sh_2nd_elem_map.find(sh_pair.second) != nxt_sh_2nd_elem_map.end()) {
+                nxt_sh_2nd_elem_map[sh_pair.second].insert(sh_pair);
+            } else {
+                std::set<std::pair<int, int>> new_pair_set;
+                new_pair_set.insert(sh_pair);
+                nxt_sh_2nd_elem_map[sh_pair.second] = new_pair_set;
+            }
+        }
+        return result;
+    }
+
+    bool slhv_deducer::insert_dj_pair(std::pair<int, int> dj_pair, std::set<std::pair<int, int>>& nxt_dj_pair_set, std::map<int, std::set<std::pair<int, int>>>& nxt_dj_1nd_elem_map, std::map<int, std::set<std::pair<int, int>>>& nxt_dj_2nd_elem_map) {
+        bool result = nxt_dj_pair_set.insert(dj_pair).second;
+        if(result) {
+            if(nxt_dj_1nd_elem_map.find(dj_pair.first) != nxt_dj_1nd_elem_map.end()) {
+                nxt_dj_1nd_elem_map[dj_pair.first].insert(dj_pair);
+            } else {
+                std::set<std::pair<int, int>> new_pair_set;
+                new_pair_set.insert(dj_pair);
+                nxt_dj_1nd_elem_map[dj_pair.first] = new_pair_set;
+            }
+            if(nxt_dj_2nd_elem_map.find(dj_pair.second) != nxt_dj_2nd_elem_map.end()) {
+                nxt_dj_2nd_elem_map[dj_pair.second].insert(dj_pair);
+            } else {
+                std::set<std::pair<int, int>> new_pair_set;
+                new_pair_set.insert(dj_pair);
+                nxt_dj_2nd_elem_map[dj_pair.second] = new_pair_set;
+            }
+        }
+        return result;
+    }
+
+    bool slhv_deducer::insert_sh_pair(std::pair<int, int> sh_pair) {
+        return this->insert_sh_pair(sh_pair, this->shpair_set, this->sh_pair_1st_elem_map, this->sh_pair_2nd_elem_map);
+    }
+
+    bool slhv_deducer::insert_dj_pair(std::pair<int, int> dj_pair) {
+        return this->insert_dj_pair(dj_pair, this->djpair_set, this->dj_pair_1st_elem_map, this->dj_pair_2nd_elem_map);
+    }
+
     void slhv_deducer::initialize_shdj() {
         // RULE P2 and P3
         SASSERT(fec != nullptr);
         std::set<heap_term*> all_hterms = this->fec->get_all_hterms();
         std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
         for(auto p : all_eq_pairs) {
-            this->shpair_set.insert({this->ht2index[p.first], this->ht2index[p.second]});
-            this->shpair_set.insert({this->ht2index[p.second], this->ht2index[p.first]});
+            this->insert_sh_pair({this->ht2index[p.first], this->ht2index[p.second]});
+            this->insert_sh_pair({this->ht2index[p.second], this->ht2index[p.first]});
             // inference graph update
             this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.first], this->ht2index[p.second]}, p);
             this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.second], this->ht2index[p.first]}, p);
         }
         heap_term* emp_ht = this->fec->get_emp_ht();
         for(heap_term* ht : all_hterms) {
-            this->shpair_set.insert({this->ht2index[emp_ht], this->ht2index[ht]});
+            this->insert_sh_pair({this->ht2index[emp_ht], this->ht2index[ht]});
             // inference graph update
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
         for(heap_term* ht1 : all_hterms) {
             for(heap_term* ht2 : all_hterms) {
                 if(ht1->is_subhterm_of(ht2)) {
-                    this->shpair_set.insert({this->ht2index[ht1], this->ht2index[ht2]});
+                    this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
                     if(!(ht2->is_atom_hvar() || ht2->is_atom_pt() || ht2->is_emp())) {
                         this->th->infer_graph->add_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]}, ht2);
@@ -2491,9 +2904,9 @@ namespace smt {
                 auto pset = ht->get_all_distinct_atomic_pairs();
                 for(auto pair : pset) {
                     auto ht_pair = this->fec->get_ht_pair_by_vec_pair(pair);
-                    if(!ht_pair.first->is_emp() && !ht_pair.second->is_emp()) {   
-                        this->djpair_set.insert({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
-                        this->djpair_set.insert({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
+                    if(!ht_pair.first->is_emp() && !ht_pair.second->is_emp()) { 
+                        this->insert_dj_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
+                        this->insert_dj_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
                         // inference graph update
                         this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]}, ht);
                         this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]}, ht);
@@ -2812,10 +3225,17 @@ namespace smt {
         bool new_sh_dj_found = false;
         std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
         std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
+        std::map<int, std::set<std::pair<int, int>>> nxt_sh_1st_elem_map = this->sh_pair_1st_elem_map;
+        std::map<int, std::set<std::pair<int, int>>> nxt_sh_2nd_elem_map = this->sh_pair_2nd_elem_map;
+        std::map<int, std::set<std::pair<int, int>>> nxt_dj_1st_elem_map = this->dj_pair_1st_elem_map;
+        std::map<int, std::set<std::pair<int, int>>> nxt_dj_2nd_elem_map = this->dj_pair_2nd_elem_map;
+
         for(auto sh_p1 : this->shpair_set) {
-            for(auto sh_p2 : this->shpair_set) {
-                if(sh_p1 != sh_p2 && sh_p1.second == sh_p2.second && 
-                   this->is_pt(sh_p1.first) && this->is_pt(sh_p2.first) ) {
+            if(this->sh_pair_2nd_elem_map.find(sh_p1.second) == this->sh_pair_2nd_elem_map.end() || !this->is_pt(sh_p1.first)) {
+                continue;
+            }
+            for(auto sh_p2 : this->sh_pair_2nd_elem_map[sh_p1.second]) {
+                if(sh_p1 != sh_p2 && this->is_pt(sh_p2.first)) {
                     heap_term* pt1 = this->index2ht[sh_p1.first];
                     heap_term* pt2 = this->index2ht[sh_p2.first];
                     SASSERT(pt1->is_atom_pt() && pt2->is_atom_pt());
@@ -2844,8 +3264,10 @@ namespace smt {
                             std::cout << "5new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                             std::cout << "6new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                             #endif
-                            nxt_djpair_set.insert(new_dj_pair);
-                            nxt_djpair_set.insert(mirror_pair);
+                            // nxt_djpair_set.insert(new_dj_pair);
+                            // nxt_djpair_set.insert(mirror_pair);
+                            this->insert_dj_pair(new_dj_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+                            this->insert_dj_pair(mirror_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
                             // inference graph update
                             this->th->infer_graph->add_disj_rel_pair_locdata_neqclass(new_dj_pair, sh_p1, sh_p2);
                             this->th->infer_graph->add_disj_rel_pair_locdata_neqclass(mirror_pair, sh_p1, sh_p2);
@@ -2862,15 +3284,17 @@ namespace smt {
                             SASSERT(this->djpair_set.find(mirror_pair) != this->djpair_set.end());
                             // pair exists, do nothing
                         } else {
-                            std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
-                            std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
+                            // std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
+                            // std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                             new_sh_dj_found = true;
                             #ifdef DED_INFO
                             std::cout << "1new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
                             std::cout << "2new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
                             #endif
-                            nxt_djpair_set.insert(new_dj_pair);
-                            nxt_djpair_set.insert(mirror_pair);
+                            // nxt_djpair_set.insert(new_dj_pair);
+                            // nxt_djpair_set.insert(mirror_pair);
+                            this->insert_dj_pair(new_dj_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+                            this->insert_dj_pair(mirror_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
                             // inference graph update
                             this->th->infer_graph->add_disj_rel_pair_locdata_neqclass(new_dj_pair, sh_p1, sh_p2);
                             this->th->infer_graph->add_disj_rel_pair_locdata_neqclass(mirror_pair, sh_p1, sh_p2);
@@ -2886,7 +3310,9 @@ namespace smt {
                             #ifdef DED_INFO
                             std::cout << "new sh pair: " << new_sh_pair1.first << " << " << new_sh_pair1.second << std::endl;
                             #endif
-                            nxt_shpair_set.insert(new_sh_pair1);
+                            // nxt_shpair_set.insert(new_sh_pair1);
+                            this->insert_sh_pair(new_sh_pair1, nxt_shpair_set, nxt_sh_1st_elem_map, nxt_sh_2nd_elem_map);
+
                             // inference graph update
                             this->th->infer_graph->add_sh_rel_pair_locdata_eqclass(new_sh_pair1, sh_p1, sh_p2);
                         }
@@ -2899,7 +3325,8 @@ namespace smt {
                             #ifdef DED_INFO
                             std::cout << "new sh pair: " << new_sh_pair2.first << " << " << new_sh_pair2.second << std::endl;
                             #endif
-                            nxt_shpair_set.insert(new_sh_pair2);
+                            // nxt_shpair_set.insert(new_sh_pair2);
+                            this->insert_sh_pair(new_sh_pair2, nxt_shpair_set, nxt_sh_1st_elem_map, nxt_sh_2nd_elem_map);
                             // inference graph update
                             this->th->infer_graph->add_sh_rel_pair_locdata_eqclass(new_sh_pair2, sh_p1, sh_p2);
                         }
@@ -2911,6 +3338,10 @@ namespace smt {
         } 
         this->shpair_set = nxt_shpair_set;
         this->djpair_set = nxt_djpair_set;
+        this->sh_pair_1st_elem_map = nxt_sh_1st_elem_map;
+        this->sh_pair_2nd_elem_map = nxt_sh_2nd_elem_map;
+        this->dj_pair_1st_elem_map = nxt_dj_1st_elem_map;
+        this->dj_pair_2nd_elem_map = nxt_dj_2nd_elem_map;
         return new_sh_dj_found;
     }
 
@@ -2918,60 +3349,104 @@ namespace smt {
 
         bool new_sh_found = false;
         std::set<std::pair<int, int>> nxt_shpair_set = this->shpair_set;
+        std::map<int, std::set<std::pair<int, int>>> nxt_sh_1st_elem_map = this->sh_pair_1st_elem_map;
+        std::map<int, std::set<std::pair<int, int>>> nxt_sh_2nd_elem_map = this->sh_pair_2nd_elem_map;
         for(auto sh_pair1 : this->shpair_set) {
-            for(auto sh_pair2 : this->shpair_set) {
-                if(sh_pair1.second == sh_pair2.first) {
-                    if(this->shpair_set.find({sh_pair1.first, sh_pair2.second}) != this->shpair_set.end()) {
-                        // do nothing
-                    } else {
-                        std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
-                        new_sh_found = true;
-                        #ifdef DED_INFO
-                        std::cout << "new sh pair: " << new_pair.first << " << " << new_pair.second << std::endl;
-                        #endif
-                        nxt_shpair_set.insert(new_pair);
-                        // inference graph update
-                        this->th->infer_graph->add_sh_rel_pair(new_pair, sh_pair1, sh_pair2);
-                    }
+            if(this->sh_pair_1st_elem_map.find(sh_pair1.second) == this->sh_pair_1st_elem_map.end()) {
+                continue;
+            }
+            for(auto sh_pair2 : this->sh_pair_1st_elem_map[sh_pair1.second]) {
+                if(this->shpair_set.find({sh_pair1.first, sh_pair2.second}) != this->shpair_set.end()) {
+                    // do nothing
+                } else {
+                    std::pair<int, int> new_pair = {sh_pair1.first, sh_pair2.second};
+                    new_sh_found = true;
+                    #ifdef DED_INFO
+                    std::cout << "new sh pair: " << new_pair.first << " << " << new_pair.second << std::endl;
+                    #endif
+                    // nxt_shpair_set.insert(new_pair);
+                    this->insert_sh_pair(new_pair, nxt_shpair_set, nxt_sh_1st_elem_map, nxt_sh_2nd_elem_map);
+                    // inference graph update
+                    this->th->infer_graph->add_sh_rel_pair(new_pair, sh_pair1, sh_pair2);
                 }
             }
         }
 
         this->shpair_set = nxt_shpair_set;
+        this->sh_pair_1st_elem_map = nxt_sh_1st_elem_map;
+        this->sh_pair_2nd_elem_map = nxt_sh_2nd_elem_map;
         return new_sh_found; 
     }
 
     bool slhv_deducer::propagate_transitive_dj() {
         bool new_dj_found = false;
-        for(auto sh_pair13 : this->shpair_set) {
-            for(auto sh_pair24 : this->shpair_set) {
-                std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
-                if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
-                    if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end() ||
-                    this->is_emp(sh_pair13.first) || 
-                    this->is_emp(sh_pair24.first)) {
-                        // do nothing
-                    } else {
-                        std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
-                        std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
-                        new_dj_found = true;
-                        // std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
-                        // std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
-                        #ifdef DED_INFO
-                        std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
-                        std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
-                        #endif
-                        nxt_djpair_set.insert(new_dj_pair);
-                        nxt_djpair_set.insert(mirror_pair);
-                        // inference graph update
-                        this->th->infer_graph->add_disj_rel_pair(new_dj_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
-                        this->th->infer_graph->add_disj_rel_pair(mirror_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+        std::set<std::pair<int, int>> nxt_djpair_set = this->djpair_set;
+        std::map<int, std::set<std::pair<int, int>>> nxt_dj_1st_elem_map = this->dj_pair_1st_elem_map;
+        std::map<int, std::set<std::pair<int, int>>> nxt_dj_2nd_elem_map = this->dj_pair_2nd_elem_map;
+        for(auto larger_dj_p : this->djpair_set) {
+            if(this->sh_pair_2nd_elem_map.find(larger_dj_p.first) != this->sh_pair_2nd_elem_map.end() && 
+               this->sh_pair_2nd_elem_map.find(larger_dj_p.second) != this->sh_pair_2nd_elem_map.end()) {
+                for(auto sh_pair13 : this->sh_pair_2nd_elem_map[larger_dj_p.first]) {
+                    if(this->is_emp(sh_pair13.first)) {
+                        continue;
+                    }
+                    for(auto sh_pair24 : this->sh_pair_2nd_elem_map[larger_dj_p.second]) {
+                        if(this->is_emp(sh_pair24.first) || this->has_dj_pair({sh_pair13.first, sh_pair24.first})) {
+                            continue;
+                            // do nothing
+                        } else {
+                            std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
+                            std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
+                            new_dj_found = true;
+                            // std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                            // std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                            #ifdef DED_INFO
+                            std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+                            std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+                            #endif
+                            // nxt_djpair_set.insert(new_dj_pair);
+                            // nxt_djpair_set.insert(mirror_pair);
+                            this->insert_dj_pair(new_dj_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+                            this->insert_dj_pair(mirror_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+                            // inference graph update
+                            this->th->infer_graph->add_disj_rel_pair(new_dj_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+                            this->th->infer_graph->add_disj_rel_pair(mirror_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+                        }
                     }
                 }
-
-                this->djpair_set = nxt_djpair_set;
             }
         }
+        // for(auto sh_pair13 : this->shpair_set) {
+        //     for(auto sh_pair24 : this->shpair_set) {
+        //         if(this->djpair_set.find({sh_pair13.second, sh_pair24.second}) != this->djpair_set.end()) {
+        //             if(this->djpair_set.find({sh_pair13.first, sh_pair24.first}) != this->djpair_set.end() ||
+        //             this->is_emp(sh_pair13.first) || 
+        //             this->is_emp(sh_pair24.first)) {
+        //                 // do nothing
+        //             } else {
+        //                 std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
+        //                 std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
+        //                 new_dj_found = true;
+        //                 // std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+        //                 // std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+        //                 #ifdef DED_INFO
+        //                 std::cout << "3new dj pair: " << new_dj_pair.first << " # " << new_dj_pair.second << std::endl;
+        //                 std::cout << "4new dj pair: " << mirror_pair.first << " # " << mirror_pair.second << std::endl;
+        //                 #endif
+        //                 // nxt_djpair_set.insert(new_dj_pair);
+        //                 // nxt_djpair_set.insert(mirror_pair);
+        //                 this->insert_dj_pair(new_dj_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+        //                 this->insert_dj_pair(mirror_pair, nxt_djpair_set, nxt_dj_1st_elem_map, nxt_dj_2nd_elem_map);
+        //                 // inference graph update
+        //                 this->th->infer_graph->add_disj_rel_pair(new_dj_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+        //                 this->th->infer_graph->add_disj_rel_pair(mirror_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+        //             }
+        //         }
+        //     }
+        // }
+        this->djpair_set = nxt_djpair_set;
+        this->dj_pair_1st_elem_map = nxt_dj_1st_elem_map;
+        this->dj_pair_2nd_elem_map = nxt_dj_2nd_elem_map;
         return new_dj_found;
     }
 
@@ -3120,6 +3595,31 @@ namespace smt {
         return false;
     }
 
+
+    bool slhv_deducer::has_dj_pair(std::pair<int, int> dj_p) {
+        if(this->dj_pair_1st_elem_map.find(dj_p.first) == this->dj_pair_1st_elem_map.end()) {
+            return false;
+        } else {
+            if(this->dj_pair_1st_elem_map[dj_p.first].find(dj_p) != this->dj_pair_1st_elem_map[dj_p.first].end()) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
+    bool slhv_deducer::has_sh_pair(std::pair<int, int> sh_p) {
+        if(this->sh_pair_1st_elem_map.find(sh_p.first) == this->sh_pair_1st_elem_map.end()) {
+            return false;
+        } else {
+            if(this->sh_pair_1st_elem_map[sh_p.first].find(sh_p) != this->sh_pair_1st_elem_map[sh_p.first].end()) {
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
+
     void slhv_deducer::check_ldvars_consistency() {
         SASSERT(!this->unsat_found);
         for(auto item : this->ldvar2neqvars) {
@@ -3198,33 +3698,33 @@ namespace smt {
         bool has_change = false;
         do
         {
-            // std::cout << "deduce loop begin" << std::endl;
+            std::cout << "deduce loop begin" << std::endl;
             has_change = false;
-            // std::cout << "propagate transitive sh" << std::endl;
+            std::cout << "propagate transitive sh" << std::endl;
             has_change = has_change || this->propagate_transitive_sh();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            // std::cout << "propagate transitive dj" << std::endl;
+            std::cout << "propagate transitive dj" << std::endl;
             has_change = has_change || this->propagate_transitive_dj();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            // std::cout << "propagate shdj by eq neq" << std::endl;
+            std::cout << "propagate shdj by eq neq" << std::endl;
             has_change = has_change || this->propagate_shdj_by_eq_neq();
             this->check_sh_of_emp();
             if(this->unsat_found) {
                 return false;
             }
-            // std::cout << "propagate eq neq" << std::endl;
+            std::cout << "propagate eq neq" << std::endl;
             has_change = has_change || this->propagate_eq_neq();
             this->check_ldvars_consistency();
             if(this->unsat_found) {
                 return false;
             }
-            // std::cout << "deduce loop end" << std::endl;
+            std::cout << "deduce loop end" << std::endl;
         } while (has_change && !this->unsat_found);
         if(this->unsat_found) {
             return false;
@@ -3394,6 +3894,26 @@ namespace smt {
         }
         std::cout << "ERROR: com ht node not found" << std::endl;
         return nullptr;
+    }
+
+
+    bool inference_graph::contain_dj_node(std::pair<int, int> dj_p){
+        for(inf_node* n : this->disj_rel_nodes) {
+            if(n->get_dj_pair() == dj_p) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool inference_graph::contain_sh_node(std::pair<int, int> sh_p){
+        
+        for(inf_node* n : this->sh_rel_nodes) {
+            if(n->get_sh_pair() == sh_p) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
