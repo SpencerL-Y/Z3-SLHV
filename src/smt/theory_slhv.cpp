@@ -3515,7 +3515,7 @@ namespace smt {
             }
         } else {
             // std::cout << "add eq var error: different sort OR not vars" << std::endl;
-            std::cout << mk_ismt2_pp(v1, this->th->get_manager()) << " " << mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
+            // std::cout << mk_ismt2_pp(v1, this->th->get_manager()) << " " << mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
             SASSERT(false);
             return false;
         }
