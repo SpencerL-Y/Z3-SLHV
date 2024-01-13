@@ -17,7 +17,7 @@
 // #define SLHV_PRINT
 // #define DED_INFO
 // #define MODEL_GEN_INFO
-#define SLHV_UNSAT_CORE_DEBUG
+// #define SLHV_UNSAT_CORE_DEBUG
 
 // minimal for debug
 // #define SOLVING_INFO
