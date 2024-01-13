@@ -775,24 +775,24 @@ namespace smt {
         } else if(final_result == l_false) { 
             std::cout << " translated UNSAT " << std::endl;
             SASSERT(final_solver->get_manager() == this->get_manager());
-            expr_ref_vector final_solver_unsat_core(this->get_manager());
-            final_solver->get_unsat_core(final_solver_unsat_core);
-            std::cout << "Final solver unsat core: " << std::endl;
-            for(expr* e : final_solver_unsat_core) {
-                std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-            }
+            // expr_ref_vector final_solver_unsat_core(this->get_manager());
+            // final_solver->get_unsat_core(final_solver_unsat_core);
+            // std::cout << "Final solver unsat core: " << std::endl;
+            // for(expr* e : final_solver_unsat_core) {
+            //     std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+            // }
             
-            if(final_solver_unsat_core.size() == 0) {
+            // if(final_solver_unsat_core.size() == 0) {
                 this->set_conflict_slhv(this->curr_outside_assignments);
-            } else {
-                std::vector<expr*> translated_unsat_core;
-                std::set<expr*> unsat_core_set = this->recover_unsat_core(fec, final_solver_unsat_core);
-                for(expr* e : unsat_core_set) {
-                    std::cout << "unsat core: " << mk_ismt2_pp(e, this->m) << std::endl;
-                    translated_unsat_core.push_back(e);
-                }
-                this->set_conflict_slhv(translated_unsat_core);
-            }
+            // } else {
+            //     std::vector<expr*> translated_unsat_core;
+            //     std::set<expr*> unsat_core_set = this->recover_unsat_core(fec, final_solver_unsat_core);
+            //     for(expr* e : unsat_core_set) {
+            //         std::cout << "unsat core: " << mk_ismt2_pp(e, this->m) << std::endl;
+            //         translated_unsat_core.push_back(e);
+            //     }
+            //     this->set_conflict_slhv(translated_unsat_core);
+            // }
         } else {    
             std::cout << " translated UNKNOWN " << std::endl;
             SASSERT(false);
