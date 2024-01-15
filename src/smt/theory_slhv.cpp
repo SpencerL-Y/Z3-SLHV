@@ -440,6 +440,11 @@ namespace smt {
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+        ptr_vector<expr> asses;
+        ctx.get_assertions(asses);
+        for(expr* e : asses) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
 
         // inference graph intiailization
         std::set<expr*> initial_assignments;
