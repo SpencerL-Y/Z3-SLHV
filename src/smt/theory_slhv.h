@@ -22,6 +22,9 @@
 // minimal for debug
 // #define SOLVING_INFO
 
+// for new encoding 
+#define DISJ_DEBUG
+
 // frontend macro
 
 namespace smt
@@ -64,6 +67,8 @@ namespace smt
 
 
         slhv_syntax_maker* syntax_maker;
+
+        std::vector<expr*> outside_assertions;
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
@@ -216,6 +221,10 @@ namespace smt
         // checking logic
 
         std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
+
+        std::set<heap_term*> extract_all_hterms_disj();
+        std::set<heap_term*> extract_all_hterms_for_assertion(expr* ass);
+        std::set<heap_term*> extract_all_hterms_for_hteq(app* eq);
 
         void print_all_hterms(std::ostream& os);
 
