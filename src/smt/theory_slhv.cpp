@@ -317,12 +317,16 @@ namespace smt {
         }
 
         #endif
-        ctx.set_conflict(
-            ctx.mk_justification(
-            ext_theory_conflict_justification(
-                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
-            ))
-        );
+        if(this->infer_graph->unsat_core.size() > 0) {
+            ctx.set_conflict(
+                ctx.mk_justification(
+                ext_theory_conflict_justification(
+                    get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+                ))
+            );
+        } else {
+            this->set_conflict_slhv();
+        }
     }
 
 
@@ -436,6 +440,11 @@ namespace smt {
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
+        ptr_vector<expr> asses;
+        ctx.get_assertions(asses);
+        for(expr* e : asses) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
 
         // inference graph intiailization
         std::set<expr*> initial_assignments;
@@ -3510,8 +3519,8 @@ namespace smt {
                 this->ldvar2eqroot[arg2] = new_root;
             }
         } else {
-            std::cout << "add eq var error: different sort OR not vars" << std::endl;
-            std::cout << mk_ismt2_pp(v1, this->th->get_manager()) << " " << mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
+            // std::cout << "add eq var error: different sort OR not vars" << std::endl;
+            // std::cout << mk_ismt2_pp(v1, this->th->get_manager()) << " " << mk_ismt2_pp(v2, this->th->get_manager()) << std::endl;
             SASSERT(false);
             return false;
         }
