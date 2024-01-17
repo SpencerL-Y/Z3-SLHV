@@ -332,6 +332,10 @@ namespace smt
         void set_conflict_slhv(inference_graph* inf_graph);
 
 
+        void set_conflict_slhv_empty();
+
+
+
         literal_vector compute_current_unsat_core(std::vector<expr*> outside_unsat_core);
 
         literal_vector compute_unsat_core_by_inference_graph(inference_graph* inf_graph);
@@ -673,12 +677,12 @@ namespace smt
         slhv_syntax_maker* syntax_maker;
 
         void construct_ht2root_from_deducer();
-        
+        void construct_ht2root_from_nothing();
+
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
         expr* translate_locdata_formula(expr* formula);
         app* translate_locterm_to_liaterm(app* locterm);
-
         public:
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
@@ -713,9 +717,32 @@ namespace smt
         // hard encoded formula
         expr* generate_loc_var_constraints();
 
+        // for disj
+        std::set<expr*> generate_init_ld_locvar_constraint_for_all_assertions();
+
+        std::set<expr*> generate_pto_assumptions_disj();
+        std::set<expr*> generate_iso_assumptions_disj();
+        std::set<expr*> generate_idj_assumptions_disj();
+        std::set<expr*> generate_final_assumptions_disj();
+
+        // disj auxillary formulas
+        expr* generate_init_ld_locvar_constraint_recursive(app* assertion);
+        expr* generate_init_ld_locvar_constraint_for_generate_ap(app* ap);
+        expr* generate_init_ld_locvar_constraint_for_hteq(app* heq);
+        heap_term* find_heap_term_for_ht_disj(app* orig_ht);
+
+        std::set<app*> collect_locvars_recursive(app* term);
+        std::set<app*> collect_hteq_all_pts(app* hteq);
+
+
+        expr* generate_nil_constraint();
+
+        // ========== encoding interfaces ============
         std::pair<expr*, expr_ref_vector> encode();
 
         std::pair<expr*, expr_ref_vector> encode_with_ass();
+
+        std::set<expr*> encode_for_disj();
 
 
 
@@ -1202,9 +1229,11 @@ namespace smt
         int curr_locvar_id;
         int curr_hvar_id;
         int curr_datavar_id;
+        int curr_boolvar_id;
         std::map<int, app*> locvar_map;
         std::map<int, app*> hvar_map;
         std::map<int, app*> datavar_map;
+        std::map<int, app*> boolvar_map;
         slhv_decl_plugin* fe_plug;
     public:
         slhv_fresh_var_maker(theory_slhv* t);
@@ -1212,6 +1241,7 @@ namespace smt
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
         app* mk_fresh_datavar();
+        app* mk_fresh_boolvar();
 
         void reset();
     };
@@ -1230,6 +1260,7 @@ namespace smt
         slhv_syntax_maker(theory_slhv* t, memsafe_wrapper* msw);
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
+        app* mk_fresh_boolvar();
         // operation maker
         app* mk_and(expr* lhs, expr* rhs);
         app* mk_implies(expr* lhs, expr* rhs);
