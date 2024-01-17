@@ -73,6 +73,7 @@ namespace smt
         // DISJ TODO
         void collect_heap_subassertions_disj(std::vector<app*> outside_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
+        expr* convert_to_nnf_recursive(expr* assertion);
         std::set<heap_term*> extract_all_hterms_disj();
         
 

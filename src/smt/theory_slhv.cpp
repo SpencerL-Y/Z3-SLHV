@@ -494,7 +494,8 @@ namespace smt {
         std::vector<app*> refined_assertions;
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
-            refined_assertions.push_back(to_app(eliminated_double_uplus));
+            expr* converted_to_nnf_assertions = this->convert_to_nnf_recursive(e);
+            refined_assertions.push_back(to_app(converted_to_nnf_assertions));
         }
         #ifdef DISJ_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -1159,6 +1160,51 @@ namespace smt {
             return assertion;
         }
         return assertion;
+    }
+
+
+    expr* theory_slhv::convert_to_nnf_recursive(expr* assertion) {
+        app* apped_assertion = to_app(assertion);
+        if(apped_assertion->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = to_app(apped_assertion->get_arg(0));
+            if(inner->is_app_of(basic_family_id, OP_NOT)) {
+                return this->convert_to_nnf_recursive(inner->get_arg(0));
+            } else if(inner->is_app_of(basic_family_id, OP_OR)) {
+                expr_ref_vector new_args(this->m);
+                for(int i = 0; i < inner->get_num_args(); i ++) {
+                    new_args.push_back(this->convert_to_nnf_recursive(this->syntax_maker->mk_not(inner->get_arg(i))));
+                }
+                return this->syntax_maker->mk_and(new_args.size(), new_args.data());
+            } else if(inner->is_app_of(basic_family_id, OP_AND)) {
+                expr_ref_vector new_args(this->m);
+                for(int i = 0; i < inner->get_num_args(); i ++) {
+                    new_args.push_back(this->convert_to_nnf_recursive(this->syntax_maker->mk_not(inner->get_arg(i))));
+                }
+                return this->syntax_maker->mk_or(new_args.size(), new_args.data());
+            } else if(inner->is_app_of(basic_family_id, OP_DISTINCT)) {
+                return this->syntax_maker->mk_eq(inner->get_arg(0), inner->get_arg(1));
+            } else {
+                return apped_assertion;
+            }
+        } else if(apped_assertion->is_app_of(basic_family_id, OP_EQ)) {
+            return apped_assertion;
+        } 
+        else if(apped_assertion->get_num_args() == 0) {
+            return apped_assertion;
+        } 
+        else {
+            // MAY BE BUGGY
+            func_decl* apped_assertion_decl = apped_assertion->get_decl();
+            std::vector<expr*> old_args;
+            expr_ref_vector new_args(this->get_manager());
+            for(int i = 0; i < apped_assertion->get_num_args(); i++) {
+                old_args.push_back(apped_assertion->get_arg(i));
+            }
+            for(expr* arg : old_args) {
+                new_args.push_back(this->convert_to_nnf_recursive(arg));
+            }
+            return this->m.mk_app(apped_assertion_decl, new_args);
+        }
     }
 
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
