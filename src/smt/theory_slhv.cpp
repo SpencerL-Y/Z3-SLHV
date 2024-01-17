@@ -3917,10 +3917,10 @@ namespace smt {
             }
             return this->syntax_maker->mk_and(all_conjuncts.size(), all_conjuncts.data());
         } else if(assertion->is_app_of(basic_family_id, OP_NOT)) {
-            app* inner = assertion->get_arg(0);
+            app* inner = to_app(assertion->get_arg(0));
             if(inner->is_app_of(basic_family_id, OP_EQ)) {
-                if(this->th->is_heapterm(inner->get_arg(0))) {
-                    std::cout << "ERROR: heq negation !!!!!" << mk_ismt2_pp(assertion) << std::endl;
+                if(this->th->is_heapterm(to_app(inner->get_arg(0)))) {
+                    std::cout << "ERROR: heq negation !!!!!" << mk_ismt2_pp(assertion, this->th->get_manager()) << std::endl;
                     return nullptr;
                 }
             }
@@ -3992,15 +3992,13 @@ namespace smt {
             }
         }
         for(int i = 0; i < lhs_orig_atomic_hts.size(); i ++) {
-            heap_term* aheapterm = this->find_heap_term_for_ht_disj(lhs_orig_atomic_hts[i]);
-            heap_term* cand_aheapterm = this->ht2root[aheapterm];
+            heap_term* cand_aheapterm = this->find_heap_term_for_ht_disj(lhs_orig_atomic_hts[i]);
             init_shdj_rel_of_hteq.push_back(
                 this->get_shrel_boolvar(cand_aheapterm, lhs_cand_heapterm)
             );
         }
         for(int i = 0; i < rhs_orig_atomic_hts.size(); i ++) {
-            heap_term* aheapterm = this->find_heap_term_for_ht_disj(rhs_orig_atomic_hts[i]);
-            heap_term* cand_aheapterm = this->ht2root[aheapterm];
+            heap_term* cand_aheapterm = this->find_heap_term_for_ht_disj(rhs_orig_atomic_hts[i]);
             init_shdj_rel_of_hteq.push_back(
                 this->get_shrel_boolvar(cand_aheapterm, rhs_cand_heapterm)
             );
@@ -4080,7 +4078,7 @@ namespace smt {
             
             for(heap_term* ht : this->hts) {
                 if(ht->get_atomic_count() == atomic_count) {
-                    return ht2root[ht];
+                    return this->ht2root[ht];
                 } 
             }
             std::cout << "ERROR: error2 finding heap term for uplus ht" << std::endl;
