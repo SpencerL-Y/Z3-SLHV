@@ -175,7 +175,9 @@ namespace smt
         pt_record* analyze_pt_record_type(app* record_app);
 
         private:
-        bool final_check();
+        bool final_check(); 
+
+        bool final_check_using_CDCL();
         
 
         bool enode_contains_points_to(enode* node);
@@ -630,12 +632,18 @@ namespace smt
         std::set<heap_term*> atom_hts;
         std::set<heap_term*> pt_hts;
         std::set<heap_term*> hvar_hts;
+        std::map<heap_term*, heap_term*> ht2root;
+        std::set<heap_term*> repre_hts;
+        std::set<heap_term*> repre_pts;
+        std::set<heap_term*> repre_hvars;
+        std::set<heap_term*> repre_atoms;
         heap_term* emp_ht;
 
         theory_slhv* th;
         slhv_deducer* ded;
         slhv_syntax_maker* syntax_maker;
 
+        void construct_ht2root_from_deducer();
         
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
