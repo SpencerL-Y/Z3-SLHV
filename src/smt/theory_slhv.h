@@ -48,8 +48,36 @@ namespace smt
             slhv_sat,
             slhv_unknown
         };
-
         
+        // FINLA CHECK USING DISJ
+        // DISJ data structure
+        std::vector<app*> outside_assertions_disj;
+        std::vector<app*> refined_asssertions_disj;
+        // std::vector<app*> outside_loc_cnstr_disj;
+        std::set<app*> refined_heap_subassertions;
+        // std::vector<app*> outside_data_constr_disj;
+        std::set<app*> locvars_disj;
+        std::set<app*> hvars_disj;
+        std::set<app*> datavars_disj;
+        std::set<app*> disj_unions_disj;
+        std::set<app*> pts_disj;
+        std::vector<app*> atomic_hterms_disj;
+        
+
+
+        // DISJ functions
+        void preprocessing_disj();
+        void collect_and_analyze_assertions_disj(std::vector<app*> outside_assertions);
+        bool hvars_contain_emp_disj();
+        bool locvars_contain_nil_disj();
+        // DISJ TODO
+        void collect_heap_subassertions_disj(std::vector<app*> outside_assertions);
+        expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
+        std::set<heap_term*> extract_all_hterms_disj();
+        
+
+
+        // FINAL CHECK USING CDCL
         // configurations for a call of final_check
         slhv_check_status check_status;
         edge_labelled_dgraph* model_graph {nullptr};
@@ -68,7 +96,6 @@ namespace smt
 
         slhv_syntax_maker* syntax_maker;
 
-        std::vector<expr*> outside_assertions;
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
@@ -178,6 +205,8 @@ namespace smt
         bool final_check(); 
 
         bool final_check_using_CDCL();
+
+        bool final_check_using_DISJ();
         
 
         bool enode_contains_points_to(enode* node);
@@ -654,6 +683,7 @@ namespace smt
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
 
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
