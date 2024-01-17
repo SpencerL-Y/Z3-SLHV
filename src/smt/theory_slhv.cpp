@@ -1874,6 +1874,7 @@ namespace smt {
         this->hts = all_hterms;
         this->eq_ht_pairs = eq_hterm_pairs;
         for(heap_term* ht : this->hts) {
+            this->ht2root[ht] = ht;
             if(ht->is_emp()) {
                 SASSERT(this->emp_ht == nullptr);
                 this->emp_ht = ht;
@@ -1926,13 +1927,81 @@ namespace smt {
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
+        this->construct_ht2root_from_deducer();
         #ifdef SOLVING_INFO
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
         #endif
     }
 
-
+    void formula_encoder::construct_ht2root_from_deducer() {
+        for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                if(ht1 != ht2) {
+                    // merge equivalent class and remain all uplus term
+                    int ht1_index = this->ht2index_map[ht1];
+                    int ht2_index = this->ht2index_map[ht2];
+                    if(ded->has_shrel(ht1_index, ht2_index) &&
+                       ded->has_shrel(ht2_index, ht1_index) &&
+                       !(ht1->is_uplus_hterm() || ht2->is_uplus_hterm())) {
+                        // merge
+                        if(this->ht2root[ht1] != this->ht2root[ht2]) {
+                            if(this->ht2root[ht1] == this->emp_ht || this->ht2root[ht2] == this->emp_ht) {
+                                heap_term* orig_root1 = this->ht2root[ht1];
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root1 || item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->emp_ht;
+                                    }
+                                }
+                                this->ht2root[ht1] = this->emp_ht;
+                                this->ht2root[ht2] = this->emp_ht;
+                            } else if(this->ht2root[ht1]->is_atom_pt()) {
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->ht2root[ht1];
+                                    }
+                                }
+                                this->ht2root[ht2] = this->ht2root[ht1];
+                            } else if(this->ht2root[ht2]->is_atom_pt()) {
+                                
+                                heap_term* orig_root1 = this->ht2root[ht1];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root1) {
+                                        this->ht2root[item.first] = this->ht2root[ht2];
+                                    }
+                                }
+                                this->ht2root[ht1] = this->ht2root[ht2];
+                            } else {
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->ht2root[ht1];
+                                    }
+                                }
+                                this->ht2root[ht2] = this->ht2root[ht1];
+                            }
+                        } else {
+                            // do nothing
+                        }
+                    }
+                }
+            }
+        }
+        for(auto item : this->ht2root) {
+            this->repre_hts.insert(item.second);
+            if(item.second->is_atom_hvar()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_hvars.insert(item.second);
+            } else if(item.second->is_atom_pt()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_pts.insert(item.second);
+            } else {
+                
+            }
+        }
+    }
 
         
     app* formula_encoder::get_shrel_boolvar(heap_term* subht, heap_term* supht) {
@@ -2151,25 +2220,26 @@ namespace smt {
         std::cout << "generate init formula" << std::endl;
         #endif
         expr* disj_form = this->th->get_manager().mk_true();
-        for(heap_term* uplus_ht : this->hts) {
+        for(heap_term* uplus_ht : this->repre_hts) {
             if(uplus_ht->is_uplus_hterm()) {
                 for(auto vec_pair : uplus_ht->get_all_distinct_atomic_pairs()) {
                     std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);
-                    if(!htp.first->is_emp() && !htp.second->is_emp()) {
-                        disj_form = this->syntax_maker->mk_and(disj_form, this->get_djrel_boolvar(htp.first, htp.second));
+                    std::pair<heap_term*, heap_term*> cand_htp = {this->ht2root[htp.first], this->ht2root[htp.second]};
+                    if(!cand_htp.first->is_emp() && !cand_htp.second->is_emp()) {
+                        disj_form = this->syntax_maker->mk_and(disj_form, this->get_djrel_boolvar(cand_htp.first, cand_htp.second));
                     }
                 }
             }
         }
         
         expr* emp_subsume_form = this->th->get_manager().mk_true();
-        for(heap_term* ht : this->hts) {
+        for(heap_term* ht : this->repre_hts) {
             emp_subsume_form = this->syntax_maker->mk_and(emp_subsume_form, this->get_shrel_boolvar(this->emp_ht, ht));
         }
 
         expr* sub_ht_form = this->th->get_manager().mk_true();
-        for(heap_term* ht1 : this->hts) {
-            for(heap_term* ht2 : this->hts) {
+        for(heap_term* ht1 : this->repre_hts) {
+            for(heap_term* ht2 : this->repre_hts) {
                 if(!(ht1->is_emp() || ht2->is_emp()) && ht1->is_subhterm_of(ht2)) {
                     sub_ht_form = this->syntax_maker->mk_and(sub_ht_form, this->get_shrel_boolvar(ht1, ht2));
                 }
@@ -2178,10 +2248,11 @@ namespace smt {
 
         expr* eq_induced_subht_form = this->th->get_manager().mk_true();
         for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
+            std::pair<heap_term*, heap_term*> cand_eqp = {this->ht2root[p.first], this->ht2root[p.second]};
             eq_induced_subht_form = this->syntax_maker->mk_and(
                 eq_induced_subht_form,
-                this->get_shrel_boolvar(p.first, p.second),
-                this->get_shrel_boolvar(p.second, p.first)
+                this->get_shrel_boolvar(cand_eqp.first, cand_eqp.second),
+                this->get_shrel_boolvar(cand_eqp.second, cand_eqp.first)
             );
 
         }
@@ -2202,31 +2273,32 @@ namespace smt {
         std::cout << "generate init formula" << std::endl;
         #endif
         std::set<expr*> result_ass;
-        for(heap_term* uplus_ht : this->hts) {
+        for(heap_term* uplus_ht : this->repre_hts) {
             if(uplus_ht->is_uplus_hterm()) {
                 for(auto vec_pair : uplus_ht->get_all_distinct_atomic_pairs()) {
-                    std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);
-                    if(!htp.first->is_emp() && !htp.second->is_emp()) {
-                        result_ass.insert(this->get_djrel_boolvar(htp.first, htp.second));
+                    std::pair<heap_term*, heap_term*> htp = this->get_ht_pair_by_vec_pair(vec_pair);std::pair<heap_term*, heap_term*> cand_htp = {this->ht2root[htp.first], this->ht2root[htp.second]};
+                    if(!cand_htp.first->is_emp() && !cand_htp.second->is_emp()) {
+                        result_ass.insert(this->get_djrel_boolvar(cand_htp.first, cand_htp.second));
                     }
                 }
             }
         }
         
-        for(heap_term* ht : this->hts) {
+        for(heap_term* ht : this->repre_hts) {
             result_ass.insert(this->get_shrel_boolvar(this->emp_ht, ht));
         }
 
-        for(heap_term* ht1 : this->hts) {
-            for(heap_term* ht2 : this->hts) {
+        for(heap_term* ht1 : this->repre_hts) {
+            for(heap_term* ht2 : this->repre_hts) {
                 if(!(ht1->is_emp() || ht2->is_emp()) && ht1->is_subhterm_of(ht2)) {
                     result_ass.insert(this->get_shrel_boolvar(ht1, ht2));
                 }
             }
         }
         for(std::pair<heap_term*, heap_term*> p : this->eq_ht_pairs) {
-            result_ass.insert(this->get_shrel_boolvar(p.first, p.second));
-            result_ass.insert(this->get_shrel_boolvar(p.second, p.first));
+            std::pair<heap_term*, heap_term*> cand_eqp = {this->ht2root[p.first], this->ht2root[p.second]};
+            result_ass.insert(this->get_shrel_boolvar(cand_eqp.first, cand_eqp.second));
+            result_ass.insert(this->get_shrel_boolvar(cand_eqp.second, cand_eqp.first));
         }
 
         return result_ass;
@@ -2238,8 +2310,8 @@ namespace smt {
         #endif
         expr* first_conj = this->th->get_manager().mk_true();
         expr* second_conj = this->th->get_manager().mk_true();
-        for(heap_term* pt : this->pt_hts) {
-            for(heap_term* ptp : this->pt_hts) {
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ptp : this->repre_pts) {
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
                 std::vector<app*> pt_atom = pt->get_atoms();
@@ -2295,7 +2367,7 @@ namespace smt {
                     sh_temp_form
                 );
 
-                for(heap_term* ht : this->hts) {
+                for(heap_term* ht : this->repre_hts) {
                     int ht_index = this->ht2index_map[ht];
                     // use deduction results
                     if(this->ded->has_shrel(pt_index, ht_index) && this->ded->has_shrel(ptp_index, ht_index)) {
@@ -2344,8 +2416,8 @@ namespace smt {
         #ifdef SOLVING_INFO
         std::cout << "generate pto formula" << std::endl;
         #endif
-        for(heap_term* pt : this->pt_hts) {
-            for(heap_term* ptp : this->pt_hts) {
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ptp : this->repre_pts) {
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
                 std::vector<app*> pt_atom = pt->get_atoms();
@@ -2444,15 +2516,16 @@ namespace smt {
         expr* second_conj = this->th->get_manager().mk_true();
         expr* third_conj = this->th->get_manager().mk_true();
 
-        for(heap_term* pt : this->pt_hts) {
-            for(heap_term* ht : this->hts) {
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ht : this->repre_hts) {
                 if(ht != this->emp_ht) {
                     int pt_index = this->ht2index_map[pt];
                     int ht_index = this->ht2index_map[ht];
                     // use deduction information
                     bool atom_selected = false;
                     for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                        int a_index = this->ht2index_map[a];
+                        heap_term* cand_a = this->ht2root[a];
+                        int a_index = this->ht2index_map[cand_a];
                         if(this->ded->has_shrel(pt_index, a_index)) {
                             atom_selected = true;
                             break;
@@ -2465,7 +2538,8 @@ namespace smt {
                     if(this->ded->has_shrel(pt_index, ht_index)) {
                         expr* atom_belonging_disj = this->th->get_manager().mk_false();
                         for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                            atom_belonging_disj = this->syntax_maker->mk_or(atom_belonging_disj, this->get_shrel_boolvar(pt, a));
+                            heap_term* cand_a = this->ht2root[a];
+                            atom_belonging_disj = this->syntax_maker->mk_or(atom_belonging_disj, this->get_shrel_boolvar(pt, cand_a));
                         }
                         first_conj = this->syntax_maker->mk_and(
                             first_conj,
@@ -2475,7 +2549,8 @@ namespace smt {
                         expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
                         expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
                         for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                            first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, a));
+                            heap_term* cand_a = this->ht2root[a];
+                            first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, cand_a));
                         }
                         first_conj = this->syntax_maker->mk_and(
                             first_conj,
@@ -2486,9 +2561,9 @@ namespace smt {
             }
         }
 
-        for(heap_term* ht1 : this->pt_hts) {
-            for(heap_term* ht2 : this->hts) {
-                for(heap_term* ht3 : this->hts) {
+        for(heap_term* ht1 : this->repre_pts) {
+            for(heap_term* ht2 : this->repre_hts) {
+                for(heap_term* ht3 : this->repre_hts) {
                     int ht1_index = this->ht2index_map[ht1];
                     int ht3_index = this->ht2index_map[ht3];
                     // use deduction
@@ -2554,15 +2629,16 @@ namespace smt {
 
         std::set<expr*> result_ass;
 
-        for(heap_term* pt : this->pt_hts) {
-            for(heap_term* ht : this->hts) {
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ht : this->repre_hts) {
                 if(ht != this->emp_ht) {
                     int pt_index = this->ht2index_map[pt];
                     int ht_index = this->ht2index_map[ht];
                     // use deduction information
                     bool atom_selected = false;
                     for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                        int a_index = this->ht2index_map[a];
+                        heap_term* cand_a = this->ht2root[a];
+                        int a_index = this->ht2index_map[cand_a];
                         if(this->ded->has_shrel(pt_index, a_index)) {
                             atom_selected = true;
                             break;
@@ -2575,7 +2651,8 @@ namespace smt {
                     if(this->ded->has_shrel(pt_index, ht_index)) {
                         expr* atom_belonging_disj = this->th->get_manager().mk_false();
                         for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                            atom_belonging_disj = this->syntax_maker->mk_or(atom_belonging_disj, this->get_shrel_boolvar(pt, a));
+                            heap_term* cand_a = this->ht2root[a];
+                            atom_belonging_disj = this->syntax_maker->mk_or(atom_belonging_disj, this->get_shrel_boolvar(pt, cand_a));
                         }
                         result_ass.insert(
                             atom_belonging_disj
@@ -2584,7 +2661,8 @@ namespace smt {
                         expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
                         expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
                         for(heap_term* a : this->get_sub_atom_hts(ht)) {
-                            first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, a));
+                            heap_term* cand_a = this->ht2root[a];
+                            first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, cand_a));
                         }
                         result_ass.insert(
                             this->syntax_maker->mk_implies(first_conj_ipl_lhs, first_conj_ipl_rhs)
@@ -2594,9 +2672,9 @@ namespace smt {
             }
         }
 
-        for(heap_term* ht1 : this->pt_hts) {
-            for(heap_term* ht2 : this->hts) {
-                for(heap_term* ht3 : this->hts) {
+        for(heap_term* ht1 : this->repre_pts) {
+            for(heap_term* ht2 : this->repre_hts) {
+                for(heap_term* ht3 : this->repre_hts) {
                     int ht1_index = this->ht2index_map[ht1];
                     int ht3_index = this->ht2index_map[ht3];
                     // use deduction
@@ -2624,9 +2702,9 @@ namespace smt {
         std::cout << "generate idj formula" << std::endl;
         #endif
         expr* result = this->th->get_manager().mk_true();
-        for(heap_term* ht1 : this->pt_hts) {
+        for(heap_term* ht1 : this->repre_pts) {
             if(ht1 == this->emp_ht) {continue;}
-            for(heap_term* ht2 : this->pt_hts) {
+            for(heap_term* ht2 : this->repre_pts) {
                 if(ht2 == this->emp_ht) {continue;}
                 int ht1_index = this->ht2index_map[ht1];
                 int ht2_index = this->ht2index_map[ht2];
@@ -2634,9 +2712,9 @@ namespace smt {
                 if(this->ded->has_djrel(ht1_index, ht2_index)) {
                     continue;
                 }
-                for(heap_term* ht3 : this->atom_hts) {
+                for(heap_term* ht3 : this->repre_atoms) {
                     if(ht3 == this->emp_ht) {continue;}
-                    for(heap_term* ht4 : this->atom_hts) {
+                    for(heap_term* ht4 : this->repre_atoms) {
                         if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
@@ -2662,9 +2740,9 @@ namespace smt {
         std::cout << "generate idj formula" << std::endl;
         #endif
         std::set<expr*> result_ass;
-        for(heap_term* ht1 : this->pt_hts) {
+        for(heap_term* ht1 : this->repre_pts) {
             if(ht1 == this->emp_ht) {continue;}
-            for(heap_term* ht2 : this->pt_hts) {
+            for(heap_term* ht2 : this->repre_pts) {
                 if(ht2 == this->emp_ht) {continue;}
                 int ht1_index = this->ht2index_map[ht1];
                 int ht2_index = this->ht2index_map[ht2];
@@ -2672,9 +2750,9 @@ namespace smt {
                 if(this->ded->has_djrel(ht1_index, ht2_index)) {
                     continue;
                 }
-                for(heap_term* ht3 : this->atom_hts) {
+                for(heap_term* ht3 : this->repre_atoms) {
                     if(ht3 == this->emp_ht) {continue;}
-                    for(heap_term* ht4 : this->atom_hts) {
+                    for(heap_term* ht4 : this->repre_atoms) {
                         if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
