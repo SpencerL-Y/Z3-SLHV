@@ -22,6 +22,9 @@
 // minimal for debug
 // #define SOLVING_INFO
 
+// for new encoding 
+#define DISJ_DEBUG
+
 // frontend macro
 
 namespace smt
@@ -64,6 +67,8 @@ namespace smt
 
 
         slhv_syntax_maker* syntax_maker;
+
+        std::vector<expr*> outside_assertions;
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;

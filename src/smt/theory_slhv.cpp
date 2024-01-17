@@ -440,11 +440,6 @@ namespace smt {
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
-        ptr_vector<expr> asses;
-        ctx.get_assertions(asses);
-        for(expr* e : asses) {
-            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
-        }
 
         // inference graph intiailization
         std::set<expr*> initial_assignments;
@@ -1291,7 +1286,6 @@ namespace smt {
         std::set<heap_term*> eq_hterms;
         std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
         for(app* eq : this->curr_heap_cnstr) {
-            std::set<heap_term*> eq_hts;
             heap_term* eq_lhs = nullptr;
             heap_term* eq_rhs = nullptr;
 
@@ -1520,6 +1514,8 @@ namespace smt {
         
         return {eq_pair_hterms, all_hterms};
     }
+
+
 
 
     void theory_slhv::print_all_hterms(std::ostream& os){
