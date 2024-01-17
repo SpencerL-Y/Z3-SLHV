@@ -222,10 +222,6 @@ namespace smt
 
         std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
 
-        std::set<heap_term*> extract_all_hterms_disj();
-        std::set<heap_term*> extract_all_hterms_for_assertion(expr* ass);
-        std::set<heap_term*> extract_all_hterms_for_hteq(app* eq);
-
         void print_all_hterms(std::ostream& os);
 
         std::set<atoms_subsumption*> parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs); 
