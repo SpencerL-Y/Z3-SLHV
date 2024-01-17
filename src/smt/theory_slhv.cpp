@@ -3917,6 +3917,13 @@ namespace smt {
             }
             return this->syntax_maker->mk_and(all_conjuncts.size(), all_conjuncts.data());
         } else if(assertion->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = assertion->get_arg(0);
+            if(inner->is_app_of(basic_family_id, OP_EQ)) {
+                if(this->th->is_heapterm(inner->get_arg(0))) {
+                    std::cout << "ERROR: heq negation !!!!!" << mk_ismt2_pp(assertion) << std::endl;
+                    return nullptr;
+                }
+            }
             return this->translate_locdata_formula(assertion);
         } else if(assertion->is_app_of(basic_family_id, OP_EQ)) {
             app* first_arg = to_app(assertion->get_arg(0));
@@ -3978,7 +3985,7 @@ namespace smt {
         }
 
         if(this->th->is_atom_hterm(rhs_orig_ht)) {
-            rhs_orig_atomic_hts.push_back(lhs_orig_ht);
+            rhs_orig_atomic_hts.push_back(rhs_orig_ht);
         } else {
             for(int i = 0; i < rhs_orig_ht->get_num_args(); i ++) {
                 rhs_orig_atomic_hts.push_back(to_app(rhs_orig_ht->get_arg(i)));
