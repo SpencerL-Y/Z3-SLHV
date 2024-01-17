@@ -630,6 +630,9 @@ namespace smt
         std::set<heap_term*> atom_hts;
         std::set<heap_term*> pt_hts;
         std::set<heap_term*> hvar_hts;
+        std::map<heap_term*, heap_term*> ht2root;
+        std::set<heap_term*> repre_hts;
+        std::set<heap_term*> repre
         heap_term* emp_ht;
 
         theory_slhv* th;
