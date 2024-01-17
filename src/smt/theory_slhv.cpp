@@ -433,8 +433,11 @@ namespace smt {
         }
     }
 
-
     bool theory_slhv::final_check() {
+        return final_check_using_CDCL();
+    }
+
+    bool theory_slhv::final_check_using_CDCL() {
         
         this->reset_outside_configs();
         // obtain outside assignments

@@ -175,7 +175,9 @@ namespace smt
         pt_record* analyze_pt_record_type(app* record_app);
 
         private:
-        bool final_check();
+        bool final_check(); 
+
+        bool final_check_using_CDCL();
         
 
         bool enode_contains_points_to(enode* node);
