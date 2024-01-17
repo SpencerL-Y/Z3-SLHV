@@ -494,7 +494,7 @@ namespace smt {
         std::vector<app*> refined_assertions;
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
-            expr* converted_to_nnf_assertions = this->convert_to_nnf_recursive(e);
+            expr* converted_to_nnf_assertions = this->convert_to_nnf_recursive(eliminated_double_uplus);
             refined_assertions.push_back(to_app(converted_to_nnf_assertions));
         }
         #ifdef DISJ_DEBUG
