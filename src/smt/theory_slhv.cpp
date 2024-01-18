@@ -29,24 +29,6 @@ namespace smt {
         this->reset_outside_configs();
     }
 
-
-    bool theory_slhv::enode_contains_points_to(enode* node) {
-        enode* curr_node = node;
-        app* node_app = curr_node->get_expr();
-        if(is_points_to(node_app)) {
-            return true;
-        }
-        curr_node = node->get_next();
-        while(curr_node != node) {
-            node_app = curr_node->get_expr();
-            if(is_points_to(node_app)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-
     bool theory_slhv::curr_locvars_contain_nil() {
         for(app* locvar : this->curr_locvars) {
             if(this->is_nil(locvar)) {
@@ -402,24 +384,6 @@ namespace smt {
             unsat_core.push_back(expr_lit);
         }
         return unsat_core;
-    }
-
-
-
-
-    app* theory_slhv::mk_simplify_and(expr* f1, expr* f2) {
-        if(this->get_manager().is_false(f1) || this->get_manager().is_false(f2)) {
-            return this->get_manager().mk_false();
-        }
-        if(this->get_manager().is_true(f1) && !this->get_manager().is_true(f2)) {
-            return to_app(f2);
-        } else if (!this->get_manager().is_true(f1) && this->get_manager().is_true(f2)) {
-            return to_app(f1);
-        } else if(!this->get_manager().is_true(f1) && !this->get_manager().is_true(f2)){
-            return this->msw->use_mk_and(f1, f2);
-        } else {
-            return this->get_manager().mk_true();
-        }
     }
 
     bool theory_slhv::is_arith_formula(app* l) {
@@ -3424,36 +3388,6 @@ namespace smt {
             }
         }
 
-        // for(heap_term* compound_ht1 : this->hts) {
-        //     for(heap_term* compound_ht2 : this->hts) {
-        //         if(compound_ht1 != this->emp_ht && compound_ht2 != this->emp_ht) {
-        //             std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht1_split_counts = compound_ht1->get_splitted_subpairs();
-        //             std::set<std::pair<std::vector<int>, std::vector<int>>> compound_ht2_split_counts = compound_ht2->get_splitted_subpairs();
-        //             for(auto ht1ht2_vec : compound_ht1_split_counts) {
-        //                 auto ht1ht2 = this->get_ht_pair_by_vec_pair(ht1ht2_vec);
-        //                 if(ht1ht2.first != this->emp_ht && ht1ht2.second != this->emp_ht) {
-        //                     for(auto ht1pht2p_vec : compound_ht2_split_counts) {
-        //                         auto ht1pht2p = this->get_ht_pair_by_vec_pair(ht1pht2p_vec);
-        //                         if(ht1pht2p.first != this->emp_ht && ht1pht2p.first != this->emp_ht) {
-        //                             expr* third_conj_impl_lhs = this->th->mk_simplify_and(
-        //                                 this->get_shrel_boolvar(ht1ht2.first, ht1pht2p.first),
-        //                                 this->get_shrel_boolvar(ht1ht2.second, ht1pht2p.second)
-        //                             );
-        //                             expr* third_conj_impl_rhs =  this->get_shrel_boolvar(compound_ht1, compound_ht2);
-        //                             third_conj = this->th->mk_simplify_and(
-        //                                 third_conj,
-        //                                 this->syntax_maker->mk_implies(third_conj_impl_lhs, third_conj_impl_rhs)
-        //                             );
-        //                         }
-        //                     }
-        //                 }
-        //             }
-        //         }
-        //     }
-        // }
-
-        // expr* result = this->syntax_maker->mk_and(first_conj, second_conj, third_conj);
-
         expr* result = this->syntax_maker->mk_and(first_conj, second_conj);
 
         // expr* result = first_conj;
@@ -5782,6 +5716,20 @@ namespace smt {
     }
     app* slhv_syntax_maker::mk_and(int num_args, expr* const* args) {
         return this->msw->use_mk_and(num_args, args);
+    }
+    app* slhv_syntax_maker::mk_simplify_and(expr* f1, expr* f2) {
+        if(this->th->get_manager().is_false(f1) || this->th->get_manager().is_false(f2)) {
+            return this->th->get_manager().mk_false();
+        }
+        if(this->th->get_manager().is_true(f1) && !this->th->get_manager().is_true(f2)) {
+            return to_app(f2);
+        } else if (!this->th->get_manager().is_true(f1) && this->th->get_manager().is_true(f2)) {
+            return to_app(f1);
+        } else if(!this->th->get_manager().is_true(f1) && !this->th->get_manager().is_true(f2)){
+            return this->msw->use_mk_and(f1, f2);
+        } else {
+            return this->th->get_manager().mk_true();
+        }
     }
     app* slhv_syntax_maker::mk_or(expr* lhs, expr* rhs){
         return this->msw->use_mk_or(lhs, rhs);
