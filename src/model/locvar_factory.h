@@ -6,7 +6,6 @@
 
 namespace smt {
 
-class edge_labelled_dgraph;
 class locvar_factory final : public value_factory {
 
     private:
