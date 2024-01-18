@@ -48,8 +48,9 @@ namespace smt
             slhv_sat,
             slhv_unknown
         };
+
         
-        // FINLA CHECK USING DISJ
+        // ========== FINAL CHECK USING ENCODING OVER FOMRULA WITH DISJUNCTION
         // DISJ data structure
         std::vector<app*> outside_assertions_disj;
         std::vector<app*> refined_asssertions_disj;
@@ -63,8 +64,6 @@ namespace smt
         std::set<app*> pts_disj;
         std::vector<app*> atomic_hterms_disj;
         
-
-
         // DISJ functions
         void preprocessing_disj();
         void collect_and_analyze_assertions_disj(std::vector<app*> outside_assertions);
@@ -76,12 +75,12 @@ namespace smt
         expr* convert_to_nnf_recursive(expr* assertion);
         std::set<heap_term*> extract_all_hterms_disj();
         
+        // =========================================================
 
 
-        // FINAL CHECK USING CDCL
+        // =================== FINAL CHECK UNDER FRAMEWORK OF CDCL 
         // configurations for a call of final_check
         slhv_check_status check_status;
-        edge_labelled_dgraph* model_graph {nullptr};
 
         std::set<app *> curr_locvars;
         std::set<app *> curr_hvars;
@@ -94,45 +93,69 @@ namespace smt
         std::set<app *> curr_heap_cnstr;
         std::set<app* > curr_data_cnstr;
 
-
-        slhv_syntax_maker* syntax_maker;
-
-
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
 
-        std::set<atoms_subsumption*> model_subsume_info;
-        std::map<std::string, int> model_loc_data_var_val_info;
-
-
-        slhv_decl_plugin* slhv_plug;
-
-        memsafe_wrapper* msw;
-
-        app* global_emp;
-        app* global_nil;
 
         // deduction unsat core generation
-        std::map<expr*, std::set<heap_term*>> constraint2hts;
-
         inference_graph* infer_graph;
-
+        std::map<expr*, std::set<heap_term*>> constraint2hts;
         std::set<ld_recov_node*> ld_recovery;
 
-        // model generation
+        // CDCL framework functions
 
-        arith_factory* data_factory;
+        // obtain assigned literals from smt_context and analyze 
+        // ast to obtain all location variables, heap variables for later use
+        // analyze all terms to do preprocessing later
+        void preprocessing(expr_ref_vector assigned_literals);
 
+        bool curr_locvars_contain_nil();
+        bool curr_hvars_contain_emp();
+
+        // formula rewritting
+        std::vector<expr*> eliminate_not_or_assignments(expr* expression);
+        expr* eliminate_uplus_in_uplus_for_assignments(expr* expression);
+        app* eliminate_uplus_uplus_hterm(app* hterm);
+
+        std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
+        std::vector<expr_ref_vector> remove_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
+        std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
+        // preprocessing functions
+        void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
+        void collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals);
+        // heap term construction functions
+        std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
+        void print_all_hterms(std::ostream& os);
+
+        // =========================================================
+
+        // ========== COMMON DATA STRUCTURE AND FUNCTIONS
+        // to create formula while solving
+        slhv_syntax_maker* syntax_maker;
+        slhv_decl_plugin* slhv_plug;
+        memsafe_wrapper* msw;
+        // special constant
+        app* global_emp;
+        app* global_nil;
         
+        // remember for each heap term which pt it subsumes
+        std::set<atoms_subsumption*> model_subsume_info;
+        std::map<std::string, int> model_loc_data_var_val_info;
+        
+
+        // model generation
+        arith_factory* data_factory;
         std::map<app*, std::set<app*>> hvar2ptset;
-
         std::map<enode*, heap_value_proc*> enode2proc;
-
+        // memory management
         mem_management* mem_mng;
+        // preprocessing functions
+        std::tuple<std::set<app* >, std::set<app *>, std::set<app *>> 
+        collect_vars(app* expression);
+        std::set<app*> collect_disj_unions(app* expression);
+        std::set<app*> collect_points_tos(app* expression);
 
-
-        // check_context for a construction based on locvar_eq and negation choice
-
+        // syntax checker
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
@@ -155,7 +178,6 @@ namespace smt
             }
             return false;
         }
-
         bool is_datavar(app const* n) const {
             // TODO: maybe buggy here
             if(n->get_num_args() == 0 && n->get_sort() == this->m.mk_sort(arith_family_id, INT_SORT)) {
@@ -164,27 +186,21 @@ namespace smt
                 return false;
             }
         }
-
         bool is_emp(app const* n) const {
             return n->is_app_of(get_id(), OP_EMP);
         }
-
         bool is_nil(app const* n) const {
             return n->is_app_of(get_id(), OP_NIL);
         }
-
         bool is_heapterm(app const* n) const {
             return (n->get_sort()->get_name() == INTHEAP_SORT_STR);
         }
-
         bool is_locterm(app const* n) const {
             return (n->get_sort()->get_name() == INTLOC_SORT_STR);
         }
-
         bool is_dataterm(app const* n) const {
             return n->get_sort() == this->get_manager().mk_sort(arith_family_id, INT_SORT);
         }
-
         bool is_recordterm(app const* n) const {
             if(this->slhv_plug->pt_record_map.find(n->get_name().bare_str()) != this->slhv_plug->pt_record_map.end()) {
                 return true;
@@ -194,67 +210,21 @@ namespace smt
             return false;
         }
 
-        app* mk_simplify_and(expr* f1, expr* f2);
-
         bool is_arith_formula(app* l);
-
         bool is_not_heap_or_loc_formula(app* l);
-
         pt_record* analyze_pt_record_type(app* record_app);
 
         private:
-        bool final_check(); 
-
+        // final check interfaces:
+        bool final_check();  
         bool final_check_using_CDCL();
-
         bool final_check_using_DISJ();
-        
-
-        bool enode_contains_points_to(enode* node);
-
-        bool curr_locvars_contain_nil();
-
-        bool curr_hvars_contain_emp();
 
         bool internalize_term_core(app * term);
-
-        
-        std::vector<expr*> eliminate_not_or_assignments(expr* expression);
-        expr* eliminate_uplus_in_uplus_for_assignments(expr* expression);
-        app* eliminate_uplus_uplus_hterm(app* hterm);
-
-        // obtain assigned literals from smt_context and analyze 
-        // ast to obtain all location variables, heap variables for later use
-        // analyze all terms to do preprocessing later
-        void preprocessing(expr_ref_vector assigned_literals);
-
-
-        std::vector<expr_ref_vector> eliminate_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
-
-        std::vector<expr_ref_vector> remove_heap_equality_negation_in_assignments(expr_ref_vector assigned_literals);
-
-        std::vector<std::vector<expr*>> eliminate_heap_equality_negation(std::vector<std::vector<expr*>> elimnated_neg_vec, expr* curr_neg_lit);  
-
-        void collect_and_analyze_assignments(expr_ref_vector assigned_literals);
-        void collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals);
-
-        
-
-        std::tuple<std::set<app* >, std::set<app *>, std::set<app *>> 
-        collect_vars(app* expression);
-
-        std::set<app*> collect_disj_unions(app* expression);
-
-        std::set<app*> collect_points_tos(app* expression);
-
-        
         void reset_inside_configs();
         void reset_outside_configs();
+
         // checking logic
-
-        std::pair<std::set<std::pair<heap_term*, heap_term*>>, std::set<heap_term*>>  extract_all_hterms();
-
-        void print_all_hterms(std::ostream& os);
 
         std::set<atoms_subsumption*> parse_and_collect_subsumption(formula_encoder* enc, std::set<std::string> true_bool_strs); 
         
@@ -686,8 +656,10 @@ namespace smt
         app* translate_locterm_to_liaterm(app* locterm);
         public:
         
+        // formula encoder for CDCL
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
 
+        // formula encoder for disj enc
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
@@ -718,13 +690,13 @@ namespace smt
         // hard encoded formula
         expr* generate_loc_var_constraints();
 
-        // for disj
+        //  ======================== for disj
         std::set<expr*> generate_init_ld_locvar_constraint_for_all_assertions();
-
         std::set<expr*> generate_pto_assumptions_disj();
         std::set<expr*> generate_iso_assumptions_disj();
         std::set<expr*> generate_idj_assumptions_disj();
         std::set<expr*> generate_final_assumptions_disj();
+
 
         // disj auxillary formulas
         expr* generate_init_ld_locvar_constraint_recursive(app* assertion);
@@ -735,6 +707,7 @@ namespace smt
         std::set<app*> collect_locvars_recursive(app* term);
         std::set<app*> collect_hteq_all_pts(app* hteq);
 
+        //  ======================== 
 
         expr* generate_nil_constraint();
 
@@ -1268,6 +1241,7 @@ namespace smt
         app* mk_not(expr* inner);
         app* mk_and(expr* arg1, expr* arg2, expr* arg3);
         app* mk_and(int num_args, expr* const* args);
+        app* mk_simplify_and(expr* f1, expr* f2);
         app* mk_or(expr* lhs, expr* rhs);
         app* mk_or(expr* arg1, expr* arg2, expr* arg3);
         app* mk_or(int num_args, expr* const* args);
