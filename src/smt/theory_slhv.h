@@ -48,8 +48,37 @@ namespace smt
             slhv_sat,
             slhv_unknown
         };
-
         
+        // FINLA CHECK USING DISJ
+        // DISJ data structure
+        std::vector<app*> outside_assertions_disj;
+        std::vector<app*> refined_asssertions_disj;
+        // std::vector<app*> outside_loc_cnstr_disj;
+        std::set<app*> refined_heap_subassertions;
+        // std::vector<app*> outside_data_constr_disj;
+        std::set<app*> locvars_disj;
+        std::set<app*> hvars_disj;
+        std::set<app*> datavars_disj;
+        std::set<app*> disj_unions_disj;
+        std::set<app*> pts_disj;
+        std::vector<app*> atomic_hterms_disj;
+        
+
+
+        // DISJ functions
+        void preprocessing_disj();
+        void collect_and_analyze_assertions_disj(std::vector<app*> outside_assertions);
+        bool hvars_contain_emp_disj();
+        bool locvars_contain_nil_disj();
+        // DISJ TODO
+        void collect_heap_subassertions_disj(std::vector<app*> outside_assertions);
+        expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
+        expr* convert_to_nnf_recursive(expr* assertion);
+        std::set<heap_term*> extract_all_hterms_disj();
+        
+
+
+        // FINAL CHECK USING CDCL
         // configurations for a call of final_check
         slhv_check_status check_status;
         edge_labelled_dgraph* model_graph {nullptr};
@@ -68,7 +97,6 @@ namespace smt
 
         slhv_syntax_maker* syntax_maker;
 
-        std::vector<expr*> outside_assertions;
 
         std::vector<expr*> curr_outside_assignments;
         std::vector<expr*> curr_inside_assignments;
@@ -178,6 +206,8 @@ namespace smt
         bool final_check(); 
 
         bool final_check_using_CDCL();
+
+        bool final_check_using_DISJ();
         
 
         bool enode_contains_points_to(enode* node);
@@ -301,6 +331,10 @@ namespace smt
         void set_conflict_slhv(std::vector<expr*> outside_unsat_core);
 
         void set_conflict_slhv(inference_graph* inf_graph);
+
+
+        void set_conflict_slhv_empty();
+
 
 
         literal_vector compute_current_unsat_core(std::vector<expr*> outside_unsat_core);
@@ -644,16 +678,17 @@ namespace smt
         slhv_syntax_maker* syntax_maker;
 
         void construct_ht2root_from_deducer();
-        
+        void construct_ht2root_from_nothing();
+
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
         expr* translate_locdata_formula(expr* formula);
         app* translate_locterm_to_liaterm(app* locterm);
-
         public:
         
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
 
+        formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
         app* get_shrel_boolvar(heap_term* subht, heap_term* supht);
         app* get_djrel_boolvar(heap_term* firstht, heap_term* secondht);
@@ -683,9 +718,32 @@ namespace smt
         // hard encoded formula
         expr* generate_loc_var_constraints();
 
+        // for disj
+        std::set<expr*> generate_init_ld_locvar_constraint_for_all_assertions();
+
+        std::set<expr*> generate_pto_assumptions_disj();
+        std::set<expr*> generate_iso_assumptions_disj();
+        std::set<expr*> generate_idj_assumptions_disj();
+        std::set<expr*> generate_final_assumptions_disj();
+
+        // disj auxillary formulas
+        expr* generate_init_ld_locvar_constraint_recursive(app* assertion);
+        expr* generate_init_ld_locvar_constraint_for_generate_ap(app* ap);
+        expr* generate_init_ld_locvar_constraint_for_hteq(app* heq);
+        heap_term* find_heap_term_for_ht_disj(app* orig_ht);
+
+        std::set<app*> collect_locvars_recursive(app* term);
+        std::set<app*> collect_hteq_all_pts(app* hteq);
+
+
+        expr* generate_nil_constraint();
+
+        // ========== encoding interfaces ============
         std::pair<expr*, expr_ref_vector> encode();
 
         std::pair<expr*, expr_ref_vector> encode_with_ass();
+
+        std::set<expr*> encode_for_disj();
 
 
 
@@ -1172,9 +1230,11 @@ namespace smt
         int curr_locvar_id;
         int curr_hvar_id;
         int curr_datavar_id;
+        int curr_boolvar_id;
         std::map<int, app*> locvar_map;
         std::map<int, app*> hvar_map;
         std::map<int, app*> datavar_map;
+        std::map<int, app*> boolvar_map;
         slhv_decl_plugin* fe_plug;
     public:
         slhv_fresh_var_maker(theory_slhv* t);
@@ -1182,6 +1242,7 @@ namespace smt
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
         app* mk_fresh_datavar();
+        app* mk_fresh_boolvar();
 
         void reset();
     };
@@ -1200,6 +1261,7 @@ namespace smt
         slhv_syntax_maker(theory_slhv* t, memsafe_wrapper* msw);
         app* mk_fresh_locvar();
         app* mk_fresh_hvar();
+        app* mk_fresh_boolvar();
         // operation maker
         app* mk_and(expr* lhs, expr* rhs);
         app* mk_implies(expr* lhs, expr* rhs);
