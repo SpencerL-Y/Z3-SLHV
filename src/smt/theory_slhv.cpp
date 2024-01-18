@@ -56,8 +56,27 @@ namespace smt {
         return false;
     }
 
+
+    bool theory_slhv::locvars_contain_nil_disj() {
+        for(app* locvar : this->locvars_disj) {
+            if(this->is_nil(locvar)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     bool theory_slhv::curr_hvars_contain_emp() {
         for(app* hvar : this->curr_hvars) {
+            if(this->is_emp(hvar)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool theory_slhv::hvars_contain_emp_disj() {
+        for(app* hvar : this->hvars_disj) {
             if(this->is_emp(hvar)) {
                 return true;
             }
@@ -283,6 +302,16 @@ namespace smt {
         );
     }
 
+     void theory_slhv::set_conflict_slhv_empty() {
+        literal_vector unsat_core;
+        ctx.set_conflict(
+            ctx.mk_justification(
+            ext_theory_conflict_justification(
+                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+            ))
+        );
+    }
+
 
     void theory_slhv::set_conflict_slhv(std::vector<expr*> outside_unsat_core) {
         literal_vector unsat_core = this->compute_current_unsat_core(outside_unsat_core);
@@ -434,7 +463,223 @@ namespace smt {
     }
 
     bool theory_slhv::final_check() {
-        return final_check_using_CDCL();
+        // return final_check_using_CDCL();
+        return final_check_using_DISJ();
+    }
+
+    bool theory_slhv::final_check_using_DISJ() {
+        this->reset_outside_configs();
+        ptr_vector<expr> assertions;
+        this->ctx.get_assertions(assertions);
+        #ifdef DISJ_DEBUG
+        std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
+        std::cout << "================= current outside assertions ==============" << std::endl;
+        for(expr* e : assertions) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
+        std::cout << "===================== current outside assertions end ==================" << std::endl;  
+        #endif
+        for(expr* e : assertions) {
+            this->outside_assertions_disj.push_back(to_app(e));
+        }
+        
+        std::set<expr*> inf_creation_expr_set;
+        for(auto e : this->outside_assertions_disj) {
+            inf_creation_expr_set.insert(e);
+        }
+        inference_graph* inf_graph = alloc(inference_graph, this, inf_creation_expr_set);
+        this->infer_graph = inf_graph;
+        this->mem_mng->set_inf_graph(this->infer_graph);
+
+        std::vector<app*> refined_assertions;
+        for(expr* e : assertions) {
+            expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
+            expr* converted_to_nnf_assertions = this->convert_to_nnf_recursive(eliminated_double_uplus);
+            refined_assertions.push_back(to_app(converted_to_nnf_assertions));
+        }
+        #ifdef DISJ_DEBUG
+        std::cout << "================= current refined assignment ==============" << std::endl;
+        for(expr* e : refined_assertions) {
+            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+        }
+        std::cout << "===================== current refined assignment end ==================" << std::endl;  
+        #endif
+        this->refined_asssertions_disj = refined_assertions;
+        // set slhv syntax plugin
+        this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
+        SASSERT(this->slhv_plug->pt_record_map.size() > 0);
+
+        this->preprocessing_disj();
+        std::set<heap_term*> all_hterms = this->extract_all_hterms_disj();
+
+        #ifdef DISJ_DEBUG
+        std::cout << "all heap constraints: " << std::endl;
+        for(app* hc : refined_heap_subassertions) {
+            std::cout << mk_ismt2_pp(hc, this->m) << std::endl;
+        }
+        std::cout << "all hterms size: " << this->atomic_hterms_disj.size() << std::endl;
+        std::cout << "all hterms: " << std::endl;
+        for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+            std::cout << mk_ismt2_pp(this->atomic_hterms_disj[i], this->m) << "\t";
+        }
+        std::cout << std::endl;
+
+        for(heap_term* ht : all_hterms) {
+            ht->print_ht();
+            ht->print(std::cout);
+        }
+        #endif
+        for(heap_term* ht : all_hterms) {
+            this->mem_mng->push_ht_ptr(ht);
+        }
+        formula_encoder* fec = alloc(formula_encoder, this, all_hterms);
+        this->mem_mng->push_fec_ptr(fec);   
+        std::set<expr*> encoded_formulas = fec->encode_for_disj();
+
+
+        params_ref final_solver_param = params_ref();
+        solver* final_solver = mk_smt_solver(this->m, final_solver_param, symbol("QF_LIA"));
+        final_solver->inc_ref();
+
+        for(expr* e: encoded_formulas) {
+            if(e == nullptr) {
+                std::cout << "NULL PTR encoded" << std::endl;
+            }
+            final_solver->assert_expr(e);
+        }
+        std::cout << "assertion size: " << encoded_formulas.size() << std::endl;
+        lbool final_result = final_solver->check_sat();
+        std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
+        if(final_result == l_true) {
+            #ifdef SOLVING_INFO
+            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+            std::cout << " translated SAT " << std::endl;
+            #endif
+            // // print current refined assignment to file
+            // std::ofstream output2file("./outmodel.txt", std::ios::out);
+            // output2file << "SAT" << std::endl;
+            // output2file << "ORIGINAL FORMULA XXXXXX" << std::endl;
+            // for(expr* e : refined_assignments) {
+            //     output2file << mk_ismt2_pp(e, this->m) << std::endl;
+            // }   
+            // output2file << "ELIMINATED FORMULA XXXXXX" << std::endl;    
+            // output2file << "heap constraints ========== " << std::endl;
+            // for(expr* e : heap_cnstr_assignments) {
+            //     output2file << mk_ismt2_pp(e, this->m) << std::endl;
+            // } 
+            // output2file << "numeral constraints ========== " << std::endl;
+            // for(expr* e : numeral_cnstr_assignments) {
+            //     output2file << mk_ismt2_pp(e, this->m) << std::endl;
+            // } 
+            // output2file << "MODEL XXXXXX " << std::endl;
+
+            std::map<std::string, expr*> name2val;
+            model_ref md;
+            final_solver->get_model(md);
+            std::cout << "translated model: " << std::endl;
+            // model_smt2_pp(std::cout, this->m, *md, 0);
+            model_core& mdc = *md;
+            for(int i = 0; i < mdc.get_num_constants(); i ++) {
+                expr_ref temp_val(this->m);
+                mdc.eval(mdc.get_constant(i), temp_val);
+                // #ifdef SLHV_PRINT
+                std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
+                // #endif
+                // output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
+                // output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
+                name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
+            }
+            std::set<std::string> true_var_names;
+            std::map<std::string, int> loc_data_var2val;
+            for(auto key_val_p : name2val) {
+                if(key_val_p.second->get_sort()->get_name() == "Bool") {
+                    if(this->m.is_true(key_val_p.second)) {
+                        true_var_names.insert(key_val_p.first);
+                    } else if(this->m.is_false(key_val_p.second)) { 
+                    } else {
+                        SASSERT(false);
+                    }
+
+                } else {
+                    SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
+                    auto param = to_app(key_val_p.second)->get_parameter(0);
+                    std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
+                    std::cout << std::endl; 
+                    std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
+                    for(std::string n : extracted_names) {
+                        std::cout << n << std::endl;
+                    }
+                    loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
+                }
+            }
+            std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
+            for(atoms_subsumption* sub : atoms_subs) {
+                this->mem_mng->push_at_ptr(sub);
+            }
+            // record model information collected.
+            this->model_subsume_info = atoms_subs;
+            this->model_loc_data_var_val_info = loc_data_var2val;
+            std::cout << "model info recorded: " << std::endl;
+            // output2file << "model info recorded: " << std::endl;
+            std::cout << "model subsume info size: " << this->model_subsume_info.size() << std::endl;
+            // output2file << "model subsume info size: " << this->model_subsume_info.size() << std::endl; 
+            for(atoms_subsumption* ats : this->model_subsume_info) {
+                std::cout << "------- main" << std::endl;
+                // output2file << "------- main" << std::endl;
+                ats->get_main_heap_term()->print_ht();
+                // ats->get_main_heap_term()->print_ht2file(output2file);
+                std::cout << "------- subs" << std::endl;
+                // output2file << "------- subs" << std::endl;
+                for(heap_term* h : ats->get_pt_atoms()) {
+                    h->print_ht();
+                    // h->print_ht2file(output2file);
+                }
+            }
+            std::cout << "locvar vals: " << std::endl;
+            // output2file << "locvar vals: " << std::endl;
+            for(auto r : this->model_loc_data_var_val_info) {
+                std::cout << r.first << " " << r.second << std::endl;
+                // output2file << r.first << " " << r.second << std::endl;
+            }
+            for(atoms_subsumption* sbs : this->model_subsume_info) {
+                if(sbs->get_main_heap_term()->is_atom_hvar()) {
+                    app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
+                    SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
+                    std::set<app*> pts_subsumed;
+                    for(heap_term* pt_ht : sbs->get_pt_atoms()) {
+                        pts_subsumed.insert(pt_ht->get_atoms()[0]);
+                    }
+                    this->hvar2ptset[hvar_app] = pts_subsumed;
+                }
+            }
+            std::cout << "free heap vars:" << std::endl;
+            // output2file << "free heap vars: " << std::endl;
+            for(app* hv : this->curr_hvars) {
+                if(this->hvar2ptset.find(hv) == this->hvar2ptset.end()) {
+                    std::cout << "emp hvar: " << hv->get_name() << std::endl;
+                    // output2file << "emp hvar: " << hv->get_name() << std::endl;
+                }
+            }
+            final_solver->dec_ref();
+            this->mem_mng->dealloc_all();
+            return true;
+        } else if(final_result == l_false) { 
+        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+            SASSERT(final_solver->get_manager() == this->get_manager());
+            this->set_conflict_slhv();
+
+            final_solver->dec_ref();
+            this->mem_mng->dealloc_all();
+            return false;
+        } else {    
+            std::cout << " translated UNKNOWN " << std::endl;
+            SASSERT(false);
+            int* a = nullptr;
+            *a = 10;
+        }
+
+        return false;
     }
 
     bool theory_slhv::final_check_using_CDCL() {
@@ -876,6 +1121,92 @@ namespace smt {
         return expression;
     }
 
+
+    expr* theory_slhv::eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion) {
+        app* apped_expr = to_app(assertion);
+        if(apped_expr->get_num_args() == 0) {
+            return assertion;
+        } else if(apped_expr->is_app_of(basic_family_id, OP_AND)) {
+            expr_ref_vector conjuncts(this->m);
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                conjuncts.push_back(this->eliminate_uplus_in_uplus_for_assertion_disj(apped_expr->get_arg(i)));
+            }
+            return this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
+        } else if(apped_expr->is_app_of(basic_family_id, OP_OR)) {
+
+            expr_ref_vector disjuncts(this->m);
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                disjuncts.push_back(this->eliminate_uplus_in_uplus_for_assertion_disj(apped_expr->get_arg(i)));
+            }
+            return this->syntax_maker->mk_or(disjuncts.size(), disjuncts.data());
+        }
+        else if(apped_expr->is_app_of(basic_family_id, OP_NOT)) {
+            return this->syntax_maker->mk_not(this->eliminate_uplus_in_uplus_for_assertion_disj(apped_expr->get_arg(0)));
+        } else if(apped_expr->is_app_of(basic_family_id, OP_DISTINCT)) {
+            return this->syntax_maker->mk_distinct(this->eliminate_uplus_uplus_hterm(to_app(apped_expr->get_arg(0))), this->eliminate_uplus_uplus_hterm(to_app(apped_expr->get_arg(1))));
+        } else if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
+            app* arg1 = to_app(apped_expr->get_arg(0));
+            app* arg2 = to_app(apped_expr->get_arg(1));
+            if(this->is_uplus(arg2)) {
+                app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
+                if(eliminated_uplus == arg2) {
+                    return assertion;
+                } else {
+                    expr* result = this->get_manager().mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+                    return result;
+                }
+            }
+        } else {
+            return assertion;
+        }
+        return assertion;
+    }
+
+
+    expr* theory_slhv::convert_to_nnf_recursive(expr* assertion) {
+        app* apped_assertion = to_app(assertion);
+        if(apped_assertion->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = to_app(apped_assertion->get_arg(0));
+            if(inner->is_app_of(basic_family_id, OP_NOT)) {
+                return this->convert_to_nnf_recursive(inner->get_arg(0));
+            } else if(inner->is_app_of(basic_family_id, OP_OR)) {
+                expr_ref_vector new_args(this->m);
+                for(int i = 0; i < inner->get_num_args(); i ++) {
+                    new_args.push_back(this->convert_to_nnf_recursive(this->syntax_maker->mk_not(inner->get_arg(i))));
+                }
+                return this->syntax_maker->mk_and(new_args.size(), new_args.data());
+            } else if(inner->is_app_of(basic_family_id, OP_AND)) {
+                expr_ref_vector new_args(this->m);
+                for(int i = 0; i < inner->get_num_args(); i ++) {
+                    new_args.push_back(this->convert_to_nnf_recursive(this->syntax_maker->mk_not(inner->get_arg(i))));
+                }
+                return this->syntax_maker->mk_or(new_args.size(), new_args.data());
+            } else if(inner->is_app_of(basic_family_id, OP_DISTINCT)) {
+                return this->syntax_maker->mk_eq(inner->get_arg(0), inner->get_arg(1));
+            } else {
+                return apped_assertion;
+            }
+        } else if(apped_assertion->is_app_of(basic_family_id, OP_EQ)) {
+            return apped_assertion;
+        } 
+        else if(apped_assertion->get_num_args() == 0) {
+            return apped_assertion;
+        } 
+        else {
+            // MAY BE BUGGY
+            func_decl* apped_assertion_decl = apped_assertion->get_decl();
+            std::vector<expr*> old_args;
+            expr_ref_vector new_args(this->get_manager());
+            for(int i = 0; i < apped_assertion->get_num_args(); i++) {
+                old_args.push_back(apped_assertion->get_arg(i));
+            }
+            for(expr* arg : old_args) {
+                new_args.push_back(this->convert_to_nnf_recursive(arg));
+            }
+            return this->m.mk_app(apped_assertion_decl, new_args);
+        }
+    }
+
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
         if(this->is_uplus(hterm)) {
             bool has_iter = false;
@@ -911,6 +1242,20 @@ namespace smt {
         this->collect_loc_heap_and_data_cnstr_in_assignments(assigned_literals);
         #ifdef SLHV_PRINT
         std::cout << "slhv preprocessing end" << std::endl;
+        #endif
+    }
+
+
+    void theory_slhv::preprocessing_disj() {
+        #ifdef DISJ_DEBUG
+        std::cout << "slhv disj preprocessing" << std::endl;
+        #endif
+        this->collect_and_analyze_assertions_disj(this->refined_asssertions_disj);
+        // collect different types of constraints
+        // DISJ TODO
+        this->collect_heap_subassertions_disj(this->refined_asssertions_disj);
+        #ifdef DISJ_DEBUG
+        std::cout << "slhv disj preprocessing end" << std::endl;
         #endif
     }
 
@@ -1140,6 +1485,67 @@ namespace smt {
         #endif
     }
 
+    void theory_slhv::collect_and_analyze_assertions_disj(std::vector<app*> outside_assertions) {
+        #ifdef DISJ_DEBUG
+        std::cout << "slhv collect and analyze assignments" << std::endl;
+        #endif
+        for(auto e : outside_assertions) {
+            #ifdef DISJ_DEBUG
+            std::cout << "collect expr: " << mk_ismt2_pp(e, m) << std::endl;
+            #endif
+            app* app_e = to_app(e);
+            auto collected_vars = this->collect_vars(app_e);
+            this->locvars_disj = slhv_util::setUnion(this->locvars_disj, std::get<0>(collected_vars));
+            this->hvars_disj = slhv_util::setUnion(this->hvars_disj, std::get<1>(collected_vars));
+            this->datavars_disj = slhv_util::setUnion(this->datavars_disj, std::get<2>(collected_vars));
+            
+            this->disj_unions_disj = slhv_util::setUnion(this->disj_unions_disj, this->collect_disj_unions(app_e));
+
+            this->pts_disj = slhv_util::setUnion(this->pts_disj,  this->collect_points_tos(app_e));
+        }
+        // if "emp" or "nil" does not appear in the literals, add and internalize them manually:
+        decl_plugin* plug = this->m.get_plugin(get_id());
+        SASSERT(plug->get_family_id() == this->get_manager().mk_family_id("slhv"));
+        SASSERT(plug != nullptr);
+        slhv_decl_plugin* slhv_plugin = (slhv_decl_plugin*) plug;
+        if(this->global_emp == nullptr) {
+            if(!this->hvars_contain_emp_disj()) {
+                SASSERT(slhv_plugin->global_emp != nullptr);
+                app* ge = slhv_plugin->global_emp;
+                this->get_context().internalize(ge, false);
+                std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
+                // this->curr_hvars.insert(ge);
+                this->global_emp = ge;
+            } else {
+                SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
+                this->get_context().internalize(to_app(slhv_plugin->global_emp), false);
+            }
+        } else {
+            this->get_context().internalize(this->global_emp, false);
+        }
+        if(this->global_nil == nullptr) {
+            if(!this->locvars_contain_nil_disj()) {
+                app* gn = slhv_plugin->global_nil;
+                this->get_context().internalize(gn, false);
+                std::cout << "internalize " << mk_pp(gn, this->m) << std::endl;
+                this->locvars_disj.insert(gn);
+                this->global_nil = slhv_plugin->global_nil;
+            } else {
+                SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
+                this->get_context().internalize(to_app(slhv_plugin->global_nil), false);
+            }
+        } else {
+            this->get_context().internalize(this->global_nil, false);
+        }
+        for(app* pt : this->pts_disj) {
+            this->atomic_hterms_disj.push_back(pt);
+        }
+        for(app* hv : this->hvars_disj) {
+            this->atomic_hterms_disj.push_back(hv);
+        }
+        this->atomic_hterms_disj.push_back(this->global_emp);
+    }
+
     std::tuple<std::set<app* >, std::set<app *>, std::set<app *>>
     theory_slhv::collect_vars(app* expression) {
         // collect all locvars and hvars appeared recursively.
@@ -1241,6 +1647,28 @@ namespace smt {
                     #endif
                         this->curr_data_cnstr.insert(to_app(e));
                     }
+                }
+            }
+        }
+    }
+
+    
+    // DISJ TODO
+    void theory_slhv::collect_heap_subassertions_disj(std::vector<app*> outside_assertions) {
+        // collect all constrainst imposed on heap, loc and data
+        for(auto e : outside_assertions) {
+            if(e->is_app_of(basic_family_id, OP_EQ)) {
+                app* apped_arg1 = to_app(e->get_arg(0));
+                if(this->is_heapterm(apped_arg1)) {
+                    this->refined_heap_subassertions.insert(e);
+                }
+            } else {
+                if(e->get_num_args() > 0) {
+                    std::vector<app*> subassertions_to_collect;
+                    for(int i = 0; i < e->get_num_args(); i++) {
+                        subassertions_to_collect.push_back(to_app(e->get_arg(i)));
+                    }
+                    this->collect_heap_subassertions_disj(subassertions_to_collect);
                 }
             }
         }
@@ -1516,6 +1944,231 @@ namespace smt {
         // }
         
         return {eq_pair_hterms, all_hterms};
+    }
+
+
+    std::set<heap_term*> theory_slhv::extract_all_hterms_disj() {
+        #ifdef DISJ_DEBUG
+        std::cout << "begin extract all hterms disj" << std::endl;
+        #endif
+        std::set<heap_term*> eq_hterms;
+        for(app* eq : this->refined_heap_subassertions) {
+            heap_term* eq_lhs = nullptr;
+            heap_term* eq_rhs = nullptr;
+
+            SASSERT(eq != nullptr);
+            SASSERT(eq->is_app_of(basic_family_id, OP_EQ));
+            app* lhs_hterm = to_app(eq->get_arg(0));
+            app* rhs_hterm = to_app(eq->get_arg(1));
+            #ifdef DISJ_DEBUG
+            std::cout << "extract lhs hterm" << std::endl;
+            #endif
+            if(this->is_atom_hterm(lhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(lhs_hterm);
+            
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        eq_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_vec_count);
+                    eq_hterms.insert(lhs_atom_hterm);
+                    eq_lhs = lhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(lhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
+                }
+
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        eq_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_hterms.insert(lhs_bunch_hterm);
+                    eq_lhs = lhs_bunch_hterm;
+                }
+            }
+            #ifdef SLHV_PRINT
+            std::cout << "extract lhs hterm end" << std::endl;
+            #endif
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm" << std::endl;
+            #endif
+
+            if(this->is_atom_hterm(rhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(rhs_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        eq_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_hterms.insert(rhs_atom_hterm);
+                    eq_rhs = rhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(rhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
+                }
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        eq_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_hterms.insert(rhs_bunch_hterm);
+                    eq_rhs = rhs_bunch_hterm;
+                }
+            }
+
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm end" << std::endl;
+            #endif
+        }
+
+        #ifdef SLHV_PRINT
+        std::cout << "eq hterm extracted" << std::endl;
+        #endif
+
+        std::set<heap_term*> all_hterms;
+        std::set<std::vector<int>> all_counts;
+        std::vector<app*> atomics;
+        for(heap_term* eq_hterm : eq_hterms) {
+            std::set<std::vector<int>> curr_atom_counts = eq_hterm->get_atomic_subhterms_counts();
+            all_counts = slhv_util::setUnion(all_counts, curr_atom_counts);
+            all_hterms.insert(eq_hterm);
+            atomics = eq_hterm->get_atomic_hterm_vec();
+        }
+        SASSERT(atomics.size() > 0);
+        
+        std::set<std::vector<int>> next_all_counts;
+        for(auto vec : all_counts) {
+            bool insert_to_next = true;
+            for(heap_term* ht : all_hterms) {
+                if(ht->get_atomic_count() == vec) {
+                    insert_to_next = false;
+                    break;
+                }
+            }
+            if(insert_to_next) {
+                next_all_counts.insert(vec);
+            }
+        }
+
+        #ifdef SLHV_PRINT
+        std::cout << " begin all heap term allocation" << std::endl;
+        #endif
+        for(std::vector<int> vec : next_all_counts) {
+            heap_term* atom = alloc(heap_term, this, atomics, vec);
+            all_hterms.insert(atom);
+        }
+
+        #ifdef SLHV_PRINT
+        std::cout << "all heap term alloced" << std::endl;
+        #endif
+
+        bool has_emp = false;
+        for(heap_term* ht : all_hterms) {
+            if(ht->is_emp()) {
+                has_emp = true;
+                break;
+            }
+        }
+        if(!has_emp && all_hterms.size() > 0) {
+            std::vector<int> emp_vec(atomics.size(), 0);
+            emp_vec[emp_vec.size() - 1] = 1;
+            heap_term* emp_hterm = alloc(heap_term, this, atomics, emp_vec);
+            all_hterms.insert(emp_hterm);
+        }
+
+
+        #ifdef SLHV_PRINT
+        std::cout << "emp heap term alloced" << std::endl;
+        #endif
+
+        
+        // std::vector<int> emp_hterm_count(this->curr_atomic_hterms.size(), 0);
+        // emp_hterm_count[this->curr_atomic_hterms.size() - 1] = 1;
+        // for(heap_term* eht : all_hterms) {
+        //     if(eht->get_atomic_count() == emp_hterm_count) {
+        //         break;
+        //     } else {
+        //         heap_term* emp_hterm = alloc(heap_term, this, this->curr_atomic_hterms, emp_hterm_count);
+        //         all_hterms.insert(emp_hterm);
+        //     }
+        // }
+        
+        return all_hterms;
     }
 
 
@@ -1937,6 +2590,82 @@ namespace smt {
         #endif
     }
 
+
+    formula_encoder::formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms) {
+        // record all kinds of hts
+        this->th = th;
+        this->emp_ht = nullptr;
+        this->unsat_found = false;
+        int i = 0;
+        for(heap_term* ht : all_hterms) {
+            this->ht2index_map[ht] = i;
+            this->index2ht.push_back(ht);
+            i ++;
+        }
+        this->hts = all_hterms;
+        for(heap_term* ht : this->hts) {
+            this->ht2root[ht] = ht;
+            if(ht->is_emp()) {
+                SASSERT(this->emp_ht == nullptr);
+                this->emp_ht = ht;
+            } else if(ht->is_atom_pt()) {
+                this->atom_hts.insert(ht);
+                this->pt_hts.insert(ht);
+            } else if(ht->is_atom_hvar()) {
+                this->atom_hts.insert(ht);
+                this->hvar_hts.insert(ht);
+            } else {
+                // compound ht
+            }
+        }
+        this->syntax_maker = this->th->syntax_maker;
+
+        // create boolean variables
+        for(int ht1_index = 0; ht1_index < this->hts.size(); ht1_index ++) {
+            for(int ht2_index = 0; ht2_index < this->hts.size(); ht2_index ++) {
+                if(ht1_index != ht2_index || this->djrel_var_map.find({ht1_index, ht2_index}) == this->djrel_var_map.end()) {
+                    std::string idj_name_prefix = "idj";
+                    std::string ish_name_prefix = "ish";
+                    std::pair<int, int> key_pair = {ht1_index, ht2_index};
+                    app* idj_boolvar = this->syntax_maker->mk_boolvar(idj_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+
+                    app* ish_boolvar = this->syntax_maker->mk_boolvar(ish_name_prefix + "_" + std::to_string(key_pair.first) + "_" + std::to_string(key_pair.second));
+
+                    this->djrel_var_map[key_pair] = idj_boolvar;
+                    this->shrel_var_map[key_pair] = ish_boolvar;
+                    this->djrel_var2pair[idj_boolvar] = key_pair;
+                    this->shrel_var2pair[ish_boolvar] = key_pair;
+                } 
+            }
+        }
+        // create intvar for locvar
+        for(app* lv : this->th->locvars_disj) {
+            SASSERT(this->th->is_locvar(lv));
+            std::string name = lv->get_name().str();
+            std::string int_name = name + "_intvar";
+            app* intvar = this->syntax_maker->mk_lia_intvar(int_name);
+            SASSERT(this->locvar2intvar_map.find(lv) == this->locvar2intvar_map.end());
+            this->locvar2intvar_map[lv] = intvar;
+        }
+        #ifdef SLHV_PRINT
+        std::cout << "formula encoder created" << std::endl;
+        #endif
+
+        // DISJ TODO: add deducing for disj method
+        // this->ded = alloc(slhv_deducer, th, this);
+        // // std::cout << "begin deducing" << std::endl;
+        // ded->deduce();
+        // if(this->ded->get_is_unsat()) {
+        //     this->unsat_found = true;
+        // }
+        // this->construct_ht2root_from_deducer();
+        this->construct_ht2root_from_nothing();
+        #ifdef SOLVING_INFO
+        ded->print_current(std::cout);
+        std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
+        #endif
+    }
+
     void formula_encoder::construct_ht2root_from_deducer() {
         for(heap_term* ht1 : this->hts) {
             for(heap_term* ht2 : this->hts) {
@@ -1992,6 +2721,22 @@ namespace smt {
                 }
             }
         }
+        for(auto item : this->ht2root) {
+            this->repre_hts.insert(item.second);
+            if(item.second->is_atom_hvar()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_hvars.insert(item.second);
+            } else if(item.second->is_atom_pt()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_pts.insert(item.second);
+            } else {
+                
+            }
+        }
+    }
+
+    void formula_encoder::construct_ht2root_from_nothing() {
+
         for(auto item : this->ht2root) {
             this->repre_hts.insert(item.second);
             if(item.second->is_atom_hvar()) {
@@ -2085,6 +2830,8 @@ namespace smt {
         }
     }
 
+
+
     expr* formula_encoder::translate_locdata_formula(expr* formula) {
         app* apped_formula = to_app(formula);
         if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
@@ -2108,7 +2855,11 @@ namespace smt {
             expr* result = this->syntax_maker->mk_eq(translated_inner_lhs, translated_inner_rhs);
             
             return result;
-        } else {
+        } else if(this->th->get_manager().is_bool(apped_formula)) {
+            // ATTENTION, MAY MISS SITUATIONS
+            return formula;
+        }
+        else {
             std::cout << "UNRESOLVED FORMULA: " << mk_ismt2_pp(formula, this->th->get_manager()) << std::endl;
             return formula;
         }
@@ -2421,6 +3172,7 @@ namespace smt {
         #endif
         for(heap_term* pt : this->repre_pts) {
             for(heap_term* ptp : this->repre_pts) {
+                
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
                 std::vector<app*> pt_atom = pt->get_atoms();
@@ -2472,7 +3224,7 @@ namespace smt {
                 result_ass.insert(disj_temp_form);
                 result_ass.insert(sh_temp_form);
 
-                for(heap_term* ht : this->hts) {
+                for(heap_term* ht : this->repre_hts) {
                     int ht_index = this->ht2index_map[ht];
                     // use deduction results
                     if(this->ded->has_shrel(pt_index, ht_index) && this->ded->has_shrel(ptp_index, ht_index)) {
@@ -2510,6 +3262,92 @@ namespace smt {
         
         return result_ass;
     }
+
+    std::set<expr*> formula_encoder::generate_pto_assumptions_disj() {
+        std::set<expr*> result_ass;
+        #ifdef DISJ_DEBUG
+        std::cout << "generate pto formula disj" << std::endl;
+        #endif
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ptp : this->repre_pts) {
+                
+                int pt_index = this->ht2index_map[pt];
+                int ptp_index = this->ht2index_map[ptp];
+                std::vector<app*> pt_atom = pt->get_atoms();
+                SASSERT(pt_atom.size() == 1);
+                app* pt_addr = to_app(pt_atom[0]->get_arg(0));
+                app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* pt_content = to_app(pt_rcd->get_arg(0));
+                
+                std::vector<app*> ptp_atom = ptp->get_atoms();
+                SASSERT(ptp_atom.size() == 1);
+                app* ptp_addr = to_app(ptp_atom[0]->get_arg(0));
+                app* ptp_rcd = to_app(ptp_atom[0]->get_arg(1));
+                SASSERT(this->th->is_recordterm(pt_rcd));
+                app* ptp_content = to_app(ptp_rcd->get_arg(0));
+
+                expr* disj_temp_form = this->syntax_maker->mk_implies(
+                    this->get_djrel_boolvar(pt, ptp),
+                    this->syntax_maker->mk_not(
+                        this->syntax_maker->mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        )
+                    )
+                );
+                expr* content_eq_temp_form = nullptr;
+                // ATTENTION: this is commented since the set of address is a subset of data
+                // if(ptp_content->get_family_id() == pt_content->get_family_id()) {
+                    // std::cout << mk_ismt2_pp(pt_content, this->th->get_manager()) << std::endl;
+                    // std::cout << mk_ismt2_pp(ptp_content, this->th->get_manager()) << std::endl;
+                    content_eq_temp_form = this->syntax_maker->mk_eq(
+                        this->translate_locterm_to_liaterm(pt_content),
+                        this->translate_locterm_to_liaterm(ptp_content)
+                    );
+
+                // } else {
+                //     content_eq_temp_form = this->th->get_manager().mk_false();
+                // }
+                expr* sh_temp_form = this->syntax_maker->mk_implies(
+                    this->get_shrel_boolvar(pt, ptp),
+                    this->syntax_maker->mk_and(
+                        this->syntax_maker->mk_eq(
+                            this->translate_locterm_to_liaterm(pt_addr),
+                            this->translate_locterm_to_liaterm(ptp_addr)
+                        ),
+                        content_eq_temp_form
+                    )
+                );
+                result_ass.insert(disj_temp_form);
+                result_ass.insert(sh_temp_form);
+
+                for(heap_term* ht : this->repre_hts) {
+                    int ht_index = this->ht2index_map[ht];
+                    result_ass.insert(
+                        this->syntax_maker->mk_implies(
+                            this->syntax_maker->mk_and(
+                                this->get_shrel_boolvar(pt, ht),
+                                this->get_shrel_boolvar(ptp, ht)
+                            ),
+                            this->syntax_maker->mk_or(
+                                this->syntax_maker->mk_and(
+                                    this->get_shrel_boolvar(ptp, pt), 
+                                    this->get_shrel_boolvar(pt, ptp)
+                                ),
+                                this->get_djrel_boolvar(pt, ptp)
+                            )
+                        )
+                    );
+                    
+                }
+            }
+        }
+
+        return result_ass;
+    }
+
+    
 
     expr* formula_encoder::generate_iso_formula() {
         #ifdef SOLVING_INFO
@@ -2699,6 +3537,57 @@ namespace smt {
         return result_ass;
     }
 
+    std::set<expr*> formula_encoder::generate_iso_assumptions_disj() {
+        #ifdef DISJ_DEBUG
+        std::cout << "generate iso formula disj" << std::endl;
+        #endif
+        expr* first_conj = this->th->get_manager().mk_true();
+        expr* second_conj = this->th->get_manager().mk_true();
+        expr* third_conj = this->th->get_manager().mk_true();
+
+        std::set<expr*> result_ass;
+
+        for(heap_term* pt : this->repre_pts) {
+            for(heap_term* ht : this->repre_hts) {
+                if(ht != this->emp_ht) {
+                    int pt_index = this->ht2index_map[pt];
+                    int ht_index = this->ht2index_map[ht];
+                    // use deduction information
+                    
+                    expr* first_conj_ipl_lhs = this->get_shrel_boolvar(pt, ht);
+                    expr* first_conj_ipl_rhs = this->th->get_manager().mk_false();
+                    for(heap_term* a : this->get_sub_atom_hts(ht)) {
+                        heap_term* cand_a = this->ht2root[a];
+                        first_conj_ipl_rhs = this->syntax_maker->mk_or(first_conj_ipl_rhs, this->get_shrel_boolvar(pt, cand_a));
+                    }
+                    result_ass.insert(
+                        this->syntax_maker->mk_implies(first_conj_ipl_lhs, first_conj_ipl_rhs)
+                    );
+                    
+                }
+            }
+        }
+
+        for(heap_term* ht1 : this->repre_pts) {
+            for(heap_term* ht2 : this->repre_hts) {
+                for(heap_term* ht3 : this->repre_hts) {
+                    int ht1_index = this->ht2index_map[ht1];
+                    int ht3_index = this->ht2index_map[ht3];
+                    expr* second_conj_ipl_lhs = this->syntax_maker->mk_and(
+                        this->get_shrel_boolvar(ht1, ht2),
+                        this->get_shrel_boolvar(ht2, ht3)
+                    );
+                    expr* second_conj_ipl_rhs =  this->get_shrel_boolvar(ht1, ht3);
+                    result_ass.insert(
+                        this->syntax_maker->mk_implies(second_conj_ipl_lhs, second_conj_ipl_rhs)
+                    );
+                }
+            }
+        }
+
+        return result_ass;
+    }
+
     expr* formula_encoder::generate_idj_formula() {
 
         #ifdef SOLVING_INFO
@@ -2774,6 +3663,38 @@ namespace smt {
         return result_ass;
     }
 
+    std::set<expr*> formula_encoder::generate_idj_assumptions_disj() {
+        #ifdef DISJ_DEBUG
+        std::cout << "generate idj formula disj" << std::endl;
+        #endif
+        std::set<expr*> result_ass;
+        for(heap_term* ht1 : this->repre_pts) {
+            if(ht1 == this->emp_ht) {continue;}
+            for(heap_term* ht2 : this->repre_pts) {
+                if(ht2 == this->emp_ht) {continue;}
+                int ht1_index = this->ht2index_map[ht1];
+                int ht2_index = this->ht2index_map[ht2];
+                for(heap_term* ht3 : this->repre_atoms) {
+                    if(ht3 == this->emp_ht) {continue;}
+                    for(heap_term* ht4 : this->repre_atoms) {
+                        if(ht4 == this->emp_ht) {continue;}
+                        expr* impl_lhs = this->syntax_maker->mk_and(
+                            this->get_shrel_boolvar(ht1, ht3),
+                            this->get_shrel_boolvar(ht2, ht4),
+                            this->get_djrel_boolvar(ht3, ht4)
+                        );
+                        expr* impl_rhs = this->get_djrel_boolvar(ht1, ht2);
+                        result_ass.insert(
+                            this->syntax_maker->mk_implies(impl_lhs, impl_rhs)
+                        );
+                    }
+                }
+            }
+        }
+
+        return result_ass;
+    }
+
     expr* formula_encoder::generate_final_formula() {
 
 
@@ -2793,6 +3714,20 @@ namespace smt {
     }
 
     std::set<expr*> formula_encoder::generate_final_assumptions() {
+        std::set<expr*> result_ass;
+        for(heap_term* pt : this->pt_hts) {
+            result_ass.insert(
+                this->syntax_maker->mk_not(this->get_shrel_boolvar(pt, this->emp_ht))
+            );
+        }
+        return result_ass;
+    }
+
+
+    std::set<expr*> formula_encoder::generate_final_assumptions_disj(){
+        #ifdef DISJ_DEBUG
+        std::cout << "generate final assumptions disj" << std::endl;
+        #endif
         std::set<expr*> result_ass;
         for(heap_term* pt : this->pt_hts) {
             result_ass.insert(
@@ -2880,6 +3815,340 @@ namespace smt {
         }
         formula = this->syntax_maker->mk_and(formula, this->generate_loc_var_constraints());
         return {formula, v};
+    }
+
+
+    std::set<expr*> formula_encoder::encode_for_disj() {
+        #ifdef DISJ_DEBUG
+        std::cout << "encode for disj" << std::endl;
+        #endif
+        std::set<expr*> result;
+        result = slhv_util::setUnion(result, this->generate_init_ld_locvar_constraint_for_all_assertions());
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_pto_assumptions" << std::endl;
+        #endif
+        result = slhv_util::setUnion(result, this->generate_pto_assumptions_disj());
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_iso_assumptions" << std::endl;
+        #endif
+        result = slhv_util::setUnion(result, this->generate_iso_assumptions_disj());
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_idj_assumptions" << std::endl;
+        #endif
+        result = slhv_util::setUnion(result, this->generate_idj_assumptions_disj());
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_final_assumptions" << std::endl;
+        #endif
+        result = slhv_util::setUnion(result, this->generate_final_assumptions_disj());
+        #ifdef DISJ_DEBUG
+        std::cout << "encode for disj end" << std::endl;
+        #endif
+        return result;
+    }
+
+
+    std::set<expr*> formula_encoder::generate_init_ld_locvar_constraint_for_all_assertions() {
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_init_ld_locvar_constraint_for_all_assertions" << std::endl;
+        #endif
+        std::set<expr*> result;
+        std::set<app*> collected_locvars;
+        arith_util a(this->th->get_manager());
+        for(app* refined_assertion : this->th->refined_asssertions_disj) {
+            collected_locvars = slhv_util::setUnion(collected_locvars, this->collect_locvars_recursive(refined_assertion));
+        }
+        expr_ref_vector locvar_ge_0_constraints(this->th->get_manager());
+        for(app* lv : collected_locvars) {
+            locvar_ge_0_constraints.push_back(
+                a.mk_ge(this->translate_locterm_to_liaterm(lv), a.mk_int(0))
+            );
+        }
+        expr* loc_ge_constraint = this->syntax_maker->mk_and(locvar_ge_0_constraints.size(), locvar_ge_0_constraints.data());
+        result.insert(loc_ge_constraint);
+
+        for(app* refined_assertion : this->th->refined_asssertions_disj) {
+            result.insert(this->generate_init_ld_locvar_constraint_recursive(refined_assertion));
+        }
+
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_init_ld_locvar_constraint_for_all_assertions end" << std::endl;
+        #endif
+        return result;
+    }
+    
+    
+    expr* formula_encoder::generate_init_ld_locvar_constraint_recursive(app* assertion) {
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_init_ld_locvar_constraint_recursive " << mk_ismt2_pp(assertion, this->th->get_manager()) << std::endl;
+        #endif
+        arith_util a(this->th->get_manager());
+        if(assertion->is_app_of(basic_family_id, OP_OR)) {
+            if(assertion->get_num_args() == 2) {
+                expr* fresh_bool = this->syntax_maker->mk_fresh_boolvar();
+                expr* fresh_bool_neg = this->syntax_maker->mk_not(fresh_bool);
+                app* first_apped_arg = to_app(assertion->get_arg(0));
+                app* second_apped_arg = to_app(assertion->get_arg(1));
+                expr* first_generated = this->generate_init_ld_locvar_constraint_recursive(first_apped_arg);
+                expr* second_generated = this->generate_init_ld_locvar_constraint_recursive(second_apped_arg);
+                return this->syntax_maker->mk_or(
+                    this->syntax_maker->mk_and(first_generated, fresh_bool),
+                    this->syntax_maker->mk_and(second_generated, fresh_bool_neg)
+                );
+            } else {
+                std::cout << "multi or, may be buggy" << std::endl;
+                app* branch_intvar = this->syntax_maker->mk_fresh_datavar();
+                expr_ref_vector disjuncts(this->th->get_manager());
+                for(int i = 0; i < assertion->get_num_args(); i++) {
+                    expr* ith_generated = this->generate_init_ld_locvar_constraint_recursive(to_app(assertion->get_arg(i)));
+                    disjuncts.push_back(
+                        this->syntax_maker->mk_and(
+                            this->syntax_maker->mk_eq(branch_intvar, a.mk_int(i)),
+                            ith_generated
+                        )
+                    );
+                }
+                
+                return this->syntax_maker->mk_or(disjuncts.size(), disjuncts.data());
+            }
+        } else if(assertion->is_app_of(basic_family_id, OP_AND)) {
+            expr_ref_vector all_conjuncts(this->th->get_manager());
+            for(int i = 0; i < assertion->get_num_args(); i ++) {
+                all_conjuncts.push_back(this->generate_init_ld_locvar_constraint_recursive(to_app(assertion->get_arg(i))));
+            }
+            return this->syntax_maker->mk_and(all_conjuncts.size(), all_conjuncts.data());
+        } else if(assertion->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner = to_app(assertion->get_arg(0));
+            if(inner->is_app_of(basic_family_id, OP_EQ)) {
+                if(this->th->is_heapterm(to_app(inner->get_arg(0)))) {
+                    std::cout << "ERROR: heq negation !!!!!" << mk_ismt2_pp(assertion, this->th->get_manager()) << std::endl;
+                    return nullptr;
+                }
+            }
+            return this->translate_locdata_formula(assertion);
+        } else if(assertion->is_app_of(basic_family_id, OP_EQ)) {
+            app* first_arg = to_app(assertion->get_arg(0));
+            if(this->th->is_heapterm(first_arg)) {
+                return this->generate_init_ld_locvar_constraint_for_hteq(assertion);
+            } else {
+                return this->translate_locdata_formula(assertion);
+            }
+        } else if(assertion->is_app_of(basic_family_id, OP_DISTINCT)) {
+            return this->translate_locdata_formula(assertion);
+        } else if(this->th->get_manager().is_bool(assertion)) {
+            // ATTENTION: MAY MISS SITUATIONS
+            return this->translate_locdata_formula(assertion);
+        }
+        else {
+            std::cout << "disj encoding: unresolved formula " << mk_ismt2_pp(assertion, this->th->get_manager()) << std::endl;
+            return nullptr;
+        }
+    }
+
+    expr* formula_encoder::generate_init_ld_locvar_constraint_for_hteq(app* heq) {
+
+        #ifdef DISJ_DEBUG
+        std::cout << "generate_init_ld_locvar_constraint_for_hteq " << mk_ismt2_pp(heq, this->th->get_manager()) << std::endl;
+        #endif
+        arith_util a(this->th->get_manager());
+        // pt addr constraint
+        std::set<app*> collected_pts = this->collect_hteq_all_pts(heq);
+        expr_ref_vector ptaddr_neq_0_constraints(this->th->get_manager());
+        for(app* ptterm : collected_pts) {
+            app* addr = to_app(ptterm->get_arg(0));
+            ptaddr_neq_0_constraints.push_back(
+                this->syntax_maker->mk_distinct(this->translate_locterm_to_liaterm(addr), a.mk_int(0))
+            );
+        }
+        expr* ptaddr_neq_0_constraint = this->syntax_maker->mk_and(ptaddr_neq_0_constraints.size(), ptaddr_neq_0_constraints.data());
+
+        // =========== init relation constraint
+        expr_ref_vector init_shdj_rel_of_hteq(this->th->get_manager());
+        // left right subsumption
+        app* lhs_orig_ht = to_app(heq->get_arg(0));
+        app* rhs_orig_ht = to_app(heq->get_arg(1));
+
+        heap_term* lhs_cand_heapterm = this->find_heap_term_for_ht_disj(lhs_orig_ht);
+        heap_term* rhs_cand_heapterm = this->find_heap_term_for_ht_disj(rhs_orig_ht);
+        init_shdj_rel_of_hteq.push_back(this->get_shrel_boolvar(lhs_cand_heapterm, rhs_cand_heapterm));
+        init_shdj_rel_of_hteq.push_back(this->get_shrel_boolvar(rhs_cand_heapterm, lhs_cand_heapterm));
+
+        // atoms subsumption
+        std::vector<app*> lhs_orig_atomic_hts;
+        std::vector<app*> rhs_orig_atomic_hts;
+
+        if(this->th->is_atom_hterm(lhs_orig_ht)) {
+            lhs_orig_atomic_hts.push_back(lhs_orig_ht);
+        } else {
+            for(int i = 0; i < lhs_orig_ht->get_num_args(); i ++) {
+                lhs_orig_atomic_hts.push_back(to_app(lhs_orig_ht->get_arg(i)));
+            }
+        }
+
+        if(this->th->is_atom_hterm(rhs_orig_ht)) {
+            rhs_orig_atomic_hts.push_back(rhs_orig_ht);
+        } else {
+            for(int i = 0; i < rhs_orig_ht->get_num_args(); i ++) {
+                rhs_orig_atomic_hts.push_back(to_app(rhs_orig_ht->get_arg(i)));
+            }
+        }
+        for(int i = 0; i < lhs_orig_atomic_hts.size(); i ++) {
+            heap_term* cand_aheapterm = this->find_heap_term_for_ht_disj(lhs_orig_atomic_hts[i]);
+            init_shdj_rel_of_hteq.push_back(
+                this->get_shrel_boolvar(cand_aheapterm, lhs_cand_heapterm)
+            );
+        }
+        for(int i = 0; i < rhs_orig_atomic_hts.size(); i ++) {
+            heap_term* cand_aheapterm = this->find_heap_term_for_ht_disj(rhs_orig_atomic_hts[i]);
+            init_shdj_rel_of_hteq.push_back(
+                this->get_shrel_boolvar(cand_aheapterm, rhs_cand_heapterm)
+            );
+        }
+
+        // compound dj
+        for(int i = 0; i < lhs_orig_atomic_hts.size(); i ++) {
+            for(int j = 0; j < lhs_orig_atomic_hts.size(); j ++) {
+                if(i != j) {
+                    heap_term* cand_ahti = this->find_heap_term_for_ht_disj(lhs_orig_atomic_hts[i]);
+                    heap_term* cand_ahtj = this->find_heap_term_for_ht_disj(lhs_orig_atomic_hts[j]);
+                    if(cand_ahti->is_emp() || cand_ahtj->is_emp()) {
+                        continue;
+                    }
+                    init_shdj_rel_of_hteq.push_back(
+                        this->get_djrel_boolvar(cand_ahti, cand_ahtj)
+                    );
+                    init_shdj_rel_of_hteq.push_back(
+                        this->get_djrel_boolvar(cand_ahtj, cand_ahti)
+                    );
+                }
+            }
+        }
+        for(int i = 0; i < rhs_orig_atomic_hts.size(); i ++) {
+            for(int j = 0; j < rhs_orig_atomic_hts.size(); j ++) {
+                if(i != j) {
+                    heap_term* cand_ahti = this->find_heap_term_for_ht_disj(rhs_orig_atomic_hts[i]);
+                    heap_term* cand_ahtj = this->find_heap_term_for_ht_disj(rhs_orig_atomic_hts[j]);
+                    if(cand_ahti->is_emp() || cand_ahtj->is_emp()) {
+                        continue;
+                    }
+                    init_shdj_rel_of_hteq.push_back(
+                        this->get_djrel_boolvar(cand_ahti, cand_ahtj)
+                    );
+                    init_shdj_rel_of_hteq.push_back(
+                        this->get_djrel_boolvar(cand_ahtj, cand_ahti)
+                    );
+                }
+            }
+        }
+        expr* init_shdj_constraint_for_hteq = this->syntax_maker->mk_and(init_shdj_rel_of_hteq.size(), init_shdj_rel_of_hteq.data());
+        expr* result = this->syntax_maker->mk_and(ptaddr_neq_0_constraint, init_shdj_constraint_for_hteq);
+        return result;
+    }
+
+    heap_term* formula_encoder::find_heap_term_for_ht_disj(app* orig_ht) {
+        std::vector<int> atomic_count(this->th->atomic_hterms_disj.size(), 0);
+        if(this->th->is_atom_hterm(orig_ht)) {
+            for(int i = 0; i < this->th->atomic_hterms_disj.size(); i ++) {
+                if(orig_ht == this->th->atomic_hterms_disj[i]) {
+                    atomic_count[i] = 1;
+                    break;
+                }
+            }
+            for(heap_term* ht : this->hts) {
+                if(ht->get_atomic_count() == atomic_count) {
+                    return this->ht2root[ht];
+                } 
+            }
+            std::cout << "ERROR: error finding heap term for ht" << std::endl;
+            return nullptr;
+        } else if(this->th->is_uplus(orig_ht)) {
+            std::set<app*> uplus_atoms;
+            for(int i = 0; i < orig_ht->get_num_args(); i ++) {
+                bool found = false;
+                for(int j = 0; j < this->th->atomic_hterms_disj.size(); j ++) {
+                    if(to_app(orig_ht->get_arg(i)) == this->th->atomic_hterms_disj[j]) {
+                        found = true;
+                        atomic_count[j] += 1;
+                        break;
+                    }
+                }
+                if(!found) {
+                    std::cout << "ERROR: error1 finding heap term for uplus ht" << mk_ismt2_pp(orig_ht->get_arg(i), this->th->get_manager()) << std::endl;
+                }
+            }
+            
+            for(heap_term* ht : this->hts) {
+                if(ht->get_atomic_count() == atomic_count) {
+                    return this->ht2root[ht];
+                } 
+            }
+            std::cout << "ERROR: error2 finding heap term for uplus ht" << std::endl;
+            return nullptr;
+        } else {
+            return nullptr;
+            std::cout << "unknown ht in finding heap term" << std::endl;
+        }
+    }
+
+    std::set<app*> formula_encoder::collect_locvars_recursive(app* term) {
+        std::set<app*> locvar_result;
+        if(this->th->is_locvar(term)) {
+            locvar_result.insert(term);
+            return locvar_result;
+        } else {
+            if(term->get_num_args() == 0) {
+                return locvar_result;
+            } else {
+                for(int i = 0; i < term->get_num_args(); i ++) {
+                    std::set<app*> temp_result = this->collect_locvars_recursive(to_app(term->get_arg(i)));
+                    locvar_result = slhv_util::setUnion(locvar_result, temp_result);
+                }
+                return locvar_result;
+            }
+        }
+    }
+
+
+    std::set<app*> formula_encoder::collect_hteq_all_pts(app* hteq) {
+        SASSERT(hteq->is_app_of(basic_family_id, OP_EQ));
+        app* arg1 = to_app(hteq->get_arg(0));
+        app* arg2 = to_app(hteq->get_arg(1));
+        std::set<app*> hteq_pts;
+        if(this->th->is_points_to(arg1)) {
+            hteq_pts.insert(arg1);
+        } else if(this->th->is_hvar(arg1)) {
+            // Do nothing
+        } else if(this->th->is_uplus(arg1)) {
+            for(int i = 0; i < arg1->get_num_args(); i ++) {
+                app* apped_arg = to_app(arg1->get_arg(i));
+                if(this->th->is_points_to(apped_arg)) {
+                    hteq_pts.insert(apped_arg);
+                }
+            }
+        } else if(this->th->is_emp(arg1)) {
+            // Do nothing
+        }
+        else {
+            std::cout << "ERROR: unknown hterm in collect hteq pt" << std::endl;
+        }
+
+        if(this->th->is_points_to(arg2)) {
+            hteq_pts.insert(arg2);
+        } else if(this->th->is_hvar(arg2)) {
+            // Do nothing
+        } else if(this->th->is_uplus(arg2)) {
+            for(int i = 0; i < arg2->get_num_args(); i ++) {
+                app* apped_arg = to_app(arg2->get_arg(i));
+                if(this->th->is_points_to(apped_arg)) {
+                    hteq_pts.insert(apped_arg);
+                }
+            }
+        } else if(this->th->is_emp(arg2)) {
+            // Do nothing
+        } else {
+            std::cout << "ERROR: unknown hterm in collect hteq pt" << std::endl;
+        }
+
+        return hteq_pts;
     }
 
 
@@ -4487,6 +5756,11 @@ namespace smt {
         return fhv;
     }
 
+    app* slhv_syntax_maker::mk_fresh_boolvar() {
+        app* fbv = this->fv_maker->mk_fresh_boolvar();
+        return fbv;
+    }
+
     app* slhv_syntax_maker::mk_fresh_locvar() {
         app* flv = this->fv_maker->mk_fresh_locvar();
         this->th->get_context().internalize(flv, false);
@@ -5458,9 +6732,11 @@ namespace smt {
         this->curr_locvar_id = 0;
         this->curr_hvar_id = 0;
         this->curr_datavar_id = 0;
+        this->curr_boolvar_id = 0;
         locvar_map.clear();
         hvar_map.clear();
         datavar_map.clear();
+        boolvar_map.clear();
     }
 
     app* slhv_fresh_var_maker::mk_fresh_hvar() {
@@ -5496,6 +6772,15 @@ namespace smt {
         std::cout << "fresh datavar made: " << name << std::endl;
         #endif
         return fresh_datavar;
+    }
+
+
+    app* slhv_fresh_var_maker::mk_fresh_boolvar() {
+        std::string name = "f_th_boolvar" + std::to_string(this->curr_boolvar_id);
+        sort* boolsort = this->th->get_manager().mk_bool_sort();
+        app* fresh_boolvar = this->th->get_manager().mk_const(name, boolsort);
+        curr_boolvar_id++;
+        return fresh_boolvar;
     }
 
 
