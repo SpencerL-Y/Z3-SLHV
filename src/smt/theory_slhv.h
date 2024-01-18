@@ -659,6 +659,7 @@ namespace smt
         // formula encoder for CDCL
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms, std::set<std::pair<heap_term*, heap_term*>> eq_hterm_pairs);
 
+
         // formula encoder for disj enc
         formula_encoder(theory_slhv* th, std::set<heap_term*> all_hterms);
         
