@@ -1,0 +1,19 @@
+cmd context init manager
+mk solver for logic SLHV
+mk smt2 solver
+constructor size: 1
+acc name: loc
+acc sort: IntLoc
+ptrs range sort: pt_record_0
+constructor size: 1
+acc name: data
+acc sort: Int
+ptrs range sort: pt_record_1
+internalize nil
+Number of heap terms: 103
+Number of locvars: 162
+lia assertion size: 5647865
+XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX
+unsat
+Time Consumed: 37.329713582992554s
