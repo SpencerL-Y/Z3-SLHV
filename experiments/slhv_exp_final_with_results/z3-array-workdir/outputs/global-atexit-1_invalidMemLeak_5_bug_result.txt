@@ -1,0 +1,7 @@
+cmd context init manager
+tactic: mk default tactic
+mk inc sat solver
+mk solver for logic null
+mk smt2 solver
+unknown
+Time Consumed: 0.0265350341796875s

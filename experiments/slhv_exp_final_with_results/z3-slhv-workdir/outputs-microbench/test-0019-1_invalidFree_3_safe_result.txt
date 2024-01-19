@@ -1,0 +1,1099 @@
+cmd context init manager
+mk solver for logic SLHV
+mk smt2 solver
+constructor size: 1
+acc name: loc
+acc sort: IntLoc
+ptrs range sort: pt_record_0
+constructor size: 1
+acc name: data
+acc sort: Int
+ptrs range sort: pt_record_1
+XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX
+================= current outside assertions ==============
+(= H_0 emp)
+(= AH_0 emp)
+(let ((a!1 (uplus emp
+                  (uplus (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))))
+  (= H1_1 a!1))
+(not (= $i10_main01_1 1))
+(or (not invalidFree1_2) invalidFree1_2)
+(let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not invalidFree1_2) a!1))
+(let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))))
+  (or a!1 invalidFree1_2))
+(let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or a!1 a!2))
+(or (= AH4_2 ah1) invalidFree1_2)
+(let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (= AH4_2 ah1) a!1))
+(let ((a!1 (uplus h9_2
+                  (uplus (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+(let ((a!2 (not (or (not (= H_1 a!1))
+                    (not (= $p7_main0_1 l15_2))
+                    (not (= H6_2 h9_2))))))
+  (or (not (= d3_2 2)) a!2 invalidFree1_2)))
+(let ((a!1 (uplus h9_2
+                  (uplus (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2)))))
+      (a!3 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+(let ((a!2 (not (or (not (= H_1 a!1))
+                    (not (= $p7_main0_1 l15_2))
+                    (not (= H6_2 h9_2))))))
+  (or (not (= d3_2 2)) a!2 a!3)))
+(let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+(let ((a!2 (not (or (not (= H6_2 h9_2)) (not a!1) (not (= $p7_main0_1 l19_2))))))
+  (or (not (= d3_2 1)) a!2 invalidFree1_2)))
+(let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2)))))
+      (a!3 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+(let ((a!2 (not (or (not (= H6_2 h9_2)) (not a!1) (not (= $p7_main0_1 l19_2))))))
+  (or (not (= d3_2 1)) a!2 a!3)))
+(let ((a!1 (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2)))))
+      (a!2 (or (not invalidFree1_2)
+               (not (or invalidFree1_2 (not invalidFree2_2)))
+               (not (or invalidFree2_2 (not invalidFree1_2)))))
+      (a!3 (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2)))))
+      (a!4 (uplus h10_2
+                  (uplus (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2)))))
+      (a!7 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+(let ((a!5 (not (or (not (= H6_2 a!4))
+                    (not (= $p9_main0_1 l20_2))
+                    (not (= H7_2 h10_2)))))
+      (a!8 (not (or (not (= H7_2 h10_2)) (not a!7) (not (= $p9_main0_1 l24_2))))))
+(let ((a!6 (not (or (not (= d6_2 2)) a!5)))
+      (a!9 (not (or (not (= d6_2 1)) a!8))))
+(let ((a!10 (or (not (or invalidFree1_2 (not invalidFree2_2)))
+                (not (or invalidFree2_2 (not invalidFree1_2)))
+                (not a!3)
+                (not (= AH5_2 ah3))
+                a!6
+                a!9)))
+  (or (not (or (not invalidFree2_2) (not a!1))) (not a!2) (not a!10))))))
+(or invalidFree2_2 (= $p11_main01_2 $p6_main0_1))
+(let ((a!1 (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2)))))
+      (a!2 (or (not invalidFree2_2)
+               (not (or invalidFree2_2 (not invalidFree3_2)))
+               (not (or invalidFree3_2 (not invalidFree2_2)))))
+      (a!3 (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2)))))
+      (a!4 (uplus h11_2
+                  (uplus (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2)))))
+      (a!7 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+(let ((a!5 (not (or (not (= H7_2 a!4))
+                    (not (= $p11_main01_2 l25_2))
+                    (not (= H8_2 h11_2)))))
+      (a!8 (not (or (not (= H8_2 h11_2))
+                    (not a!7)
+                    (not (= $p11_main01_2 l29_2))))))
+(let ((a!6 (not (or (not (= d9_2 2)) a!5)))
+      (a!9 (not (or (not (= d9_2 1)) a!8))))
+(let ((a!10 (or (not (or invalidFree2_2 (not invalidFree3_2)))
+                (not (or invalidFree3_2 (not invalidFree2_2)))
+                (not a!3)
+                (not (= AH6_2 ah5))
+                a!6
+                a!9)))
+  (or (not (or (not invalidFree3_2) (not a!1))) (not a!2) (not a!10))))))
+(= $p11_main0_2 $p11_main01_2)
+(= AH_2 AH6_2)
+(= H_2 H8_2)
+(or invalidFree3_2 (not invalidFree_2))
+(or invalidFree_2 (not invalidFree3_2))
+(= $p0_main0_2 $p1_main0_1)
+(= $p1_main0_2 $p6_main0_1)
+(= $p2_main0_2 $p2_main0_1)
+(= $p3_main0_2 $p6_main0_1)
+(= $p4_main0_2 $p4_main0_1)
+(= $p5_main0_2 $p5_main0_1)
+(= $p6_main0_2 $p6_main0_1)
+(= $p7_main0_2 $p7_main0_1)
+(= $p8_main0_2 $p8_main0_1)
+(= $p9_main0_2 $p9_main0_1)
+(= $i10_main0_2 $i10_main01_1)
+(= loc_2 3)
+(or (not (= loc_2 3)) invalidFree_2)
+(or (not (= loc_2 3)) invalidFree_2 (= $r_main01_3 0))
+(or (not (= loc_2 3)) (= $p0_main0_3 $p0_main0_2))
+(or (not (= loc_2 3)) (= $p11_main0_3 $p11_main0_2))
+(or (not (= loc_2 3)) (= $p1_main0_3 $p1_main0_2))
+(or (not (= loc_2 3)) (= $p2_main0_3 $p2_main0_2))
+(or (not (= loc_2 3)) (= $p3_main0_3 $p3_main0_2))
+(or (not (= loc_2 3)) (= $p4_main0_3 $p4_main0_2))
+(or (not (= loc_2 3)) (= $p5_main0_3 $p5_main0_2))
+(or (not (= loc_2 3)) (= $p6_main0_3 $p6_main0_2))
+(or (not (= loc_2 3)) (= $p7_main0_3 $p7_main0_2))
+(or (not (= loc_2 3)) (= $p8_main0_3 $p8_main0_2))
+(or (not (= loc_2 3)) (= $p9_main0_3 $p9_main0_2))
+(or (not (= loc_2 3)) (= AH_3 AH_2))
+(or (not (= loc_2 3)) (= H_3 H_2))
+(= l3_1 (locadd $p0_main0_1 1))
+(= $p0_main0_1 l1_1)
+(= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+(= $p0_main0_1 $p0_main01_1)
+(= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+(= $p2_main0_1 l5_1)
+(= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+(= $p1_main0_1 $p0_main0_1)
+(= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+(= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+(= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+(= $p4_main0_1 l8_1)
+(= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+(= $p5_main0_1 (locadd $p1_main0_1 1))
+(= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+(= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+(= $p6_main0_1 $p1_main0_1)
+(= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+(= $p7_main0_1 l11_1)
+(= $p8_main0_1 (locadd $p1_main0_1 1))
+(= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+(= $p9_main0_1 l13_1)
+(not (= $p7_main0_1 $p9_main0_1))
+(= $i10_main01_1 0)
+(= $p0_main0_1 $p1_main01_1)
+(= $p1_main0_1 $p3_main01_1)
+(= $p2_main0_1 $p2_main01_1)
+(= $p6_main0_1 $p6_main01_1)
+(= $p4_main0_1 $p4_main01_1)
+(= $p5_main0_1 $p5_main01_1)
+(= $p6_main0_1 $p3_main0_1)
+(= $p7_main0_1 $p7_main01_1)
+(= $p8_main0_1 $p8_main01_1)
+(= $p9_main0_1 $p9_main01_1)
+(= AH_1 AH3_1)
+(= H_1 H5_1)
+(= $p11_main0_1 $p11_main0_0)
+===================== current outside assertions end ==================
+================= current refined assignment ==============
+(= H_0 emp)
+(= AH_0 emp)
+(= H1_1 (uplus emp (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))
+(not (= $i10_main01_1 1))
+(or (not invalidFree1_2) invalidFree1_2)
+(let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not invalidFree1_2) a!1))
+(let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))))
+  (or a!1 invalidFree1_2))
+(let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or a!1 a!2))
+(or (= AH4_2 ah1) invalidFree1_2)
+(let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (= AH4_2 ah1) a!1))
+(let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (or (not (= d3_2 2))
+      (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2))
+      invalidFree1_2))
+(let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 2)) (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2)) a!2))
+(let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (or (not (= d3_2 1))
+      (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2))
+      invalidFree1_2))
+(let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 1)) (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2)) a!2))
+(let ((a!1 (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2)))))
+      (a!2 (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2)))))
+      (a!3 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2)))))
+      (a!4 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+(let ((a!5 (and (or invalidFree1_2 (not invalidFree2_2))
+                (or invalidFree2_2 (not invalidFree1_2))
+                a!2
+                (= AH5_2 ah3)
+                (or (not (= d6_2 2))
+                    (and a!3 (= $p9_main0_1 l20_2) (= H7_2 h10_2)))
+                (or (not (= d6_2 1))
+                    (and (= H7_2 h10_2) a!4 (= $p9_main0_1 l24_2))))))
+  (or (and invalidFree2_2 a!1)
+      (and invalidFree1_2
+           (or invalidFree1_2 (not invalidFree2_2))
+           (or invalidFree2_2 (not invalidFree1_2)))
+      a!5)))
+(or invalidFree2_2 (= $p11_main01_2 $p6_main0_1))
+(let ((a!1 (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2)))))
+      (a!2 (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2)))))
+      (a!3 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2)))))
+      (a!4 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+(let ((a!5 (and (or invalidFree2_2 (not invalidFree3_2))
+                (or invalidFree3_2 (not invalidFree2_2))
+                a!2
+                (= AH6_2 ah5)
+                (or (not (= d9_2 2))
+                    (and a!3 (= $p11_main01_2 l25_2) (= H8_2 h11_2)))
+                (or (not (= d9_2 1))
+                    (and (= H8_2 h11_2) a!4 (= $p11_main01_2 l29_2))))))
+  (or (and invalidFree3_2 a!1)
+      (and invalidFree2_2
+           (or invalidFree2_2 (not invalidFree3_2))
+           (or invalidFree3_2 (not invalidFree2_2)))
+      a!5)))
+(= $p11_main0_2 $p11_main01_2)
+(= AH_2 AH6_2)
+(= H_2 H8_2)
+(or invalidFree3_2 (not invalidFree_2))
+(or invalidFree_2 (not invalidFree3_2))
+(= $p0_main0_2 $p1_main0_1)
+(= $p1_main0_2 $p6_main0_1)
+(= $p2_main0_2 $p2_main0_1)
+(= $p3_main0_2 $p6_main0_1)
+(= $p4_main0_2 $p4_main0_1)
+(= $p5_main0_2 $p5_main0_1)
+(= $p6_main0_2 $p6_main0_1)
+(= $p7_main0_2 $p7_main0_1)
+(= $p8_main0_2 $p8_main0_1)
+(= $p9_main0_2 $p9_main0_1)
+(= $i10_main0_2 $i10_main01_1)
+(= loc_2 3)
+(or (not (= loc_2 3)) invalidFree_2)
+(or (not (= loc_2 3)) invalidFree_2 (= $r_main01_3 0))
+(or (not (= loc_2 3)) (= $p0_main0_3 $p0_main0_2))
+(or (not (= loc_2 3)) (= $p11_main0_3 $p11_main0_2))
+(or (not (= loc_2 3)) (= $p1_main0_3 $p1_main0_2))
+(or (not (= loc_2 3)) (= $p2_main0_3 $p2_main0_2))
+(or (not (= loc_2 3)) (= $p3_main0_3 $p3_main0_2))
+(or (not (= loc_2 3)) (= $p4_main0_3 $p4_main0_2))
+(or (not (= loc_2 3)) (= $p5_main0_3 $p5_main0_2))
+(or (not (= loc_2 3)) (= $p6_main0_3 $p6_main0_2))
+(or (not (= loc_2 3)) (= $p7_main0_3 $p7_main0_2))
+(or (not (= loc_2 3)) (= $p8_main0_3 $p8_main0_2))
+(or (not (= loc_2 3)) (= $p9_main0_3 $p9_main0_2))
+(or (not (= loc_2 3)) (= AH_3 AH_2))
+(or (not (= loc_2 3)) (= H_3 H_2))
+(= l3_1 (locadd $p0_main0_1 1))
+(= $p0_main0_1 l1_1)
+(= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+(= $p0_main0_1 $p0_main01_1)
+(= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+(= $p2_main0_1 l5_1)
+(= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+(= $p1_main0_1 $p0_main0_1)
+(= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+(= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+(= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+(= $p4_main0_1 l8_1)
+(= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+(= $p5_main0_1 (locadd $p1_main0_1 1))
+(= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+(= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+(= $p6_main0_1 $p1_main0_1)
+(= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+(= $p7_main0_1 l11_1)
+(= $p8_main0_1 (locadd $p1_main0_1 1))
+(= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+(= $p9_main0_1 l13_1)
+(not (= $p7_main0_1 $p9_main0_1))
+(= $i10_main01_1 0)
+(= $p0_main0_1 $p1_main01_1)
+(= $p1_main0_1 $p3_main01_1)
+(= $p2_main0_1 $p2_main01_1)
+(= $p6_main0_1 $p6_main01_1)
+(= $p4_main0_1 $p4_main01_1)
+(= $p5_main0_1 $p5_main01_1)
+(= $p6_main0_1 $p3_main0_1)
+(= $p7_main0_1 $p7_main01_1)
+(= $p8_main0_1 $p8_main01_1)
+(= $p9_main0_1 $p9_main01_1)
+(= AH_1 AH3_1)
+(= H_1 H5_1)
+(= $p11_main0_1 $p11_main0_0)
+===================== current refined assignment end ==================
+slhv disj preprocessing
+slhv collect and analyze assignments
+collect expr: (= H_0 emp)
+collect expr: (= AH_0 emp)
+collect expr: (= H1_1 (uplus emp (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))
+collect expr: (not (= $i10_main01_1 1))
+collect expr: (or (not invalidFree1_2) invalidFree1_2)
+collect expr: (let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not invalidFree1_2) a!1))
+collect expr: (let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))))
+  (or a!1 invalidFree1_2))
+collect expr: (let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or a!1 a!2))
+collect expr: (or (= AH4_2 ah1) invalidFree1_2)
+collect expr: (let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (= AH4_2 ah1) a!1))
+collect expr: (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (or (not (= d3_2 2))
+      (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2))
+      invalidFree1_2))
+collect expr: (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 2)) (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2)) a!2))
+collect expr: (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (or (not (= d3_2 1))
+      (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2))
+      invalidFree1_2))
+collect expr: (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 1)) (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2)) a!2))
+collect expr: (let ((a!1 (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2)))))
+      (a!2 (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2)))))
+      (a!3 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2)))))
+      (a!4 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+(let ((a!5 (and (or invalidFree1_2 (not invalidFree2_2))
+                (or invalidFree2_2 (not invalidFree1_2))
+                a!2
+                (= AH5_2 ah3)
+                (or (not (= d6_2 2))
+                    (and a!3 (= $p9_main0_1 l20_2) (= H7_2 h10_2)))
+                (or (not (= d6_2 1))
+                    (and (= H7_2 h10_2) a!4 (= $p9_main0_1 l24_2))))))
+  (or (and invalidFree2_2 a!1)
+      (and invalidFree1_2
+           (or invalidFree1_2 (not invalidFree2_2))
+           (or invalidFree2_2 (not invalidFree1_2)))
+      a!5)))
+collect expr: (or invalidFree2_2 (= $p11_main01_2 $p6_main0_1))
+collect expr: (let ((a!1 (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2)))))
+      (a!2 (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2)))))
+      (a!3 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2)))))
+      (a!4 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+(let ((a!5 (and (or invalidFree2_2 (not invalidFree3_2))
+                (or invalidFree3_2 (not invalidFree2_2))
+                a!2
+                (= AH6_2 ah5)
+                (or (not (= d9_2 2))
+                    (and a!3 (= $p11_main01_2 l25_2) (= H8_2 h11_2)))
+                (or (not (= d9_2 1))
+                    (and (= H8_2 h11_2) a!4 (= $p11_main01_2 l29_2))))))
+  (or (and invalidFree3_2 a!1)
+      (and invalidFree2_2
+           (or invalidFree2_2 (not invalidFree3_2))
+           (or invalidFree3_2 (not invalidFree2_2)))
+      a!5)))
+collect expr: (= $p11_main0_2 $p11_main01_2)
+collect expr: (= AH_2 AH6_2)
+collect expr: (= H_2 H8_2)
+collect expr: (or invalidFree3_2 (not invalidFree_2))
+collect expr: (or invalidFree_2 (not invalidFree3_2))
+collect expr: (= $p0_main0_2 $p1_main0_1)
+collect expr: (= $p1_main0_2 $p6_main0_1)
+collect expr: (= $p2_main0_2 $p2_main0_1)
+collect expr: (= $p3_main0_2 $p6_main0_1)
+collect expr: (= $p4_main0_2 $p4_main0_1)
+collect expr: (= $p5_main0_2 $p5_main0_1)
+collect expr: (= $p6_main0_2 $p6_main0_1)
+collect expr: (= $p7_main0_2 $p7_main0_1)
+collect expr: (= $p8_main0_2 $p8_main0_1)
+collect expr: (= $p9_main0_2 $p9_main0_1)
+collect expr: (= $i10_main0_2 $i10_main01_1)
+collect expr: (= loc_2 3)
+collect expr: (or (not (= loc_2 3)) invalidFree_2)
+collect expr: (or (not (= loc_2 3)) invalidFree_2 (= $r_main01_3 0))
+collect expr: (or (not (= loc_2 3)) (= $p0_main0_3 $p0_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p11_main0_3 $p11_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p1_main0_3 $p1_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p2_main0_3 $p2_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p3_main0_3 $p3_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p4_main0_3 $p4_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p5_main0_3 $p5_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p6_main0_3 $p6_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p7_main0_3 $p7_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p8_main0_3 $p8_main0_2))
+collect expr: (or (not (= loc_2 3)) (= $p9_main0_3 $p9_main0_2))
+collect expr: (or (not (= loc_2 3)) (= AH_3 AH_2))
+collect expr: (or (not (= loc_2 3)) (= H_3 H_2))
+collect expr: (= l3_1 (locadd $p0_main0_1 1))
+collect expr: (= $p0_main0_1 l1_1)
+collect expr: (= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+collect expr: (= $p0_main0_1 $p0_main01_1)
+collect expr: (= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+collect expr: (= $p2_main0_1 l5_1)
+collect expr: (= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+collect expr: (= $p1_main0_1 $p0_main0_1)
+collect expr: (= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+collect expr: (= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+collect expr: (= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+collect expr: (= $p4_main0_1 l8_1)
+collect expr: (= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+collect expr: (= $p5_main0_1 (locadd $p1_main0_1 1))
+collect expr: (= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+collect expr: (= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+collect expr: (= $p6_main0_1 $p1_main0_1)
+collect expr: (= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+collect expr: (= $p7_main0_1 l11_1)
+collect expr: (= $p8_main0_1 (locadd $p1_main0_1 1))
+collect expr: (= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+collect expr: (= $p9_main0_1 l13_1)
+collect expr: (not (= $p7_main0_1 $p9_main0_1))
+collect expr: (= $i10_main01_1 0)
+collect expr: (= $p0_main0_1 $p1_main01_1)
+collect expr: (= $p1_main0_1 $p3_main01_1)
+collect expr: (= $p2_main0_1 $p2_main01_1)
+collect expr: (= $p6_main0_1 $p6_main01_1)
+collect expr: (= $p4_main0_1 $p4_main01_1)
+collect expr: (= $p5_main0_1 $p5_main01_1)
+collect expr: (= $p6_main0_1 $p3_main0_1)
+collect expr: (= $p7_main0_1 $p7_main01_1)
+collect expr: (= $p8_main0_1 $p8_main01_1)
+collect expr: (= $p9_main0_1 $p9_main01_1)
+collect expr: (= AH_1 AH3_1)
+collect expr: (= H_1 H5_1)
+collect expr: (= $p11_main0_1 $p11_main0_0)
+internalize nil
+slhv disj preprocessing end
+begin extract all hterms disj
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+extract lhs hterm
+all heap constraints: 
+(= H_3 H_2)
+(= AH_3 AH_2)
+(= H_2 H8_2)
+(= AH_2 AH6_2)
+(= H8_2 h11_2)
+(= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))
+(= AH6_2 ah5)
+(= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2))))
+(= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2))))
+(= H7_2 h10_2)
+(= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))
+(= AH5_2 ah3)
+(= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2))))
+(= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2))))
+(= H6_2 h9_2)
+(= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))
+(= AH4_2 ah1)
+(= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))
+(= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+(= H_1 H5_1)
+(= AH_1 AH3_1)
+(= H_0 emp)
+(= AH_0 emp)
+(= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+(= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+(= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+(= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+(= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+(= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+(= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+(= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+(= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+(= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+(= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+(= H_1 (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))
+(= H1_1 (uplus emp (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))
+(= H6_2 (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2))))
+(= H7_2 (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2))))
+all hterms size: 64
+all hterms: 
+(pt l29_2 (Pt_R_1 d10_2))	(pt l25_2 (Pt_R_0 l26_2))	(pt l27_2 (Pt_R_0 l28_2))	(pt $p11_main01_2 (Pt_R_1 d9_2))	(pt $p11_main01_2 (Pt_R_1 d11_2))	(pt l24_2 (Pt_R_1 d7_2))	(pt l20_2 (Pt_R_0 l21_2))	(pt l22_2 (Pt_R_0 l23_2))	(pt $p9_main0_1 (Pt_R_1 d6_2))	(pt $p9_main0_1 (Pt_R_1 d8_2))	(pt l19_2 (Pt_R_1 d4_2))	(pt l15_2 (Pt_R_0 l16_2))	(pt l17_2 (Pt_R_0 l18_2))	(pt $p7_main0_1 (Pt_R_1 d3_2))	(pt $p7_main0_1 (Pt_R_1 d5_2))	(pt l3_1 (Pt_R_0 l4_1))	(pt $p2_main0_1 (Pt_R_1 d1_1))	(pt $p4_main0_1 (Pt_R_1 d2_1))	(pt $p4_main0_1 (Pt_R_1 1))	(pt $p5_main0_1 (Pt_R_0 $p4_main0_1))	(pt $p8_main0_1 (Pt_R_0 $p9_main0_1))	(pt $p6_main0_1 (Pt_R_0 $p7_main0_1))	(pt $p5_main0_1 (Pt_R_0 l9_1))	(pt $p1_main0_1 (Pt_R_0 $p2_main0_1))	(pt $p1_main0_1 (Pt_R_0 l6_1))	(pt $p2_main0_1 (Pt_R_1 1))	(pt $p0_main0_1 (Pt_R_1 2))	(pt $p0_main0_1 (Pt_R_0 l2_1))	H_3	H_2	AH_3	AH_2	H8_2	AH6_2	h11_2	H7_2	ah5	AH5_2	ah6_2	h10_2	H6_2	ah3	AH4_2	ah4_2	h9_2	H_1	ah1	AH_1	ah2_2	H5_1	AH3_1	h7_1	h5_1	H4_1	h3_1	AH2_1	H3_1	H2_1	h1_1	AH1_1	H1_1	AH_0	H_0	emp	
+( AH_3 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah3 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH4_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H7_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h11_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H8_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH6_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h9_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h10_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H_3 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l29_2 (Pt_R_1 d10_2)) | h11_2 | )
+hterm id:  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H6_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p11_main01_2 (Pt_R_1 d11_2)) | AH5_2 | )
+hterm id:  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah5 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH5_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah6_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l24_2 (Pt_R_1 d7_2)) | h10_2 | )
+hterm id:  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p11_main01_2 (Pt_R_1 d9_2)) | ah5 | )
+hterm id:  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p7_main0_1 (Pt_R_1 d3_2)) | ah1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah2_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p9_main0_1 (Pt_R_1 d6_2)) | ah3 | )
+hterm id:  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah4_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p9_main0_1 (Pt_R_1 d8_2)) | AH4_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l19_2 (Pt_R_1 d4_2)) | h9_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( ah1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p7_main0_1 (Pt_R_1 d5_2)) | AH_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H5_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( AH3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H_0 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0 
+( emp | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1 
+( AH_0 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0 
+( (pt $p8_main0_1 (Pt_R_0 $p9_main0_1)) | h7_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p6_main0_1 (Pt_R_0 $p7_main0_1)) | h5_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p5_main0_1 (Pt_R_0 $p4_main0_1)) | h3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0 
+( H4_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0 
+( (pt $p5_main0_1 (Pt_R_0 l9_1)) | h3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0 
+( (pt $p4_main0_1 (Pt_R_1 1)) | AH2_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0 
+( (pt $p4_main0_1 (Pt_R_1 d2_1)) | H3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0 
+( H3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0 
+( (pt $p1_main0_1 (Pt_R_0 $p2_main0_1)) | h1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0 
+( H2_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0 
+( (pt $p1_main0_1 (Pt_R_0 l6_1)) | h1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0 
+( AH2_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0 
+( (pt $p2_main0_1 (Pt_R_1 1)) | AH1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0 
+( (pt $p2_main0_1 (Pt_R_1 d1_1)) | H1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0 
+( AH1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0 
+( (pt $p0_main0_1 (Pt_R_1 2)) | emp | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1 
+( (pt l15_2 (Pt_R_0 l16_2)) | (pt l17_2 (Pt_R_0 l18_2)) | h9_2 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  1  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( H1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0 
+( (pt l3_1 (Pt_R_0 l4_1)) | (pt $p0_main0_1 (Pt_R_0 l2_1)) | emp | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1 
+( (pt l20_2 (Pt_R_0 l21_2)) | (pt l22_2 (Pt_R_0 l23_2)) | h10_2 | )
+hterm id:  0  0  0  0  0  0  1  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l25_2 (Pt_R_0 l26_2)) | (pt l27_2 (Pt_R_0 l28_2)) | h11_2 | )
+hterm id:  0  1  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p11_main01_2 (Pt_R_1 d9_2)) | )
+hterm id:  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p4_main0_1 (Pt_R_1 1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l3_1 (Pt_R_0 l4_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l17_2 (Pt_R_0 l18_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p7_main0_1 (Pt_R_1 d3_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p11_main01_2 (Pt_R_1 d11_2)) | )
+hterm id:  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p9_main0_1 (Pt_R_1 d6_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h7_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p9_main0_1 (Pt_R_1 d8_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l15_2 (Pt_R_0 l16_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l29_2 (Pt_R_1 d10_2)) | )
+hterm id:  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l22_2 (Pt_R_0 l23_2)) | )
+hterm id:  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p0_main0_1 (Pt_R_0 l2_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l19_2 (Pt_R_1 d4_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h5_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p1_main0_1 (Pt_R_0 $p2_main0_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p7_main0_1 (Pt_R_1 d5_2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p4_main0_1 (Pt_R_1 d2_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p2_main0_1 (Pt_R_1 d1_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l20_2 (Pt_R_0 l21_2)) | )
+hterm id:  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p8_main0_1 (Pt_R_0 $p9_main0_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h3_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0 
+( (pt $p1_main0_1 (Pt_R_0 l6_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p2_main0_1 (Pt_R_1 1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l27_2 (Pt_R_0 l28_2)) | )
+hterm id:  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l24_2 (Pt_R_1 d7_2)) | )
+hterm id:  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt l25_2 (Pt_R_0 l26_2)) | )
+hterm id:  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p5_main0_1 (Pt_R_0 l9_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p5_main0_1 (Pt_R_0 $p4_main0_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( h1_1 | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0 
+( (pt $p0_main0_1 (Pt_R_1 2)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+( (pt $p6_main0_1 (Pt_R_0 $p7_main0_1)) | )
+hterm id:  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  1  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0  0 
+encode for disj
+generate_init_ld_locvar_constraint_for_all_assertions
+generate_init_ld_locvar_constraint_recursive (= H_0 emp)
+generate_init_ld_locvar_constraint_for_hteq (= H_0 emp)
+generate_init_ld_locvar_constraint_recursive (= AH_0 emp)
+generate_init_ld_locvar_constraint_for_hteq (= AH_0 emp)
+generate_init_ld_locvar_constraint_recursive (= H1_1 (uplus emp (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H1_1 (uplus emp (pt $p0_main0_1 (Pt_R_0 l2_1)) (pt l3_1 (Pt_R_0 l4_1))))
+generate_init_ld_locvar_constraint_recursive (not (= $i10_main01_1 1))
+generate_init_ld_locvar_constraint_recursive (or (not invalidFree1_2) invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive (not invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not invalidFree1_2) a!1))
+generate_init_ld_locvar_constraint_recursive (not invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))))
+  (or a!1 invalidFree1_2))
+generate_init_ld_locvar_constraint_recursive (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))
+generate_init_ld_locvar_constraint_for_hteq (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or a!1 a!2))
+generate_init_ld_locvar_constraint_recursive (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))
+generate_init_ld_locvar_constraint_for_hteq (= AH_1 (uplus ah1 (pt $p7_main0_1 (Pt_R_1 d3_2))))
+generate_init_ld_locvar_constraint_recursive (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_recursive (or (= AH4_2 ah1) invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive (= AH4_2 ah1)
+generate_init_ld_locvar_constraint_for_hteq (= AH4_2 ah1)
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (= AH4_2 ah1) a!1))
+generate_init_ld_locvar_constraint_recursive (= AH4_2 ah1)
+generate_init_ld_locvar_constraint_for_hteq (= AH4_2 ah1)
+generate_init_ld_locvar_constraint_recursive (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (or (not (= d3_2 2))
+      (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2))
+      invalidFree1_2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (or (not (= d3_2 2)) (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d3_2 2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2)))
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 l15_2)
+generate_init_ld_locvar_constraint_recursive (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 2)) (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2)) a!2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (or (not (= d3_2 2)) (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d3_2 2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1
+              (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))))
+  (and a!1 (= $p7_main0_1 l15_2) (= H6_2 h9_2)))
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h9_2 (pt l15_2 (Pt_R_0 l16_2)) (pt l17_2 (Pt_R_0 l18_2))))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 l15_2)
+generate_init_ld_locvar_constraint_recursive (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_recursive (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (or (not (= d3_2 1))
+      (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2))
+      invalidFree1_2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (or (not (= d3_2 1)) (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d3_2 1))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2)))
+generate_init_ld_locvar_constraint_recursive (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 l19_2)
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2)))))
+      (a!2 (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))))
+  (or (not (= d3_2 1)) (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2)) a!2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (or (not (= d3_2 1)) (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d3_2 1))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))))
+  (and (= H6_2 h9_2) a!1 (= $p7_main0_1 l19_2)))
+generate_init_ld_locvar_constraint_recursive (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 h9_2)
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h9_2 (pt l19_2 (Pt_R_1 d4_2))))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 l19_2)
+generate_init_ld_locvar_constraint_recursive (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah2_2 (uplus AH_1 (pt $p7_main0_1 (Pt_R_1 d5_2))))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2)))))
+      (a!2 (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2)))))
+      (a!3 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2)))))
+      (a!4 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+(let ((a!5 (and (or invalidFree1_2 (not invalidFree2_2))
+                (or invalidFree2_2 (not invalidFree1_2))
+                a!2
+                (= AH5_2 ah3)
+                (or (not (= d6_2 2))
+                    (and a!3 (= $p9_main0_1 l20_2) (= H7_2 h10_2)))
+                (or (not (= d6_2 1))
+                    (and (= H7_2 h10_2) a!4 (= $p9_main0_1 l24_2))))))
+  (or (and invalidFree2_2 a!1)
+      (and invalidFree1_2
+           (or invalidFree1_2 (not invalidFree2_2))
+           (or invalidFree2_2 (not invalidFree1_2)))
+      a!5)))
+multi or, may be buggy
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2))))))
+  (and invalidFree2_2 a!1))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah4_2 (uplus AH4_2 (pt $p9_main0_1 (Pt_R_1 d8_2))))
+generate_init_ld_locvar_constraint_recursive (and invalidFree1_2
+     (or invalidFree1_2 (not invalidFree2_2))
+     (or invalidFree2_2 (not invalidFree1_2)))
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (or invalidFree1_2 (not invalidFree2_2))
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree2_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree2_2 (not invalidFree1_2))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2)))))
+      (a!2 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2)))))
+      (a!3 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+  (and (or invalidFree1_2 (not invalidFree2_2))
+       (or invalidFree2_2 (not invalidFree1_2))
+       a!1
+       (= AH5_2 ah3)
+       (or (not (= d6_2 2)) (and a!2 (= $p9_main0_1 l20_2) (= H7_2 h10_2)))
+       (or (not (= d6_2 1)) (and (= H7_2 h10_2) a!3 (= $p9_main0_1 l24_2)))))
+generate_init_ld_locvar_constraint_recursive (or invalidFree1_2 (not invalidFree2_2))
+generate_init_ld_locvar_constraint_recursive invalidFree1_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree2_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree2_2 (not invalidFree1_2))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree1_2)
+generate_init_ld_locvar_constraint_recursive (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2))))
+generate_init_ld_locvar_constraint_for_hteq (= AH4_2 (uplus ah3 (pt $p9_main0_1 (Pt_R_1 d6_2))))
+generate_init_ld_locvar_constraint_recursive (= AH5_2 ah3)
+generate_init_ld_locvar_constraint_for_hteq (= AH5_2 ah3)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2))))))
+  (or (not (= d6_2 2)) (and a!1 (= $p9_main0_1 l20_2) (= H7_2 h10_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d6_2 2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H6_2
+              (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2))))))
+  (and a!1 (= $p9_main0_1 l20_2) (= H7_2 h10_2)))
+generate_init_ld_locvar_constraint_recursive (= H6_2 (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 (uplus h10_2 (pt l20_2 (Pt_R_0 l21_2)) (pt l22_2 (Pt_R_0 l23_2))))
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_1 l20_2)
+generate_init_ld_locvar_constraint_recursive (= H7_2 h10_2)
+generate_init_ld_locvar_constraint_for_hteq (= H7_2 h10_2)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+  (or (not (= d6_2 1)) (and (= H7_2 h10_2) a!1 (= $p9_main0_1 l24_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d6_2 1))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))))
+  (and (= H7_2 h10_2) a!1 (= $p9_main0_1 l24_2)))
+generate_init_ld_locvar_constraint_recursive (= H7_2 h10_2)
+generate_init_ld_locvar_constraint_for_hteq (= H7_2 h10_2)
+generate_init_ld_locvar_constraint_recursive (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H6_2 (uplus h10_2 (pt l24_2 (Pt_R_1 d7_2))))
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_1 l24_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree2_2 (= $p11_main01_2 $p6_main0_1))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (= $p11_main01_2 $p6_main0_1)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2)))))
+      (a!2 (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2)))))
+      (a!3 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2)))))
+      (a!4 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+(let ((a!5 (and (or invalidFree2_2 (not invalidFree3_2))
+                (or invalidFree3_2 (not invalidFree2_2))
+                a!2
+                (= AH6_2 ah5)
+                (or (not (= d9_2 2))
+                    (and a!3 (= $p11_main01_2 l25_2) (= H8_2 h11_2)))
+                (or (not (= d9_2 1))
+                    (and (= H8_2 h11_2) a!4 (= $p11_main01_2 l29_2))))))
+  (or (and invalidFree3_2 a!1)
+      (and invalidFree2_2
+           (or invalidFree2_2 (not invalidFree3_2))
+           (or invalidFree3_2 (not invalidFree2_2)))
+      a!5)))
+multi or, may be buggy
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2))))))
+  (and invalidFree3_2 a!1))
+generate_init_ld_locvar_constraint_recursive invalidFree3_2
+generate_init_ld_locvar_constraint_recursive (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2))))
+generate_init_ld_locvar_constraint_for_hteq (= ah6_2 (uplus AH5_2 (pt $p11_main01_2 (Pt_R_1 d11_2))))
+generate_init_ld_locvar_constraint_recursive (and invalidFree2_2
+     (or invalidFree2_2 (not invalidFree3_2))
+     (or invalidFree3_2 (not invalidFree2_2)))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (or invalidFree2_2 (not invalidFree3_2))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree3_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree3_2 (not invalidFree2_2))
+generate_init_ld_locvar_constraint_recursive invalidFree3_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree2_2)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2)))))
+      (a!2 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2)))))
+      (a!3 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+  (and (or invalidFree2_2 (not invalidFree3_2))
+       (or invalidFree3_2 (not invalidFree2_2))
+       a!1
+       (= AH6_2 ah5)
+       (or (not (= d9_2 2)) (and a!2 (= $p11_main01_2 l25_2) (= H8_2 h11_2)))
+       (or (not (= d9_2 1)) (and (= H8_2 h11_2) a!3 (= $p11_main01_2 l29_2)))))
+generate_init_ld_locvar_constraint_recursive (or invalidFree2_2 (not invalidFree3_2))
+generate_init_ld_locvar_constraint_recursive invalidFree2_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree3_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree3_2 (not invalidFree2_2))
+generate_init_ld_locvar_constraint_recursive invalidFree3_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree2_2)
+generate_init_ld_locvar_constraint_recursive (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2))))
+generate_init_ld_locvar_constraint_for_hteq (= AH5_2 (uplus ah5 (pt $p11_main01_2 (Pt_R_1 d9_2))))
+generate_init_ld_locvar_constraint_recursive (= AH6_2 ah5)
+generate_init_ld_locvar_constraint_for_hteq (= AH6_2 ah5)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2))))))
+  (or (not (= d9_2 2)) (and a!1 (= $p11_main01_2 l25_2) (= H8_2 h11_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d9_2 2))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H7_2
+              (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2))))))
+  (and a!1 (= $p11_main01_2 l25_2) (= H8_2 h11_2)))
+generate_init_ld_locvar_constraint_recursive (= H7_2 (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H7_2 (uplus h11_2 (pt l25_2 (Pt_R_0 l26_2)) (pt l27_2 (Pt_R_0 l28_2))))
+generate_init_ld_locvar_constraint_recursive (= $p11_main01_2 l25_2)
+generate_init_ld_locvar_constraint_recursive (= H8_2 h11_2)
+generate_init_ld_locvar_constraint_for_hteq (= H8_2 h11_2)
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+  (or (not (= d9_2 1)) (and (= H8_2 h11_2) a!1 (= $p11_main01_2 l29_2))))
+generate_init_ld_locvar_constraint_recursive (not (= d9_2 1))
+generate_init_ld_locvar_constraint_recursive (let ((a!1 (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))))
+  (and (= H8_2 h11_2) a!1 (= $p11_main01_2 l29_2)))
+generate_init_ld_locvar_constraint_recursive (= H8_2 h11_2)
+generate_init_ld_locvar_constraint_for_hteq (= H8_2 h11_2)
+generate_init_ld_locvar_constraint_recursive (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))
+generate_init_ld_locvar_constraint_for_hteq (= H7_2 (uplus h11_2 (pt l29_2 (Pt_R_1 d10_2))))
+generate_init_ld_locvar_constraint_recursive (= $p11_main01_2 l29_2)
+generate_init_ld_locvar_constraint_recursive (= $p11_main0_2 $p11_main01_2)
+generate_init_ld_locvar_constraint_recursive (= AH_2 AH6_2)
+generate_init_ld_locvar_constraint_for_hteq (= AH_2 AH6_2)
+generate_init_ld_locvar_constraint_recursive (= H_2 H8_2)
+generate_init_ld_locvar_constraint_for_hteq (= H_2 H8_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree3_2 (not invalidFree_2))
+generate_init_ld_locvar_constraint_recursive invalidFree3_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree_2)
+generate_init_ld_locvar_constraint_recursive (or invalidFree_2 (not invalidFree3_2))
+generate_init_ld_locvar_constraint_recursive invalidFree_2
+generate_init_ld_locvar_constraint_recursive (not invalidFree3_2)
+generate_init_ld_locvar_constraint_recursive (= $p0_main0_2 $p1_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p1_main0_2 $p6_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p2_main0_2 $p2_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p3_main0_2 $p6_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p4_main0_2 $p4_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p5_main0_2 $p5_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p6_main0_2 $p6_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_2 $p7_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p8_main0_2 $p8_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_2 $p9_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $i10_main0_2 $i10_main01_1)
+generate_init_ld_locvar_constraint_recursive (= loc_2 3)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) invalidFree_2)
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive invalidFree_2
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) invalidFree_2 (= $r_main01_3 0))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (or invalidFree_2 (= $r_main01_3 0))
+generate_init_ld_locvar_constraint_recursive invalidFree_2
+generate_init_ld_locvar_constraint_recursive (= $r_main01_3 0)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p0_main0_3 $p0_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p0_main0_3 $p0_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p11_main0_3 $p11_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p11_main0_3 $p11_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p1_main0_3 $p1_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p1_main0_3 $p1_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p2_main0_3 $p2_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p2_main0_3 $p2_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p3_main0_3 $p3_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p3_main0_3 $p3_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p4_main0_3 $p4_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p4_main0_3 $p4_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p5_main0_3 $p5_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p5_main0_3 $p5_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p6_main0_3 $p6_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p6_main0_3 $p6_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p7_main0_3 $p7_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_3 $p7_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p8_main0_3 $p8_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p8_main0_3 $p8_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= $p9_main0_3 $p9_main0_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_3 $p9_main0_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= AH_3 AH_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= AH_3 AH_2)
+generate_init_ld_locvar_constraint_for_hteq (= AH_3 AH_2)
+generate_init_ld_locvar_constraint_recursive (or (not (= loc_2 3)) (= H_3 H_2))
+generate_init_ld_locvar_constraint_recursive (not (= loc_2 3))
+generate_init_ld_locvar_constraint_recursive (= H_3 H_2)
+generate_init_ld_locvar_constraint_for_hteq (= H_3 H_2)
+generate_init_ld_locvar_constraint_recursive (= l3_1 (locadd $p0_main0_1 1))
+generate_init_ld_locvar_constraint_recursive (= $p0_main0_1 l1_1)
+generate_init_ld_locvar_constraint_recursive (= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+generate_init_ld_locvar_constraint_for_hteq (= AH1_1 (uplus emp (pt $p0_main0_1 (Pt_R_1 2))))
+generate_init_ld_locvar_constraint_recursive (= $p0_main0_1 $p0_main01_1)
+generate_init_ld_locvar_constraint_recursive (= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H2_1 (uplus H1_1 (pt $p2_main0_1 (Pt_R_1 d1_1))))
+generate_init_ld_locvar_constraint_recursive (= $p2_main0_1 l5_1)
+generate_init_ld_locvar_constraint_recursive (= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+generate_init_ld_locvar_constraint_for_hteq (= AH2_1 (uplus AH1_1 (pt $p2_main0_1 (Pt_R_1 1))))
+generate_init_ld_locvar_constraint_recursive (= $p1_main0_1 $p0_main0_1)
+generate_init_ld_locvar_constraint_recursive (= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H2_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 l6_1))))
+generate_init_ld_locvar_constraint_recursive (= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H3_1 (uplus h1_1 (pt $p1_main0_1 (Pt_R_0 $p2_main0_1))))
+generate_init_ld_locvar_constraint_recursive (= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H4_1 (uplus H3_1 (pt $p4_main0_1 (Pt_R_1 d2_1))))
+generate_init_ld_locvar_constraint_recursive (= $p4_main0_1 l8_1)
+generate_init_ld_locvar_constraint_recursive (= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+generate_init_ld_locvar_constraint_for_hteq (= AH_1 (uplus AH2_1 (pt $p4_main0_1 (Pt_R_1 1))))
+generate_init_ld_locvar_constraint_recursive (= $p5_main0_1 (locadd $p1_main0_1 1))
+generate_init_ld_locvar_constraint_recursive (= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H4_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 l9_1))))
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h3_1 (pt $p5_main0_1 (Pt_R_0 $p4_main0_1))))
+generate_init_ld_locvar_constraint_recursive (= $p6_main0_1 $p1_main0_1)
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h5_1 (pt $p6_main0_1 (Pt_R_0 $p7_main0_1))))
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 l11_1)
+generate_init_ld_locvar_constraint_recursive (= $p8_main0_1 (locadd $p1_main0_1 1))
+generate_init_ld_locvar_constraint_recursive (= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+generate_init_ld_locvar_constraint_for_hteq (= H_1 (uplus h7_1 (pt $p8_main0_1 (Pt_R_0 $p9_main0_1))))
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_1 l13_1)
+generate_init_ld_locvar_constraint_recursive (not (= $p7_main0_1 $p9_main0_1))
+generate_init_ld_locvar_constraint_recursive (= $i10_main01_1 0)
+generate_init_ld_locvar_constraint_recursive (= $p0_main0_1 $p1_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p1_main0_1 $p3_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p2_main0_1 $p2_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p6_main0_1 $p6_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p4_main0_1 $p4_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p5_main0_1 $p5_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p6_main0_1 $p3_main0_1)
+generate_init_ld_locvar_constraint_recursive (= $p7_main0_1 $p7_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p8_main0_1 $p8_main01_1)
+generate_init_ld_locvar_constraint_recursive (= $p9_main0_1 $p9_main01_1)
+generate_init_ld_locvar_constraint_recursive (= AH_1 AH3_1)
+generate_init_ld_locvar_constraint_for_hteq (= AH_1 AH3_1)
+generate_init_ld_locvar_constraint_recursive (= H_1 H5_1)
+generate_init_ld_locvar_constraint_for_hteq (= H_1 H5_1)
+generate_init_ld_locvar_constraint_recursive (= $p11_main0_1 $p11_main0_0)
+generate_init_ld_locvar_constraint_for_all_assertions end
+generate_pto_assumptions
+generate pto formula disj
+generate_iso_assumptions
+generate iso formula disj
+generate_idj_assumptions
+generate idj formula disj
+generate_final_assumptions
+generate final assumptions disj
+encode for disj end
+assertion size: 3747641
+XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX
+XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX
+unsat
+Time Consumed: 22.766151666641235s
