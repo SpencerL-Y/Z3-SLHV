@@ -739,7 +739,7 @@ namespace smt
             return this->emp_ht;
         }
         theory_slhv* get_th() {
-            return thi <<s->th;
+            return this->th;
         }
         bool get_unsat_found() {
             return this->unsat_found;
