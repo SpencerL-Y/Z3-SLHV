@@ -23,7 +23,7 @@
 // #define SOLVING_INFO
 
 // for new encoding 
-#define DISJ_DEBUG
+// #define DISJ_DEBUG
 
 // frontend macro
 
@@ -739,12 +739,15 @@ namespace smt
             return this->emp_ht;
         }
         theory_slhv* get_th() {
-            return this->th;
+            return thi <<s->th;
         }
         bool get_unsat_found() {
             return this->unsat_found;
         }
-        
+        void print_statistics() {
+            std::cout << "Number of heap terms: " << this->hts.size() << std::endl;
+            std::cout << "Number of locvars: " << this->locvar2intvar_map.size() << std::endl;
+        }
     };
 
     // deducer is used to simplify the formula. It is used to deduce subheap and disjoint relation before encoding and find trivial unsat situations.
