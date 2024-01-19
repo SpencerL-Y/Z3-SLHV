@@ -498,6 +498,8 @@ namespace smt {
         }
         formula_encoder* fec = alloc(formula_encoder, this, all_hterms);
         this->mem_mng->push_fec_ptr(fec);   
+
+        fec->print_statistics();
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
 
 
@@ -507,11 +509,11 @@ namespace smt {
 
         for(expr* e: encoded_formulas) {
             if(e == nullptr) {
-                std::cout << "NULL PTR encoded" << std::endl;
+                // std::cout << "NULL PTR encoded" << std::endl;
             }
             final_solver->assert_expr(e);
         }
-        std::cout << "assertion size: " << encoded_formulas.size() << std::endl;
+        std::cout << "lia assertion size: " << encoded_formulas.size() << std::endl;
         lbool final_result = final_solver->check_sat();
         std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
         if(final_result == l_true) {
@@ -3829,7 +3831,6 @@ namespace smt {
                     this->syntax_maker->mk_and(second_generated, fresh_bool_neg)
                 );
             } else {
-                std::cout << "multi or, may be buggy" << std::endl;
                 app* branch_intvar = this->syntax_maker->mk_fresh_datavar();
                 expr_ref_vector disjuncts(this->th->get_manager());
                 for(int i = 0; i < assertion->get_num_args(); i++) {
