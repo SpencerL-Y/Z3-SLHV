@@ -3831,7 +3831,6 @@ namespace smt {
                     this->syntax_maker->mk_and(second_generated, fresh_bool_neg)
                 );
             } else {
-                std::cout << "multi or, may be buggy" << std::endl;
                 app* branch_intvar = this->syntax_maker->mk_fresh_datavar();
                 expr_ref_vector disjuncts(this->th->get_manager());
                 for(int i = 0; i < assertion->get_num_args(); i++) {
