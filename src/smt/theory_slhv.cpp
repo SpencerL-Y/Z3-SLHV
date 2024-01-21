@@ -348,7 +348,7 @@ namespace smt {
             original.push_back(e);
         }
         expr_ref_vector disj_removed(this->get_manager());
-        // TODO: this might be buggy
+        // this might be buggy
         for(expr* e : original) {
             if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
                 continue;
@@ -768,7 +768,6 @@ namespace smt {
         for(expr* e : curr_assignments) {
             this->curr_inside_assignments.push_back(e);
         }
-        // TODO elaborate the unsat core for CDCL outside
         // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
         solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
         numeral_solver->inc_ref();
@@ -814,7 +813,6 @@ namespace smt {
         // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
         // preprocessing
         this->preprocessing(heap_cnstr_assignments);
-        // TODO: add reduction and solving
         std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
         #ifdef SOLVING_INFO
         std::cout << "all hterms: " << std::endl;
@@ -6747,6 +6745,7 @@ namespace smt {
 
 
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
+        // TODO READWRITE: add dependency here later
         theory_var v = n->get_th_var(get_id());
         expr* o = n->get_expr();
         #ifdef MODEL_GEN_INFO
@@ -6770,7 +6769,6 @@ namespace smt {
                 this->enode2proc[curr_enode] = pt_proc;
                 return pt_proc;
             } else if(this->is_hvar(oapp)) {
-                // TODO: add dependency here later
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is hvar" << std::endl;
                 #endif
@@ -6827,18 +6825,35 @@ namespace smt {
                 int nil_val = this->model_loc_data_var_val_info["nil"];
                 app* val_expr = data_factory->mk_num_value(rational(nil_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
-            } else {
+            } else if(this->is_locadd(oapp)){
+                
                 SASSERT(this->is_locadd(oapp));
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is locadd" << std::endl;
                 #endif
-                
                 heap_value_proc* locadd_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
                 enode* left_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 enode* right_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                 locadd_proc->add_dependency(model_value_dependency(left_enode));
                 locadd_proc->add_dependency(model_value_dependency(right_enode));
                 return locadd_proc;
+            } else if(this->is_readloc(oapp)) {
+                // TODO: add mk value for new functions
+                heap_value_proc* readloc_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
+                enode* read_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* read_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                readloc_proc->add_dependency(model_value_dependency(read_heap_node));
+                readloc_proc->add_dependency(model_value_dependency(read_addr_node));
+                return readloc_proc;
+            } else if(this->is_int2loc(oapp)){
+                heap_value_proc* int2loc_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr));
+                // buggy temp setting, should change to actual value later
+                int int_val = 0;
+                app* val_expr = data_factory->mk_num_value(rational(int_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else {
+                std::cout << "should not come here in mk value: loc sort" << std::endl;
+                return nullptr;
             }
         } else if(this->is_dataterm(oapp)) {
             if(this->is_datavar(oapp)) {
