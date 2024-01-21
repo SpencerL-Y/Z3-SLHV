@@ -17,6 +17,12 @@ enum slhv_op_kind {
     OP_HEAP_DISJUNION,
     OP_POINTS_TO,
     OP_LOCADD,
+    OP_READLOC,
+    OP_READDATA,
+    OP_WRITELOC,
+    OP_WRITEDATA,
+    OP_LOC2INT,
+    OP_INT2LOC,
     OP_LIST_SEGMENT,
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
@@ -61,6 +67,12 @@ class slhv_decl_plugin : public decl_plugin {
     symbol m_points_to_sym;
     symbol m_list_segment_sym;
     symbol m_locadd_symbol;
+    symbol m_readloc_symbol;
+    symbol m_writeloc_symbol;
+    symbol m_readdata_symbol;
+    symbol m_writedata_symbol;
+    symbol m_loc2int_symbol;
+    symbol m_int2loc_symbol;
     symbol m_locconst_symbol;
     symbol curr_locvar_name;
     symbol curr_hvar_name;
@@ -169,6 +181,18 @@ class slhv_decl_plugin : public decl_plugin {
 
     func_decl* mk_locadd(unsigned arity, sort* const* domain);
 
+    func_decl* mk_readloc(unsigned arity, sort* const* domain);
+
+    func_decl* mk_readdata(unsigned arity, sort* const* domain);
+
+    func_decl* mk_writeloc(unsigned arity, sort* const* domain);
+
+    func_decl* mk_writedata(unsigned arity, sort* const* domain);
+
+    func_decl* mk_loc2int(unsigned arity, sort* const* domain);
+
+    func_decl* mk_int2loc(unsigned arity, sort* const* domain);
+
     func_decl* mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain);
 
     func_decl* mk_const_locvar(symbol name, sort* range, unsigned arity, sort* const* domain);
@@ -189,6 +213,18 @@ class slhv_decl_plugin : public decl_plugin {
     app* mk_points_to_value(int num_arg, expr_ref_vector items);
 
     app* mk_locadd_value(int num_arg, expr_ref_vector items);
+
+    app* mk_readloc_value(int num_arg, expr_ref_vector items);
+
+    app* mk_readdata_value(int num_arg, expr_ref_vector items);
+
+    app* mk_writeloc_value(int num_arg, expr_ref_vector items);
+
+    app* mk_writedata_value(int num_arg, expr_ref_vector items);
+
+    app* mk_loc2int_value(int num_arg, expr_ref_vector items);
+
+    app* mk_int2loc_value(int num_arg, expr_ref_vector items);
 
     app* mk_emp_value();
 
