@@ -6798,8 +6798,7 @@ namespace smt {
                 this->enode2proc[curr_enode] = emp_proc;
                 return emp_proc;
             }
-            else {
-                SASSERT(this->is_uplus(oapp));
+            else if(this->is_uplus(oapp)){
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is uplus" << std::endl;
                 #endif
@@ -6808,6 +6807,26 @@ namespace smt {
                 SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
                 this->enode2proc[curr_enode] = uplus_proc;
                 return uplus_proc;
+            } else if(this->is_writedata(oapp)) {
+                heap_value_proc* write_data_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* written_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* written_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                enode* written_data_node = this->ctx.get_enode(oapp->get_arg(2))->get_root();
+                write_data_proc->add_dependency(written_heap_node);
+                write_data_proc->add_dependency(written_addr_node);
+                write_data_proc->add_dependency(written_data_node);
+                return write_data_proc;
+            } else if(this->is_writeloc(oapp)) {
+                heap_value_proc* write_loc_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                enode* written_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* written_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                enode* written_loc_node = this->ctx.get_enode(oapp->get_arg(2))->get_root();
+                write_loc_proc->add_dependency(written_heap_node);
+                write_loc_proc->add_dependency(written_addr_node);
+                write_loc_proc->add_dependency(written_loc_node);
+                return write_loc_proc;
+            } else {
+                std::cout << "ERROR: mk heap value should not come here" << std::endl;
             }
         } else if(this->is_locterm(oapp)) {
             if(this->is_locvar(oapp)) {
@@ -6863,7 +6882,25 @@ namespace smt {
                 int data_var_val = this->model_loc_data_var_val_info[oapp->get_name().str()];
                 app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
-            } else {
+            } else if(this->is_loc2int(oapp)) {
+                app* arg1 = oapp->get_arg(0);
+                if(!this->is_locvar(ar1)) {
+                    std::cout << "ERROR: loc2int inner not locvar" << std::endl;
+                    return nullptr;
+                }
+                std::string locvar_name = arg1->get_name().str();
+                int int_val = this->model_loc_data_var_val_info[locvar_name];
+                app* val_expr = data_factory->mk_num_value(rational(int_val), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else if(this->is_readdata(oapp)) {
+                heap_value_proc* readdata_proc = alloc(heap_value_proc, this->get_id(), this->get_manager().mk_sort(arith_family_id, INT_SORT));
+                enode* read_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* read_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                readdata_proc->add_dependency(model_value_dependency(read_heap_node));
+                readdata_proc->add_dependency(model_value_dependency(read_addr_node));
+                return readdata_proc;
+            }
+            else {
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is arith term" << std::endl;
                 #endif
