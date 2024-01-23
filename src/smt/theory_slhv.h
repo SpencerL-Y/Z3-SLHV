@@ -23,7 +23,10 @@
 // #define SOLVING_INFO
 
 // for new encoding 
-// #define DISJ_DEBUG
+#define DISJ_DEBUG
+
+// for readwrite support
+#define SLHV_RW_DEBUG
 
 // frontend macro
 
@@ -156,6 +159,7 @@ namespace smt
         std::set<app*> collect_points_tos(app* expression);
 
         // syntax checker
+        bool contain_disjunction(app const * n);
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
