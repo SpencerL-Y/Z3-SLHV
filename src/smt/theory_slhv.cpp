@@ -484,7 +484,9 @@ namespace smt {
             }
         }
         inference_graph* inf_graph = alloc(inference_graph, this, inf_graph_assertions_disj);
-
+        this->infer_graph = inf_graph;
+        this->mem_mng->set_inf_graph(this->infer_graph);
+        
         this->preprocessing_disj();
         std::set<heap_term*> all_hterms = this->extract_all_hterms_disj();
 
