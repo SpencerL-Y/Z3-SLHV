@@ -85,7 +85,7 @@ namespace smt {
         #ifdef SLHV_PRINT
             std::cout << "slhv internalize term" << std::endl;
         #endif
-        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term)) {
+        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term) && !is_readdata(term) && !is_readloc(term) && !is_writedata(term) && !is_writeloc(term) && !is_loc2int(term) && !is_int2loc(term)) {
             std::cout << "unsupported term op: " << term->get_name() << std::endl;
             return false;
         }
@@ -432,10 +432,11 @@ namespace smt {
     }
 
     bool theory_slhv::final_check_using_DISJ() {
+            
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
-        #ifdef DISJ_DEBUG
+        #ifdef SLHV_RW_DEBUG
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
         for(expr* e : assertions) {
@@ -472,6 +473,17 @@ namespace smt {
         // set slhv syntax plugin
         this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
         SASSERT(this->slhv_plug->pt_record_map.size() > 0);
+
+        std::set<expr*> inf_graph_assertions_disj;
+        for(expr* e : this->refined_asssertions_disj) {
+            if(!this->contain_disjunction(e)) {
+                #ifdef DISJ_DEBUG
+                std::cout << "ref assertion without disj: " << mk_ismt2_pp(e, this->m) << std::endl;
+                #endif
+                inf_graph_assertions_disj.insert(e);
+            }
+        }
+        inference_graph* inf_graph = alloc(inference_graph, this, inf_graph_assertions_disj);
 
         this->preprocessing_disj();
         std::set<heap_term*> all_hterms = this->extract_all_hterms_disj();
@@ -1574,8 +1586,21 @@ namespace smt {
         return collected_points_tos;
     }
 
-    
 
+    bool theory_slhv::contain_disjunction(app const * n) {
+        if(n->get_num_args() == 0) {
+            return false;
+        } else {
+            bool result = false;
+            for(int i = 0; i < n->get_num_args(); i ++) {
+                result = result || this->contain_disjunction(to_app(n->get_arg(i)));
+                if(result) {
+                    return result;
+                }
+            }
+            return result;
+        }
+    }
     
     void theory_slhv::collect_loc_heap_and_data_cnstr_in_assignments(expr_ref_vector assigned_literals){
         // collect all constrainst imposed on heap, loc and data
@@ -6812,18 +6837,18 @@ namespace smt {
                 enode* written_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 enode* written_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                 enode* written_data_node = this->ctx.get_enode(oapp->get_arg(2))->get_root();
-                write_data_proc->add_dependency(written_heap_node);
-                write_data_proc->add_dependency(written_addr_node);
-                write_data_proc->add_dependency(written_data_node);
+                write_data_proc->add_dependency(model_value_dependency(written_heap_node));
+                write_data_proc->add_dependency(model_value_dependency(written_addr_node));
+                write_data_proc->add_dependency(model_value_dependency(written_data_node));
                 return write_data_proc;
             } else if(this->is_writeloc(oapp)) {
                 heap_value_proc* write_loc_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 enode* written_heap_node = this->ctx.get_enode(oapp->get_arg(0))->get_root();
                 enode* written_addr_node = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                 enode* written_loc_node = this->ctx.get_enode(oapp->get_arg(2))->get_root();
-                write_loc_proc->add_dependency(written_heap_node);
-                write_loc_proc->add_dependency(written_addr_node);
-                write_loc_proc->add_dependency(written_loc_node);
+                write_loc_proc->add_dependency(model_value_dependency(written_heap_node));
+                write_loc_proc->add_dependency(model_value_dependency(written_addr_node));
+                write_loc_proc->add_dependency(model_value_dependency(written_loc_node ));
                 return write_loc_proc;
             } else {
                 std::cout << "ERROR: mk heap value should not come here" << std::endl;
@@ -6883,8 +6908,8 @@ namespace smt {
                 app* val_expr = data_factory->mk_num_value(rational(data_var_val), true);
                 return alloc(expr_wrapper_proc, val_expr);
             } else if(this->is_loc2int(oapp)) {
-                app* arg1 = oapp->get_arg(0);
-                if(!this->is_locvar(ar1)) {
+                app* arg1 = to_app(oapp->get_arg(0));
+                if(!this->is_locvar(arg1)) {
                     std::cout << "ERROR: loc2int inner not locvar" << std::endl;
                     return nullptr;
                 }
