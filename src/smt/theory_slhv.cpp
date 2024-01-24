@@ -452,8 +452,10 @@ namespace smt {
         for(auto e : this->outside_assertions_disj) {
             inf_creation_expr_set.insert(e);
         }
+        std::cout << "before inference graph creation" << std::endl;
         inference_graph* inf_graph = alloc(inference_graph, this, inf_creation_expr_set);
         this->infer_graph = inf_graph;
+        std::cout << "after inference graph creation" << std::endl;
         this->mem_mng->set_inf_graph(this->infer_graph);
 
         std::vector<app*> refined_assertions;
@@ -2697,14 +2699,18 @@ namespace smt {
         #endif
 
         // DISJ TODO: add deducing for disj method
+        std::cout << "construct slhv deducer" << std::endl;
         this->ded = alloc(slhv_deducer, th, this, true);
+        std::cout << "construct slhv deducer end" << std::endl;
         std::cout << "begin deducing" << std::endl;
         ded->deduce();
+        std::cout << "end deducing" << std::endl;
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
-        this->construct_ht2root_from_deducer();
+        this->construct_ht2root_from_deducer_disj();
         // this->construct_ht2root_from_nothing();
+        ded->print_current(std::cout);
         #ifdef SOLVING_INFO
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
@@ -2713,6 +2719,82 @@ namespace smt {
 
     void formula_encoder::construct_ht2root_from_deducer() {
         for(heap_term* ht1 : this->hts) {
+            for(heap_term* ht2 : this->hts) {
+                if(ht1 != ht2) {
+                    // merge equivalent class and remain all uplus term
+                    int ht1_index = this->ht2index_map[ht1];
+                    int ht2_index = this->ht2index_map[ht2];
+                    if(ded->has_shrel(ht1_index, ht2_index) &&
+                       ded->has_shrel(ht2_index, ht1_index) &&
+                       !(ht1->is_uplus_hterm() || ht2->is_uplus_hterm())) {
+                        // merge
+                        if(this->ht2root[ht1] != this->ht2root[ht2]) {
+                            if(this->ht2root[ht1] == this->emp_ht || this->ht2root[ht2] == this->emp_ht) {
+                                heap_term* orig_root1 = this->ht2root[ht1];
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root1 || item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->emp_ht;
+                                    }
+                                }
+                                this->ht2root[ht1] = this->emp_ht;
+                                this->ht2root[ht2] = this->emp_ht;
+                            } else if(this->ht2root[ht1]->is_atom_pt()) {
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->ht2root[ht1];
+                                    }
+                                }
+                                this->ht2root[ht2] = this->ht2root[ht1];
+                            } else if(this->ht2root[ht2]->is_atom_pt()) {
+                                
+                                heap_term* orig_root1 = this->ht2root[ht1];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root1) {
+                                        this->ht2root[item.first] = this->ht2root[ht2];
+                                    }
+                                }
+                                this->ht2root[ht1] = this->ht2root[ht2];
+                            } else {
+                                heap_term* orig_root2 = this->ht2root[ht2];
+                                for(auto item : this->ht2root) {
+                                    if(item.second == orig_root2) {
+                                        this->ht2root[item.first] = this->ht2root[ht1];
+                                    }
+                                }
+                                this->ht2root[ht2] = this->ht2root[ht1];
+                            }
+                        } else {
+                            // do nothing
+                        }
+                    }
+                }
+            }
+        }
+        for(auto item : this->ht2root) {
+            this->repre_hts.insert(item.second);
+            if(item.second->is_atom_hvar()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_hvars.insert(item.second);
+            } else if(item.second->is_atom_pt()) {
+                this->repre_atoms.insert(item.second);
+                this->repre_pts.insert(item.second);
+            } else {
+                
+            }
+        }
+    }
+
+
+
+    void formula_encoder::construct_ht2root_from_deducer_disj() {
+        std::set<heap_term*> all_must_hold_hterms;
+        for(auto eq_p : this->eq_ht_pairs) {
+            all_must_hold_hterms.insert(eq_p.first);
+            all_must_hold_hterms.insert(eq_p.second);
+        }
+        for(heap_term* ht1 : this->hts){
             for(heap_term* ht2 : this->hts) {
                 if(ht1 != ht2) {
                     // merge equivalent class and remain all uplus term
@@ -4387,7 +4469,7 @@ namespace smt {
             // inference graph update
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
-        for(heap_term* ht1 : all_must_hold_hterms) {
+        for(heap_term* ht1 : this->fec->get_all_hterms()) {
             for(heap_term* ht2 : all_must_hold_hterms) {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});

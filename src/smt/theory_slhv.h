@@ -697,6 +697,7 @@ namespace smt
 
         void construct_ht2root_from_deducer();
         void construct_ht2root_from_nothing();
+        void construct_ht2root_from_deducer_disj();
 
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
