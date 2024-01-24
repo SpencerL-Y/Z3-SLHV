@@ -2703,8 +2703,8 @@ namespace smt {
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
-        this->construct_ht2root_from_deducer();
-        // this->construct_ht2root_from_nothing();
+        // this->construct_ht2root_from_deducer();
+        this->construct_ht2root_from_nothing();
         #ifdef SOLVING_INFO
         ded->print_current(std::cout);
         std::cout << "deduce unsat: " << ded->get_is_unsat() << std::endl;
