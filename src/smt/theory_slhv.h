@@ -15,7 +15,7 @@
 
 // debug macro
 // #define SLHV_PRINT
-#define DED_INFO
+// #define DED_INFO
 // #define MODEL_GEN_INFO
 // #define SLHV_UNSAT_CORE_DEBUG
 
@@ -23,10 +23,10 @@
 // #define SOLVING_INFO
 
 // for new encoding 
-#define DISJ_DEBUG
+// #define DISJ_DEBUG
 
 // for inf graph debug
-#define INF_GRAPH_DEBUG
+// #define INF_GRAPH_DEBUG
 
 // for readwrite support
 // #define SLHV_RW_DEBUG

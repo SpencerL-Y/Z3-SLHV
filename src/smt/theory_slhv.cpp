@@ -3689,9 +3689,9 @@ namespace smt {
                 if(this->ded->has_djrel(ht1_index, ht2_index)) {
                     continue;
                 }
-                for(heap_term* ht3 : this->repre_atoms) {
+                for(heap_term* ht3 : this->repre_hts) {
                     if(ht3 == this->emp_ht) {continue;}
-                    for(heap_term* ht4 : this->repre_atoms) {
+                    for(heap_term* ht4 : this->repre_hts) {
                         if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
@@ -3727,9 +3727,9 @@ namespace smt {
                 if(this->ded->has_djrel(ht1_index, ht2_index)) {
                     continue;
                 }
-                for(heap_term* ht3 : this->repre_atoms) {
+                for(heap_term* ht3 : this->repre_hts) {
                     if(ht3 == this->emp_ht) {continue;}
-                    for(heap_term* ht4 : this->repre_atoms) {
+                    for(heap_term* ht4 : this->repre_hts) {
                         if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
@@ -3763,9 +3763,9 @@ namespace smt {
                 if(this->ded->has_djrel(ht1_index, ht2_index)) {
                     continue;
                 }
-                for(heap_term* ht3 : this->repre_atoms) {
+                for(heap_term* ht3 : this->repre_hts) {
                     if(ht3 == this->emp_ht) {continue;}
-                    for(heap_term* ht4 : this->repre_atoms) {
+                    for(heap_term* ht4 : this->repre_hts) {
                         if(ht4 == this->emp_ht) {continue;}
                         expr* impl_lhs = this->syntax_maker->mk_and(
                             this->get_shrel_boolvar(ht1, ht3),
