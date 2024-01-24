@@ -26,7 +26,7 @@
 // #define DISJ_DEBUG
 
 // for inf graph debug
-// #define INF_GRAPH_DEBUG
+#define INF_GRAPH_DEBUG
 
 // for readwrite support
 // #define SLHV_RW_DEBUG

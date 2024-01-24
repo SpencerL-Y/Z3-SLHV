@@ -3916,7 +3916,7 @@ namespace smt {
         #ifdef DISJ_DEBUG
         std::cout << "generate_deduced_assumptions" << std::endl;
         #endif
-        // result = slhv_util::setUnion(result, this->generate_deduced_assumptions_disj());
+        result = slhv_util::setUnion(result, this->generate_deduced_assumptions_disj());
         #ifdef DISJ_DEBUG
         std::cout << "generate_pto_assumptions" << std::endl;
         #endif
