@@ -5131,7 +5131,7 @@ namespace smt {
                         if(this->is_emp(sh_pair24.first) || this->has_dj_pair({sh_pair13.first, sh_pair24.first})) {
                             continue;
                             // do nothing
-                        } else {
+                        } else if(this->has_dj_pair({sh_pair13.second, sh_pair24.second})){
                             std::pair<int, int> new_dj_pair = {sh_pair13.first, sh_pair24.first};
                             std::pair<int, int> mirror_pair = {sh_pair24.first, sh_pair13.first};
                             new_dj_found = true;
@@ -5148,6 +5148,8 @@ namespace smt {
                             // inference graph update
                             this->th->infer_graph->add_disj_rel_pair(new_dj_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
                             this->th->infer_graph->add_disj_rel_pair(mirror_pair, sh_pair13, sh_pair24, {sh_pair13.second, sh_pair24.second});
+                        } else {
+                            // do nothing, premise not hold
                         }
                     }
                 }
