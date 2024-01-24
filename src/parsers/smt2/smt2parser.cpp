@@ -997,6 +997,7 @@ namespace smt2 {
             ptr_vector<datatype::constructor> consvec = pm().get_dt_plugin()->get_constructors(symbol(curr_Pt_R_name));
             // std::cout << "constructor size: " << consvec.size() << std::endl;
             if(consvec.size() > 0) {
+                
                 datatype::constructor* c = consvec.back();
                 ptr_vector<datatype::accessor> accs = c->accessors();
                 int locnum = 0, datanum = 0;
