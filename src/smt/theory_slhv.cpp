@@ -4368,8 +4368,12 @@ namespace smt {
     void slhv_deducer::initialize_shdj_disj() {
         // RULE P2 and P3
         SASSERT(fec != nullptr);
-        std::set<heap_term*> all_hterms = this->fec->get_all_hterms();
+        std::set<heap_term*> all_must_hold_hterms;
         std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
+        for(auto p : all_eq_pairs) {
+            all_must_hold_hterms.insert(p.first);
+            all_must_hold_hterms.insert(p.second);
+        }
         for(auto p : all_eq_pairs) {
             this->insert_sh_pair({this->ht2index[p.first], this->ht2index[p.second]});
             this->insert_sh_pair({this->ht2index[p.second], this->ht2index[p.first]});
@@ -4378,13 +4382,13 @@ namespace smt {
             this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.second], this->ht2index[p.first]}, p);
         }
         heap_term* emp_ht = this->fec->get_emp_ht();
-        for(heap_term* ht : all_hterms) {
+        for(heap_term* ht : all_must_hold_hterms) {
             this->insert_sh_pair({this->ht2index[emp_ht], this->ht2index[ht]});
             // inference graph update
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
-        for(heap_term* ht1 : all_hterms) {
-            for(heap_term* ht2 : all_hterms) {
+        for(heap_term* ht1 : all_must_hold_hterms) {
+            for(heap_term* ht2 : all_must_hold_hterms) {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
@@ -4398,7 +4402,7 @@ namespace smt {
                 }
             }
         }
-        for(heap_term* ht : all_hterms) {
+        for(heap_term* ht : all_must_hold_hterms) {
             if(!(ht->is_atom_hvar() || ht->is_atom_pt())) {
                 auto pset = ht->get_all_distinct_atomic_pairs();
                 for(auto pair : pset) {
