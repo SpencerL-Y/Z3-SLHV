@@ -831,7 +831,6 @@ void cmd_context::init_manager() {
         init_external_manager();
     }
     else {
-        std::cout << "cmd context init manager" << std::endl;
         m_manager_initialized = true;
         SASSERT(m_pmanager == 0);
         m_check_sat_result = nullptr;

@@ -120,7 +120,7 @@ static solver* mk_special_solver_for_logic(ast_manager & m, params_ref const & p
 }
 
 solver* mk_smt2_solver(ast_manager& m, params_ref const& p, symbol const& logic) {
-    std::cout << "mk smt2 solver" << std::endl;
+    // std::cout << "mk smt2 solver" << std::endl;
     sat_params sp(p);
     if (sp.smt())
         return mk_sat_smt_solver(m, p);
@@ -130,7 +130,7 @@ solver* mk_smt2_solver(ast_manager& m, params_ref const& p, symbol const& logic)
 }
 
 static solver* mk_solver_for_logic(ast_manager & m, params_ref const & p, symbol const& logic) {
-    std::cout << "mk solver for logic " << logic << std::endl;
+    // std::cout << "mk solver for logic " << logic << std::endl;
     bv_rewriter rw(m);
     solver* s = mk_special_solver_for_logic(m, p, logic);
     tactic_params tp;
