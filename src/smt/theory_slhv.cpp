@@ -516,11 +516,10 @@ namespace smt {
         this->mem_mng->push_fec_ptr(fec);   
 
         fec->print_statistics();
-        if(true) {
+        if(true){
         // if(fec->get_unsat_found()) {
             this->set_conflict_slhv();
 
-            final_solver->dec_ref();
             this->mem_mng->dealloc_all();
             return false;
         }
