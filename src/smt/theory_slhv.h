@@ -796,6 +796,7 @@ namespace smt
         }
         void print_statistics() {
             std::cout << "Number of heap terms: " << this->hts.size() << std::endl;
+            std::cout << "Number of aht: " << this->atom_hts.size() << std::endl;
             std::cout << "Number of locvars: " << this->locvar2intvar_map.size() << std::endl;
         }
     };

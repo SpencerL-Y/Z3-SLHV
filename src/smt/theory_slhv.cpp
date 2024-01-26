@@ -452,10 +452,8 @@ namespace smt {
         for(auto e : this->outside_assertions_disj) {
             inf_creation_expr_set.insert(e);
         }
-        std::cout << "before inference graph creation" << std::endl;
         inference_graph* inf_graph = alloc(inference_graph, this, inf_creation_expr_set);
         this->infer_graph = inf_graph;
-        std::cout << "after inference graph creation" << std::endl;
         this->mem_mng->set_inf_graph(this->infer_graph);
 
         std::vector<app*> refined_assertions;
@@ -518,6 +516,14 @@ namespace smt {
         this->mem_mng->push_fec_ptr(fec);   
 
         fec->print_statistics();
+        if(true) {
+        // if(fec->get_unsat_found()) {
+            this->set_conflict_slhv();
+
+            final_solver->dec_ref();
+            this->mem_mng->dealloc_all();
+            return false;
+        }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
 
 
@@ -2699,12 +2705,8 @@ namespace smt {
         #endif
 
         // DISJ TODO: add deducing for disj method
-        std::cout << "construct slhv deducer" << std::endl;
         this->ded = alloc(slhv_deducer, th, this, true);
-        std::cout << "construct slhv deducer end" << std::endl;
-        std::cout << "begin deducing" << std::endl;
         ded->deduce();
-        std::cout << "end deducing" << std::endl;
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
