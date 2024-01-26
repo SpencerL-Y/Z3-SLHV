@@ -995,14 +995,15 @@ namespace smt2 {
             slhv_decl_plugin* plug = (slhv_decl_plugin*) this->m().get_plugin(this->m().mk_family_id("slhv"));
             std::string curr_Pt_R_name = "Pt_R_" + std::to_string(plug->get_record_type_num());
             ptr_vector<datatype::constructor> consvec = pm().get_dt_plugin()->get_constructors(symbol(curr_Pt_R_name));
-            std::cout << "constructor size: " << consvec.size() << std::endl;
+            // std::cout << "constructor size: " << consvec.size() << std::endl;
             if(consvec.size() > 0) {
+                
                 datatype::constructor* c = consvec.back();
                 ptr_vector<datatype::accessor> accs = c->accessors();
                 int locnum = 0, datanum = 0;
                 for(auto a : accs) {
-                    std::cout << "acc name: " << a->name() << std::endl;
-                    std::cout << "acc sort: " << a->range()->get_name() << std::endl;
+                    // std::cout << "acc name: " << a->name() << std::endl;
+                    // std::cout << "acc sort: " << a->range()->get_name() << std::endl;
                     if(a->range()->get_name() == "IntLoc") {
                         locnum += 1;
                     } else if(a->range()->get_name() == "Int") {
@@ -1015,7 +1016,7 @@ namespace smt2 {
 
                 
                 func_decl* ptrs = this->m_ctx.find_func_decl(symbol(curr_Pt_R_name));
-                std::cout << "ptrs range sort: " << ptrs->get_range()->get_name() << std::endl;
+                // std::cout << "ptrs range sort: " << ptrs->get_range()->get_name() << std::endl;
                 SASSERT(locnum == 1 &&  datanum == 0 || locnum == 0 && datanum == 1);
                 plug->add_pt_record(curr_Pt_R_name, locnum, datanum);
                 plug->add_pt_r_decl(curr_Pt_R_name, ptrs);

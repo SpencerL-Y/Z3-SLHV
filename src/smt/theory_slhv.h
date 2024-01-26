@@ -25,6 +25,13 @@
 // for new encoding 
 // #define DISJ_DEBUG
 
+// for inf graph debug
+// #define INF_GRAPH_DEBUG
+
+// for readwrite support
+// #define SLHV_RW_DEBUG
+
+
 // frontend macro
 
 namespace smt
@@ -56,6 +63,9 @@ namespace smt
         std::vector<app*> refined_asssertions_disj;
         // std::vector<app*> outside_loc_cnstr_disj;
         std::set<app*> refined_heap_subassertions;
+        std::set<app*> inf_graph_assertions_disj;
+        std::set<app*> inf_graph_data_assertions;
+        std::set<app*> inf_graph_loc_assertions;std::set<std::pair<heap_term*, heap_term*>> inf_graph_eq_pairs_hterms_disj;
         // std::vector<app*> outside_data_constr_disj;
         std::set<app*> locvars_disj;
         std::set<app*> hvars_disj;
@@ -71,9 +81,10 @@ namespace smt
         bool locvars_contain_nil_disj();
         // DISJ TODO
         void collect_heap_subassertions_disj(std::vector<app*> outside_assertions);
+        void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
-        std::set<heap_term*> extract_all_hterms_disj();
+        std::pair<std::set<heap_term*>, std::set<std::pair<heap_term*, heap_term*>>> extract_all_hterms_disj();
         
         // =========================================================
 
@@ -156,6 +167,7 @@ namespace smt
         std::set<app*> collect_points_tos(app* expression);
 
         // syntax checker
+        bool contain_disjunction(app const * n);
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
@@ -174,6 +186,42 @@ namespace smt
         bool is_locadd(app const* n) const {
             if(n->is_app_of(get_id(), OP_LOCADD)) {
                 SASSERT(this->is_locvar(n) && this->is_dataterm(n));
+                return true;
+            }
+            return false;
+        }
+        bool is_readloc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_READLOC)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_readdata(app const* n) const {
+            if(n->is_app_of(get_id(), OP_READDATA)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_writeloc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_WRITELOC)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_writedata(app const* n) const {
+            if(n->is_app_of(get_id(), OP_WRITEDATA)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_loc2int(app const* n) const {
+            if(n->is_app_of(get_id(), OP_LOC2INT)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_int2loc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_INT2LOC)) {
                 return true;
             }
             return false;
@@ -649,6 +697,7 @@ namespace smt
 
         void construct_ht2root_from_deducer();
         void construct_ht2root_from_nothing();
+        void construct_ht2root_from_deducer_disj();
 
         std::set<heap_term*> get_sub_atom_hts(heap_term* orig_ht);
 
@@ -693,6 +742,7 @@ namespace smt
 
         //  ======================== for disj
         std::set<expr*> generate_init_ld_locvar_constraint_for_all_assertions();
+        std::set<expr*> generate_deduced_assumptions_disj();
         std::set<expr*> generate_pto_assumptions_disj();
         std::set<expr*> generate_iso_assumptions_disj();
         std::set<expr*> generate_idj_assumptions_disj();
@@ -780,6 +830,9 @@ namespace smt
 
             void initialize_shdj();
             void initialize_ldeqneq();
+
+            void initialize_shdj_disj();
+            void initialize_ldeqneq_disj();
             
             // -----Check inconsistency-------
             void check_ldvars_consistency();
@@ -801,7 +854,7 @@ namespace smt
             bool has_dj_pair(std::pair<int, int> dj_p);
             bool has_sh_pair(std::pair<int, int> sh_p);
         public: 
-            slhv_deducer(theory_slhv* th, formula_encoder* fec);
+            slhv_deducer(theory_slhv* th, formula_encoder* fec, bool is_disj);
 
             void print_current(std::ostream& os);
             bool deduce();
@@ -996,6 +1049,8 @@ namespace smt
 
             bool contain_dj_node(std::pair<int, int> dj_p);
             bool contain_sh_node(std::pair<int, int> sh_p);
+
+            bool contain_comht_node(heap_term* com_ht);
 
             void create_init_assignment_node(expr* init_ass);
             void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
