@@ -14,6 +14,12 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_list_segment_sym("lseg"),
     m_points_to_sym("pt"),
     m_locadd_symbol("locadd"),
+    m_readloc_symbol("readloc"),
+    m_readdata_symbol("readdata"),
+    m_writeloc_symbol("writeloc"),
+    m_writedata_symbol("writedata"),
+    m_loc2int_symbol("loc2int"),
+    m_int2loc_symbol("int2loc"),
     m_locconst_symbol("Loc"),
     global_emp(nullptr),
     global_nil(nullptr),
@@ -58,7 +64,10 @@ void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol con
     op_names.push_back(builtin_name("pt", OP_POINTS_TO));
     op_names.push_back(builtin_name("lseg", OP_LIST_SEGMENT));
     op_names.push_back(builtin_name("locadd", OP_LOCADD));
-
+    op_names.push_back(builtin_name("readloc", OP_READLOC));
+    op_names.push_back(builtin_name("readdata", OP_READDATA));
+    op_names.push_back(builtin_name("writeloc", OP_WRITELOC));
+    op_names.push_back(builtin_name("writedata", OP_WRITEDATA));
 }
 
 func_decl* slhv_decl_plugin::mk_uplus(unsigned arity, sort * const * domain) {
@@ -123,6 +132,97 @@ func_decl* slhv_decl_plugin::mk_locadd(unsigned arity, sort* const* domain) {
     return result_decl;
 
 }
+
+
+func_decl* slhv_decl_plugin::mk_readloc(unsigned arity, sort*const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("readloc takes exacly two arguments");
+        return nullptr;
+    }
+    sort* read_heap_sort = domain[0];
+    sort* read_addr_sort = domain[1];
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTLOC_SORT, 0, nullptr);
+    
+    func_decl* result_decl = m_manager->mk_func_decl(m_readloc_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_READLOC));
+    return result_decl;
+}
+
+
+
+func_decl* slhv_decl_plugin::mk_readdata(unsigned arity, sort*const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("readdata takes exacly two arguments");
+        return nullptr;
+    }
+    sort* read_heap_sort = domain[0];
+    sort* read_addr_sort = domain[1];
+    sort* final_sort = this->m_manager->mk_sort(arith_family_id, INT_SORT);
+    
+    func_decl* result_decl = m_manager->mk_func_decl(m_readdata_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_READDATA));
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_writeloc(unsigned arity, sort*const* domain) {
+    if(arity != 3) {
+        m_manager->raise_exception("writeloc takes exactly three arguments");
+        return nullptr;
+    }
+    sort* written_heap_sort = domain[0];
+    sort* written_addr_sort = domain[1];
+    sort* written_lt_sort = domain[2];
+
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTHEAP_SORT, 0, nullptr);
+
+    
+
+    func_decl* result_decl = m_manager->mk_func_decl(m_writeloc_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_WRITELOC));
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_writedata(unsigned arity, sort*const* domain) {
+    if(arity != 3) {
+        m_manager->raise_exception("writedata takes exactly three arguments");
+        return nullptr;
+    }
+    sort* written_heap_sort = domain[0];
+    sort* written_addr_sort = domain[1];
+    sort* written_dt_sort = domain[2];
+
+
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTHEAP_SORT, 0, nullptr);
+
+    func_decl* result_decl = m_manager->mk_func_decl(m_writedata_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_WRITEDATA));
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_loc2int(unsigned arity, sort*const* domain) {
+    if(arity != 1) {
+        m_manager->raise_exception("loc2int takes exactly one arguments");
+        return nullptr;
+    }
+
+    sort* orig_loc_sort = domain[0];
+
+    sort* final_sort = this->m_manager->mk_sort(arith_family_id, INT_SORT);
+
+    func_decl* result_decl = m_manager->mk_func_decl(m_loc2int_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_LOC2INT));
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_int2loc(unsigned arity, sort* const* domain) {
+    if(arity != 1) {
+        m_manager->raise_exception("int2loc takes exactly one arguments");
+        return nullptr;
+    }
+
+    sort* orig_int_sort = domain[0];
+    
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTLOC_SORT, 0, nullptr);
+
+    func_decl* result_decl = m_manager->mk_func_decl(m_int2loc_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_INT2LOC));
+    return result_decl;
+}
+
 
 
 func_decl* slhv_decl_plugin::mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain) {
@@ -201,6 +301,18 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_locadd" << std::endl; 
     #endif
         return this->mk_locadd(arity, domain);
+    case OP_READLOC:
+        return this->mk_readloc(arity, domain);
+    case OP_READDATA:
+        return this->mk_readdata(arity, domain);
+    case OP_WRITELOC:
+        return this->mk_writeloc(arity, domain);
+    case OP_WRITEDATA:
+        return this->mk_writedata(arity, domain);
+    case OP_LOC2INT:
+        return this->mk_loc2int(arity, domain);
+    case OP_INT2LOC:
+        return this->mk_int2loc(arity, domain);
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;
@@ -276,6 +388,72 @@ app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* locadd_decl = this->mk_locadd(num_arg, domain);
     app* result = m_manager->mk_app(locadd_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_readloc_value(int num_arg, expr_ref_vector items) {
+    sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* readloc_decl = this->mk_readloc(num_arg, domain);
+    app* result = m_manager->mk_app(readloc_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_readdata_value(int num_arg, expr_ref_vector items) {
+    sort* data_sort = this->m_manager->mk_sort(arith_family_id, INT_SORT);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* readdata_decl = this->mk_readdata(num_arg, domain);
+    app* result = m_manager->mk_app(readdata_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_writeloc_value(int num_arg, expr_ref_vector items) {
+    sort* heap_sort = this->mk_sort(slhv_sort_kind::INTHEAP_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* writeloc_decl = this->mk_writeloc(num_arg, domain);
+    app* result = m_manager->mk_app(writeloc_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_writedata_value(int num_arg, expr_ref_vector items) {
+    sort* heap_sort = this->mk_sort(slhv_sort_kind::INTHEAP_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* writedata_decl = this->mk_writedata(num_arg, domain);
+    app* result = m_manager->mk_app(writedata_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_loc2int_value(int num_arg,expr_ref_vector items) {
+    sort* data_sort = this->m_manager->mk_sort(arith_family_id, INT_SORT);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* loc2int_decl = this->mk_loc2int(num_arg, domain);
+    app* result = m_manager->mk_app(loc2int_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_int2loc_value(int num_arg, expr_ref_vector items) {
+    sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* int2loc_decl = this->mk_int2loc(num_arg, domain);
+    app* result = m_manager->mk_app(int2loc_decl, items.data());
     return result;
 }
 
