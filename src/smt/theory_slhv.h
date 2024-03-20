@@ -31,6 +31,9 @@
 // for readwrite support
 // #define SLHV_RW_DEBUG
 
+// for disjh and subh support
+#define SLHV_HTR_DEBUG
+
 
 // frontend macro
 
@@ -190,6 +193,20 @@ namespace smt
             }
             return false;
         }
+        bool is_subh(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SUBH)) {
+                return true;
+            }
+            return false;
+        }
+
+        bool is_disjh(app const* n) const {
+            if(n->is_app_of(get_id(), OP_DISJH))  {
+                return true;
+            }
+            return false;
+        }
+
         bool is_readloc(app const* n) const {
             if(n->is_app_of(get_id(), OP_READLOC)) {
                 return true;
