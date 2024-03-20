@@ -78,6 +78,10 @@ namespace smt {
         #ifdef SLHV_PRINT
             std::cout << "slhv internalize atom" << std::endl;
         #endif
+        if(this->is_subh(atom) || this->is_disjh(atom)) {
+            // do nothing since these are only auxillary assertions
+            return false;
+        }
         return true;
     }
 
@@ -436,11 +440,12 @@ namespace smt {
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
-        #ifdef SLHV_RW_DEBUG
+        #ifdef SLHV_HTR_DEBUG
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
         for(expr* e : assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+            std::cout << "----" << std::endl;
         }
         std::cout << "===================== current outside assertions end ==================" << std::endl;  
         #endif

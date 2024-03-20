@@ -23,6 +23,8 @@ enum slhv_op_kind {
     OP_WRITEDATA,
     OP_LOC2INT,
     OP_INT2LOC,
+    OP_SUBH,
+    OP_DISJH,
     OP_LIST_SEGMENT,
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
@@ -67,6 +69,8 @@ class slhv_decl_plugin : public decl_plugin {
     symbol m_points_to_sym;
     symbol m_list_segment_sym;
     symbol m_locadd_symbol;
+    symbol m_subh_symbol;
+    symbol m_disjh_symbol;
     symbol m_readloc_symbol;
     symbol m_writeloc_symbol;
     symbol m_readdata_symbol;
@@ -181,6 +185,10 @@ class slhv_decl_plugin : public decl_plugin {
 
     func_decl* mk_locadd(unsigned arity, sort* const* domain);
 
+    func_decl* mk_subh(unsigned arity, sort* const* domain);
+
+    func_decl* mk_disjh(unsigned arity, sort* const* domain);
+
     func_decl* mk_readloc(unsigned arity, sort* const* domain);
 
     func_decl* mk_readdata(unsigned arity, sort* const* domain);
@@ -213,6 +221,10 @@ class slhv_decl_plugin : public decl_plugin {
     app* mk_points_to_value(int num_arg, expr_ref_vector items);
 
     app* mk_locadd_value(int num_arg, expr_ref_vector items);
+
+    app* mk_subh_value(int num_arg, expr_ref_vector items);
+
+    app* mk_disjh_value(int num_arg, expr_ref_vector items);
 
     app* mk_readloc_value(int num_arg, expr_ref_vector items);
 

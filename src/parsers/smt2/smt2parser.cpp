@@ -1905,9 +1905,7 @@ namespace smt2 {
             unsigned expr_spos  = expr_stack().size();
             bool     has_as;
             symbol   f = parse_qualified_identifier(has_as);
-            #ifdef SLHV_DEBUG
             std::cout << "push app frame " << f << std::endl;
-            #endif
             void * mem      = m_stack.allocate(sizeof(quant_frame));
             new (mem) app_frame(f, expr_spos, param_spos, has_as);
             m_num_expr_frames++;
