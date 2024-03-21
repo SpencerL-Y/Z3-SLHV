@@ -32,7 +32,7 @@
 // #define SLHV_RW_DEBUG
 
 // for disjh and subh support
-#define SLHV_HTR_DEBUG
+// #define SLHV_HTR_DEBUG
 
 
 // frontend macro
