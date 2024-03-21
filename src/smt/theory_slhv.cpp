@@ -1150,7 +1150,8 @@ namespace smt {
                     return result;
                 }
             }
-        } else {
+        } 
+        else {
             return assertion;
         }
         return assertion;
@@ -1203,12 +1204,10 @@ namespace smt {
 
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
         if(this->is_uplus(hterm)) {
-            bool has_iter = false;
             std::vector<app*> new_args;
             for(int i = 0; i < hterm->get_num_args(); i ++) {
-                if(this->is_uplus(to_app(hterm->get_arg(i)))) {
-                    has_iter = true;
-                    app* uplus_i = this->eliminate_uplus_uplus_hterm(to_app(hterm->get_arg(i)));
+                app* uplus_i = this->eliminate_uplus_uplus_hterm(to_app(hterm->get_arg(i)));
+                if(this->is_uplus(uplus_i)) {
                     for(int j = 0; j < uplus_i->get_num_args(); j ++) {
                         new_args.push_back(to_app(uplus_i->get_arg(j)));
                     }
@@ -1216,12 +1215,9 @@ namespace smt {
                     new_args.push_back(to_app(hterm->get_arg(i)));
                 }
             }
-            if(has_iter) {
-                app* new_uplus = this->syntax_maker->mk_uplus_app(new_args.size(), new_args);   
-                return new_uplus;
-            } else {
-                return hterm;
-            }
+            app* new_uplus = this->syntax_maker->mk_uplus_app(new_args.size(), new_args);   
+            return new_uplus;
+            
         } else {
             return hterm;
         }
