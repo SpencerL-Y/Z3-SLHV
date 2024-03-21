@@ -40,6 +40,7 @@
 namespace smt
 {
     class heap_term;
+    class hterm_extracted_content;
     class slhv_fresh_var_maker;
     class slhv_syntax_maker;
     class atoms_subsumption;
@@ -66,9 +67,16 @@ namespace smt
         std::vector<app*> refined_asssertions_disj;
         // std::vector<app*> outside_loc_cnstr_disj;
         std::set<app*> refined_heap_subassertions;
+        std::set<app*> refined_subheap_assertions;
+        std::set<app*> refined_disjheap_assertions;
         std::set<app*> inf_graph_assertions_disj;
         std::set<app*> inf_graph_data_assertions;
-        std::set<app*> inf_graph_loc_assertions;std::set<std::pair<heap_term*, heap_term*>> inf_graph_eq_pairs_hterms_disj;
+        std::set<app*> inf_graph_loc_assertions;
+        std::set<app*> inf_graph_subheap_assertions;
+        std::set<app*> inf_graph_disjheap_assertions;
+        std::set<std::pair<heap_term*, heap_term*>> inf_graph_eq_pairs_hterms_disj;
+        std::set<std::pair<heap_term*, heap_term*>> inf_graph_subh_pair_hterms_disj;
+        std::set<std::pair<heap_term*, heap_term*>> inf_graph_disjh_pair_hterms_disj;
         // std::vector<app*> outside_data_constr_disj;
         std::set<app*> locvars_disj;
         std::set<app*> hvars_disj;
@@ -87,7 +95,7 @@ namespace smt
         void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
-        std::pair<std::set<heap_term*>, std::set<std::pair<heap_term*, heap_term*>>> extract_all_hterms_disj();
+        hterm_extracted_content* extract_all_hterms_disj();
         
         // =========================================================
 
@@ -679,6 +687,15 @@ namespace smt
             void print_ht2file(std::ofstream& f);
     };
 
+    class hterm_extracted_content {
+        public:
+            std::set<heap_term*> all_hterms;
+            std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
+            std::set<std::pair<heap_term*, heap_term*>> sub_pair_hterms;
+            std::set<std::pair<heap_term*, heap_term*>> disj_pair_hterms;
+
+            hterm_extracted_content() {}
+    };
 
 
     // encoder from slhv to lia
@@ -698,6 +715,8 @@ namespace smt
 
         std::set<heap_term*> hts;
         std::set<std::pair<heap_term*, heap_term*>> eq_ht_pairs;
+        std::set<std::pair<heap_term*, heap_term*>> subht_pairs;
+        std::set<std::pair<heap_term*, heap_term*>> disjht_pairs;
         std::set<heap_term*> atom_hts;
         std::set<heap_term*> pt_hts;
         std::set<heap_term*> hvar_hts;
@@ -770,6 +789,7 @@ namespace smt
         expr* generate_init_ld_locvar_constraint_recursive(app* assertion);
         expr* generate_init_ld_locvar_constraint_for_generate_ap(app* ap);
         expr* generate_init_ld_locvar_constraint_for_hteq(app* heq);
+        expr* generate_init_ld_locvar_constraint_for_subht_disjht(app* subdjht);
         heap_term* find_heap_term_for_ht_disj(app* orig_ht);
 
         std::set<app*> collect_locvars_recursive(app* term);
@@ -801,6 +821,12 @@ namespace smt
         }
         std::set<std::pair<heap_term*, heap_term*>> get_eq_ht_pairs() {
             return this->eq_ht_pairs;
+        }
+        std::set<std::pair<heap_term*, heap_term*>> get_subht_pairs() {
+            return this->subht_pairs;
+        }
+        std::set<std::pair<heap_term*, heap_term*>> get_disjht_pairs() {
+            return this->disjht_pairs;
         }
         heap_term* get_emp_ht() {
             return this->emp_ht;
@@ -956,6 +982,12 @@ namespace smt
             bool is_ht_eq_pair;
             std::pair<heap_term*, heap_term*> ht_eq_pair;
 
+            bool is_subht_pair;
+            std::pair<heap_term*, heap_term*> subht_pair;
+
+            bool is_disjht_pair;
+            std::pair<heap_term*, heap_term*> disjht_pair;
+
             bool is_dj_rel;
             std::pair<int, int> dj_pair;
             
@@ -970,6 +1002,7 @@ namespace smt
             inf_node(expr* outside);
             inf_node(expr* refined_assignment, std::set<inf_node*> premises);
             inf_node(std::pair<heap_term*, heap_term*> ht_eq_pair, std::set<inf_node*> premises);
+            inf_node(std::pair<heap_term*, heap_term*> subht_disjht_p, bool is_subht, std::set<inf_node*> premises);
             inf_node(heap_term* com_ht, std::set<inf_node*> premises);
             inf_node(std::pair<int, int> pair, bool is_dj, bool is_sh, std::set<inf_node*> premises);
             inf_node(std::set<inf_node*> premises);
@@ -988,6 +1021,12 @@ namespace smt
             }
             bool get_is_ht_eq_pair() {
                 return this->is_ht_eq_pair;
+            }
+            bool get_is_subht_pair() {
+                return this->is_subht_pair;
+            }
+            bool get_is_disjht_pair() {
+                return this->is_disjht_pair;
             }
             bool get_is_dj_rel() {
                 return this->is_dj_rel;
@@ -1018,6 +1057,14 @@ namespace smt
                 return this->ht_eq_pair;
             }
 
+            std::pair<heap_term*, heap_term*> get_subht_pair() {
+                return this->subht_pair;
+            }
+
+            std::pair<heap_term*, heap_term*> get_disjht_pair() {
+                return this->disjht_pair;
+            }
+
             std::pair<int, int>  get_dj_pair() {
                 return this->dj_pair;
             }
@@ -1045,6 +1092,8 @@ namespace smt
             std::set<inf_node*> refine_nodes;
             std::set<inf_node*> compound_nodes;
             std::set<inf_node*> ht_eq_pair_nodes;
+            std::set<inf_node*> subht_pair_nodes;
+            std::set<inf_node*> disjht_pair_nodes;
             std::set<inf_node*> disj_rel_nodes;
             std::set<inf_node*> sh_rel_nodes;
             inf_node* newest_loc_eq_node;
@@ -1062,6 +1111,8 @@ namespace smt
             inf_node* get_refine_assignment_premise(expr* refine_assignment);
             inf_node* get_compound_ht_premise(heap_term* com_ht);
             inf_node* get_ht_eq_pair_premise(std::pair<heap_term*, heap_term*> ht_p);
+            inf_node* get_subht_pair_premise(std::pair<heap_term*, heap_term*> ht_p);
+            inf_node* get_disjht_pair_premise( std::pair<heap_term*, heap_term*> ht_p);
             inf_node* get_disj_rel_premise(std::pair<int, int> disj_p);
             inf_node* get_sh_rel_premise(std::pair<int, int> sh_p);
 
@@ -1074,6 +1125,8 @@ namespace smt
             void add_refined_assignment_node(expr* new_assignment, expr* old_assignment);
             void add_compound_ht_node(heap_term* com_ht, expr* refined_assignment);
             void add_ht_eq_pair_node(std::pair<heap_term*, heap_term*> ht_eq_p, expr* refined_assignment);
+            void add_subht_pair_node(std::pair<heap_term*, heap_term*> subht_p, expr* refined_assignment);
+            void add_disjht_pair_node(std::pair<heap_term*, heap_term*> disjht_p, expr* refined_assignment);
             void add_loc_eqclass_node(std::set<app*> loc_eq_constr);
             void add_data_eqclass_node(std::set<app*> data_eq_constr);
             void add_loc_neqclass_node(std::set<app*> loc_neq_constr);
@@ -1088,15 +1141,19 @@ namespace smt
             void add_disj_rel_pair(std::pair<int, int> dj_p, heap_term* com_ht);
             void add_disj_rel_pair_locdata_neqclass(std::pair<int, int> dj_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
             void add_disj_rel_pair(std::pair<int, int> dj_p, std::pair<int, int> ht1InHt3, std::pair<int, int> ht2InHt4, std::pair<int, int> ht3DjHt4);
+            void add_disj_rel_pair_disjht(std::pair<int, int> dj_p, std::pair<heap_term*, heap_term*> disjht);
 
 
-
+            
             void add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht);
             void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> ht_eq_p);
             void add_sh_rel_pair_locdata_eqclass(std::pair<int, int> sh_p, std::pair<int, int> pt1InHt, std::pair<int, int> pt2InHt);
             void add_isolated_sh_rel_pair(std::pair<int, int> sh_p);
 
             void add_sh_rel_pair(std::pair<int, int> sh_p, std::pair<int, int> ht1InHt2, std::pair<int, int> ht2InHt3);
+
+            void add_sh_rel_pair_subht(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> subht);
+            
 
             void set_curr_loc_eqneq_unsat_node();
             void set_curr_data_eqneq_unsat_node();
