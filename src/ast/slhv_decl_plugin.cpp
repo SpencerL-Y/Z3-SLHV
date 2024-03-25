@@ -7,6 +7,8 @@
 #include "ast/ast_pp.h"
 #include "ast/ast_ll_pp.h"
 #include "ast/arith_decl_plugin.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 // SLHV
 slhv_decl_plugin::slhv_decl_plugin() :

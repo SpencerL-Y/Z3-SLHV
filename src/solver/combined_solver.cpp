@@ -24,6 +24,8 @@ Notes:
 #include "solver/solver.h"
 #include "solver/combined_solver_params.hpp"
 #include <atomic>
+// for SLHV debug
+#include "util/slhv_debug.h"
 #define PS_VB_LVL 15
 
 /**

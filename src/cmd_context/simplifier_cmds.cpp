@@ -155,9 +155,6 @@ public:
         
         auto simplifier_factory = sexpr2simplifier(ctx, m_simplifier);
         ctx.init_manager();
-        #ifdef SLHV_DEBUG
-        std::cout << "init manager at simplifier execute" << std::endl;
-        #endif
         auto* s = ctx.get_solver();
         if (s)
             ctx.set_solver(mk_simplifier_solver(s, &simplifier_factory));        

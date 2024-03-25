@@ -21,6 +21,8 @@ Notes:
 #include "tactic/probe.h"
 #include "util/stopwatch.h"
 #include "model/model_v2_pp.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 
 struct tactic_report::imp {

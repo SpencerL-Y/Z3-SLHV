@@ -1141,12 +1141,19 @@ namespace smt {
         } else if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
             app* arg1 = to_app(apped_expr->get_arg(0));
             app* arg2 = to_app(apped_expr->get_arg(1));
-            if(this->is_uplus(arg2)) {
-                app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
-                if(eliminated_uplus == arg2) {
-                    return assertion;
-                } else {
-                    expr* result = this->get_manager().mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+            if(this->is_heapterm(arg1)) {
+                // is heap equation
+                if(this->is_uplus(arg2)) {
+                    app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
+                    if(eliminated_uplus == arg2) {
+                        return assertion;
+                    } else {
+                        expr* result = this->syntax_maker->mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+                        return result;
+                    }
+                } else if(this->is_uplus(arg1)) {
+                    app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg1);
+                    expr* result = this->syntax_maker->mk_eq(arg2, this->eliminate_uplus_uplus_hterm(arg1));
                     return result;
                 }
             }

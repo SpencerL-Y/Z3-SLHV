@@ -26,6 +26,8 @@ Revision History:
 #include "smt/smt_model_generator.h"
 #include "smt/proto_model/proto_model.h"
 #include "model/model_v2_pp.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

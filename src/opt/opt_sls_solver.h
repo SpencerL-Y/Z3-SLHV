@@ -148,9 +148,6 @@ namespace opt {
         typedef bvsls_opt_engine::optimization_result opt_result;
 
         virtual lbool check_sat_core(unsigned num_assumptions, expr * const * assumptions) {            
-#ifdef SLHV_DEBUG
-    std::cout << "check_sat_core for opt sls solver" << std::endl;
-#endif
             lbool r = m_solver->check_sat(num_assumptions, assumptions);
             if (r == l_true) {
                 m_solver->get_model(m_model);

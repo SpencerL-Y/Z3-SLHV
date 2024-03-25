@@ -25,6 +25,8 @@ Revision History:
 #include "ast/for_each_expr.h"
 
 #include <iostream>
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

@@ -5,6 +5,7 @@
 #include "model/locvar_factory.h"
 #include "model/numeral_factory.h"
 #include "smt/smt_model_generator.h"
+#include "util/slhv_debug.h"
 #include <set>
 #include <stack>
 #include <vector>
@@ -13,29 +14,6 @@
 #include <bitset>
 #include <tuple>
 
-// debug macro
-// #define SLHV_PRINT
-// #define DED_INFO
-// #define MODEL_GEN_INFO
-// #define SLHV_UNSAT_CORE_DEBUG
-
-// minimal for debug
-// #define SOLVING_INFO
-
-// for new encoding 
-// #define DISJ_DEBUG
-
-// for inf graph debug
-// #define INF_GRAPH_DEBUG
-
-// for readwrite support
-// #define SLHV_RW_DEBUG
-
-// for disjh and subh support
-// #define SLHV_HTR_DEBUG
-
-
-// frontend macro
 
 namespace smt
 {
