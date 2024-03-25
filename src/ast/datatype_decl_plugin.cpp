@@ -25,6 +25,9 @@ Revision History:
 #include "ast/ast_pp.h"
 #include "ast/ast_translation.h"
 
+// for SLHV debug
+#include "util/slhv_debug.h"
+
 
 namespace datatype {
 

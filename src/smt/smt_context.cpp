@@ -43,6 +43,8 @@ Revision History:
 #include "smt/smt_parallel.h"
 #include "smt/smt_arith_value.h"
 #include <iostream>
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

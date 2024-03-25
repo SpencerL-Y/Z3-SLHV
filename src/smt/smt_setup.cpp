@@ -39,6 +39,8 @@ Revision History:
 #include "smt/theory_fpa.h"
 #include "smt/theory_str.h"
 #include "smt/theory_slhv.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

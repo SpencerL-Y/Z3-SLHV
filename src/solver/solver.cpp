@@ -27,6 +27,8 @@ Notes:
 #include "params/solver_params.hpp"
 #include "model/model_evaluator.h"
 #include "model/model_params.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 
 unsigned solver::get_num_assertions() const {

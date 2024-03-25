@@ -33,6 +33,8 @@ Revision History:
 #include "parsers/util/pattern_validation.h"
 #include "parsers/util/parser_params.hpp"
 #include<sstream>
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt2 {
     typedef cmd_exception parser_exception;
@@ -1905,7 +1907,6 @@ namespace smt2 {
             unsigned expr_spos  = expr_stack().size();
             bool     has_as;
             symbol   f = parse_qualified_identifier(has_as);
-            std::cout << "push app frame " << f << std::endl;
             void * mem      = m_stack.allocate(sizeof(quant_frame));
             new (mem) app_frame(f, expr_spos, param_spos, has_as);
             m_num_expr_frames++;

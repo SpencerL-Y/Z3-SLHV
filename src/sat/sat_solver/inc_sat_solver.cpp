@@ -45,6 +45,8 @@ Notes:
 #include "sat/tactic/sat2goal.h"
 #include "sat/tactic/sat_tactic.h"
 #include "sat/sat_simplifier_params.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 // incremental SAT solver.
 class inc_sat_solver : public solver {

@@ -30,6 +30,8 @@ Revision History:
 #include "ast/fpa_decl_plugin.h"
 #include "ast/special_relations_decl_plugin.h"
 #include "ast/slhv_decl_plugin.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 void reg_decl_plugins(ast_manager & m) {
     #ifdef SLHV_DEBUG
