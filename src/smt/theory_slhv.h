@@ -797,6 +797,9 @@ namespace smt
         std::set<heap_term*> get_all_hterms() {
             return this->hts;
         }
+        std::set<heap_term*> get_all_repre_hterms() {
+            return this->repre_hts;
+        }
         std::set<std::pair<heap_term*, heap_term*>> get_eq_ht_pairs() {
             return this->eq_ht_pairs;
         }
