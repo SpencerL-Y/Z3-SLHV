@@ -25,6 +25,8 @@ Notes:
 #include "solver/tactic2solver.h"
 #include "solver/solver_na2as.h"
 #include "solver/mus.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 /**
    \brief Simulates the incremental solver interface using a tactic.

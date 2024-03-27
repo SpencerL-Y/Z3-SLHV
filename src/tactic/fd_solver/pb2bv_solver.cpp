@@ -25,6 +25,8 @@ Notes:
 #include "ast/converters/generic_model_converter.h"
 #include "solver/solver_na2as.h"
 #include "tactic/fd_solver/pb2bv_solver.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 class pb2bv_solver : public solver_na2as {
     ast_manager&     m;

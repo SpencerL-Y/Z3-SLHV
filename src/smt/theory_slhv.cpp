@@ -78,6 +78,10 @@ namespace smt {
         #ifdef SLHV_PRINT
             std::cout << "slhv internalize atom" << std::endl;
         #endif
+        if(this->is_subh(atom) || this->is_disjh(atom)) {
+            // do nothing since these are only auxillary assertions
+            return false;
+        }
         return true;
     }
 
@@ -339,6 +343,7 @@ namespace smt {
             this->set_conflict_slhv();
         }
     }
+    
 
 
 
@@ -436,11 +441,12 @@ namespace smt {
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
-        #ifdef SLHV_RW_DEBUG
+        #ifdef SLHV_HTR_DEBUG
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
         for(expr* e : assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
+            std::cout << "----" << std::endl;
         }
         std::cout << "===================== current outside assertions end ==================" << std::endl;  
         #endif
@@ -452,10 +458,8 @@ namespace smt {
         for(auto e : this->outside_assertions_disj) {
             inf_creation_expr_set.insert(e);
         }
-        std::cout << "before inference graph creation" << std::endl;
         inference_graph* inf_graph = alloc(inference_graph, this, inf_creation_expr_set);
         this->infer_graph = inf_graph;
-        std::cout << "after inference graph creation" << std::endl;
         this->mem_mng->set_inf_graph(this->infer_graph);
 
         std::vector<app*> refined_assertions;
@@ -465,7 +469,7 @@ namespace smt {
             refined_assertions.push_back(to_app(converted_to_nnf_assertion));
             inf_graph->add_refined_assignment_node(converted_to_nnf_assertion, e);
         }
-        #ifdef DISJ_DEBUG
+        #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
         for(expr* e : refined_assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
@@ -492,8 +496,10 @@ namespace smt {
 
         this->preprocessing_disj();
         auto extracted_ht_result = this->extract_all_hterms_disj();
-        std::set<heap_term*> all_hterms = extracted_ht_result.first;
-        this->inf_graph_eq_pairs_hterms_disj = extracted_ht_result.second;
+        std::set<heap_term*> all_hterms = extracted_ht_result->all_hterms;
+        this->inf_graph_eq_pairs_hterms_disj = extracted_ht_result->eq_pair_hterms;
+        this->inf_graph_subh_pair_hterms_disj = extracted_ht_result->sub_pair_hterms;
+        this->inf_graph_disjh_pair_hterms_disj = extracted_ht_result->disj_pair_hterms;
         #ifdef DISJ_DEBUG
         std::cout << "all heap constraints: " << std::endl;
         for(app* hc : refined_heap_subassertions) {
@@ -505,10 +511,12 @@ namespace smt {
             std::cout << mk_ismt2_pp(this->atomic_hterms_disj[i], this->m) << "\t";
         }
         std::cout << std::endl;
-
+        int index = 0;
         for(heap_term* ht : all_hterms) {
+            std::cout << "index: " << index << "\t";
             ht->print_ht();
             ht->print(std::cout);
+            index ++;
         }
         #endif
         for(heap_term* ht : all_hterms) {
@@ -518,6 +526,13 @@ namespace smt {
         this->mem_mng->push_fec_ptr(fec);   
 
         fec->print_statistics();
+        // if(true){
+        if(fec->get_unsat_found()) {
+            this->set_conflict_slhv();
+
+            this->mem_mng->dealloc_all();
+            return false;
+        }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
 
 
@@ -1129,16 +1144,24 @@ namespace smt {
         } else if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
             app* arg1 = to_app(apped_expr->get_arg(0));
             app* arg2 = to_app(apped_expr->get_arg(1));
-            if(this->is_uplus(arg2)) {
-                app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
-                if(eliminated_uplus == arg2) {
-                    return assertion;
-                } else {
-                    expr* result = this->get_manager().mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+            if(this->is_heapterm(arg1)) {
+                // is heap equation
+                if(this->is_uplus(arg2)) {
+                    app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg2);
+                    if(eliminated_uplus == arg2) {
+                        return assertion;
+                    } else {
+                        expr* result = this->syntax_maker->mk_eq(arg1, this->eliminate_uplus_uplus_hterm(arg2));
+                        return result;
+                    }
+                } else if(this->is_uplus(arg1)) {
+                    app* eliminated_uplus = this->eliminate_uplus_uplus_hterm(arg1);
+                    expr* result = this->syntax_maker->mk_eq(arg2, this->eliminate_uplus_uplus_hterm(arg1));
                     return result;
                 }
             }
-        } else {
+        } 
+        else {
             return assertion;
         }
         return assertion;
@@ -1191,12 +1214,10 @@ namespace smt {
 
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
         if(this->is_uplus(hterm)) {
-            bool has_iter = false;
             std::vector<app*> new_args;
             for(int i = 0; i < hterm->get_num_args(); i ++) {
-                if(this->is_uplus(to_app(hterm->get_arg(i)))) {
-                    has_iter = true;
-                    app* uplus_i = this->eliminate_uplus_uplus_hterm(to_app(hterm->get_arg(i)));
+                app* uplus_i = this->eliminate_uplus_uplus_hterm(to_app(hterm->get_arg(i)));
+                if(this->is_uplus(uplus_i)) {
                     for(int j = 0; j < uplus_i->get_num_args(); j ++) {
                         new_args.push_back(to_app(uplus_i->get_arg(j)));
                     }
@@ -1204,12 +1225,9 @@ namespace smt {
                     new_args.push_back(to_app(hterm->get_arg(i)));
                 }
             }
-            if(has_iter) {
-                app* new_uplus = this->syntax_maker->mk_uplus_app(new_args.size(), new_args);   
-                return new_uplus;
-            } else {
-                return hterm;
-            }
+            app* new_uplus = this->syntax_maker->mk_uplus_app(new_args.size(), new_args);   
+            return new_uplus;
+            
         } else {
             return hterm;
         }
@@ -1658,6 +1676,10 @@ namespace smt {
                 if(this->is_heapterm(apped_arg1)) {
                     this->refined_heap_subassertions.insert(e);
                 }
+            } else if(this->is_subh(e)) {
+                this->refined_subheap_assertions.insert(e);
+            } else if(this->is_disjh(e)) {
+                this->refined_disjheap_assertions.insert(e);
             } else {
                 if(e->get_num_args() > 0) {
                     std::vector<app*> subassertions_to_collect;
@@ -1693,6 +1715,10 @@ namespace smt {
                     } else {
                         this->inf_graph_data_assertions.insert(to_app(e));
                     }
+                } else if(this->is_subh(e)) {
+                    this->inf_graph_subheap_assertions.insert(to_app(e));
+                } else if(this->is_disjh(e)) {
+                    this->inf_graph_disjheap_assertions.insert(to_app(e));
                 }
             }
         }
@@ -1970,12 +1996,15 @@ namespace smt {
     }
 
 
-    std::pair<std::set<heap_term*>, std::set<std::pair<heap_term*, heap_term*>>>  theory_slhv::extract_all_hterms_disj() {
+    hterm_extracted_content*  theory_slhv::extract_all_hterms_disj() {
         #ifdef DISJ_DEBUG
         std::cout << "begin extract all hterms disj" << std::endl;
         #endif
-        std::set<heap_term*> eq_hterms;
+        hterm_extracted_content* result = alloc(hterm_extracted_content);
+        std::set<heap_term*> eq_htr_hterms;
         std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> sub_pair_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> disj_pair_hterms;
         for(app* eq : this->refined_heap_subassertions) {
             // determine whether eq in inference graph
             bool use_inf_graph = false;
@@ -2011,7 +2040,7 @@ namespace smt {
                     }
                 }
                 bool found = false;
-                for(heap_term* ht : eq_hterms) {
+                for(heap_term* ht : eq_htr_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
                         eq_lhs = ht;
@@ -2020,8 +2049,9 @@ namespace smt {
                 }
                 if(!found) {
                     heap_term* lhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_vec_count);
-                    eq_hterms.insert(lhs_atom_hterm);
+                    eq_htr_hterms.insert(lhs_atom_hterm);
                     eq_lhs = lhs_atom_hterm;
+                    
                 }
             } else {
                 SASSERT(this->is_uplus(lhs_hterm));
@@ -2042,7 +2072,7 @@ namespace smt {
                     }
                 }
                 bool found = false;
-                for(heap_term* ht : eq_hterms) {
+                for(heap_term* ht : eq_htr_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
                         eq_lhs = ht;
@@ -2051,7 +2081,7 @@ namespace smt {
                 }
                 if(!found) {
                     heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
-                    eq_hterms.insert(lhs_bunch_hterm);
+                    eq_htr_hterms.insert(lhs_bunch_hterm);
                     eq_lhs = lhs_bunch_hterm;
                     // inference graph update
                     if(use_inf_graph) {
@@ -2081,7 +2111,7 @@ namespace smt {
                     }
                 }
                 bool found = false;
-                for(heap_term* ht : eq_hterms) {
+                for(heap_term* ht : eq_htr_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
                         eq_rhs = ht;
@@ -2091,7 +2121,7 @@ namespace smt {
 
                 if(!found) {
                     heap_term* rhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
-                    eq_hterms.insert(rhs_atom_hterm);
+                    eq_htr_hterms.insert(rhs_atom_hterm);
                     eq_rhs = rhs_atom_hterm;
                 }
             } else {
@@ -2112,7 +2142,7 @@ namespace smt {
                     }
                 }
                 bool found = false;
-                for(heap_term* ht : eq_hterms) {
+                for(heap_term* ht : eq_htr_hterms) {
                     if(ht->get_atomic_count() == atoms_vec_count) {
                         found = true;
                         eq_rhs = ht;
@@ -2122,7 +2152,7 @@ namespace smt {
 
                 if(!found) {
                     heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
-                    eq_hterms.insert(rhs_bunch_hterm);
+                    eq_htr_hterms.insert(rhs_bunch_hterm);
                     eq_rhs = rhs_bunch_hterm;
                     // inference graph update
                     if(use_inf_graph) {
@@ -2141,6 +2171,342 @@ namespace smt {
             #endif
         }
 
+        for(app* subh_atom : this->refined_subheap_assertions) {
+            #ifdef DISJ_DEBUG
+            std::cout << "extract hterm for " << mk_ismt2_pp(subh_atom, this->get_manager()) << std::endl;
+            #endif
+            // determine whether eq in inference graph
+            bool use_inf_graph = false;
+            for(app* inf_e : this->inf_graph_assertions_disj) {
+                if(subh_atom == inf_e) {
+                    use_inf_graph = true;
+                    break;
+                }
+            }
+            heap_term* subh_lhs = nullptr;
+            heap_term* subh_rhs = nullptr;
+
+            SASSERT(subh_atom != nullptr);
+            SASSERT(subh_atom->is_app_of(this->get_family_id(), OP_SUBH));
+            app* lhs_hterm = to_app(subh_atom->get_arg(0));
+            app* rhs_hterm = to_app(subh_atom->get_arg(1));
+            #ifdef DISJ_DEBUG
+            std::cout << "extract lhs hterm" << std::endl;
+            #endif
+            if(this->is_atom_hterm(lhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(lhs_hterm);
+            
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        subh_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_vec_count);
+                    eq_htr_hterms.insert(lhs_atom_hterm);
+                    subh_lhs = lhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(lhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
+                }
+
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        subh_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(lhs_bunch_hterm);
+                    subh_lhs = lhs_bunch_hterm;
+                    // inference graph update
+                    if(use_inf_graph) {
+                        this->infer_graph->add_compound_ht_node(lhs_bunch_hterm, subh_atom);
+                    }
+                }
+            }
+            #ifdef SLHV_PRINT
+            std::cout << "extract lhs hterm end" << std::endl;
+            #endif
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm" << std::endl;
+            #endif
+
+            if(this->is_atom_hterm(rhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(rhs_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        subh_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(rhs_atom_hterm);
+                    subh_rhs = rhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(rhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
+                }
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        subh_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(rhs_bunch_hterm);
+                    subh_rhs = rhs_bunch_hterm;
+                    // inference graph update
+                    if(use_inf_graph) {
+                        this->infer_graph->add_compound_ht_node(rhs_bunch_hterm, subh_atom);
+                    }
+                }
+            }
+
+            // inference graph update
+            if(use_inf_graph) {
+                this->infer_graph->add_subht_pair_node({subh_lhs, subh_rhs}, subh_atom);
+                sub_pair_hterms.insert({subh_lhs, subh_rhs});
+            }
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm end" << std::endl;
+            #endif
+        }
+
+        for(app* disjh_atom : this->refined_disjheap_assertions) {
+            #ifdef DISJ_DEBUG
+            std::cout << "extract hterm for " << mk_ismt2_pp(disjh_atom, this->get_manager()) << std::endl;
+            #endif
+            // determine whether eq in inference graph
+            bool use_inf_graph = false;
+            for(app* inf_e : this->inf_graph_assertions_disj) {
+                if(disjh_atom == inf_e) {
+                    use_inf_graph = true;
+                    break;
+                }
+            }
+            heap_term* disjh_lhs = nullptr;
+            heap_term* disjh_rhs = nullptr;
+
+            SASSERT(disjh_atom != nullptr);
+            SASSERT(disjh_atom->is_app_of(this->get_family_id(), OP_SUBH));
+            app* lhs_hterm = to_app(disjh_atom->get_arg(0));
+            app* rhs_hterm = to_app(disjh_atom->get_arg(1));
+            #ifdef DISJ_DEBUG
+            std::cout << "extract lhs hterm" << std::endl;
+            #endif
+            if(this->is_atom_hterm(lhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(lhs_hterm);
+            
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        disjh_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_vec_count);
+                    eq_htr_hterms.insert(lhs_atom_hterm);
+                    disjh_lhs = lhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(lhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < lhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(lhs_hterm->get_arg(i)));
+                }
+
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        disjh_lhs = ht;
+                        break;
+                    }
+                }
+                if(!found) {
+                    heap_term* lhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(lhs_bunch_hterm);
+                    disjh_lhs = lhs_bunch_hterm;
+                    // inference graph update
+                    if(use_inf_graph) {
+                        this->infer_graph->add_compound_ht_node(lhs_bunch_hterm, disjh_atom);
+                    }
+                }
+            }
+            #ifdef SLHV_PRINT
+            std::cout << "extract lhs hterm end" << std::endl;
+            #endif
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm" << std::endl;
+            #endif
+
+            if(this->is_atom_hterm(rhs_hterm)) {
+                std::vector<app*> atoms_contained;
+                atoms_contained.push_back(rhs_hterm);
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        disjh_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_atom_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(rhs_atom_hterm);
+                    disjh_rhs = rhs_atom_hterm;
+                }
+            } else {
+                SASSERT(this->is_uplus(rhs_hterm));
+                std::vector<app*> atoms_contained;
+                for(int i = 0; i < rhs_hterm->get_num_args(); i ++) {
+                    atoms_contained.push_back(to_app(rhs_hterm->get_arg(i)));
+                }
+                std::vector<int> atoms_vec_count;
+                for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                    atoms_vec_count.push_back(0);
+                }
+                for(app* atom : atoms_contained) {
+                    for(int i = 0; i < this->atomic_hterms_disj.size(); i ++) {
+                        if(atom == this->atomic_hterms_disj[i]) {
+                            atoms_vec_count[i] ++;
+                        }
+                    }
+                }
+                bool found = false;
+                for(heap_term* ht : eq_htr_hterms) {
+                    if(ht->get_atomic_count() == atoms_vec_count) {
+                        found = true;
+                        disjh_rhs = ht;
+                        break;
+                    }
+                }
+
+                if(!found) {
+                    heap_term* rhs_bunch_hterm = alloc(heap_term, this, this->atomic_hterms_disj, atoms_contained);
+                    eq_htr_hterms.insert(rhs_bunch_hterm);
+                    disjh_rhs = rhs_bunch_hterm;
+                    // inference graph update
+                    if(use_inf_graph) {
+                        this->infer_graph->add_compound_ht_node(rhs_bunch_hterm, disjh_atom);
+                    }
+                }
+            }
+
+            // inference graph update
+            if(use_inf_graph) {
+                this->infer_graph->add_disjht_pair_node({disjh_lhs, disjh_rhs}, disjh_atom);
+                disj_pair_hterms.insert({disjh_lhs, disjh_rhs});
+            }
+            #ifdef SLHV_PRINT
+            std::cout << "extract rhs hterm end" << std::endl;
+            #endif
+        }
+
         #ifdef SLHV_PRINT
         std::cout << "eq hterm extracted" << std::endl;
         #endif
@@ -2148,7 +2514,7 @@ namespace smt {
         std::set<heap_term*> all_hterms;
         std::set<std::vector<int>> all_counts;
         std::vector<app*> atomics;
-        for(heap_term* eq_hterm : eq_hterms) {
+        for(heap_term* eq_hterm : eq_htr_hterms) {
             std::set<std::vector<int>> curr_atom_counts = eq_hterm->get_atomic_subhterms_counts();
             all_counts = slhv_util::setUnion(all_counts, curr_atom_counts);
             all_hterms.insert(eq_hterm);
@@ -2212,8 +2578,11 @@ namespace smt {
         //         all_hterms.insert(emp_hterm);
         //     }
         // }
-        
-        return {all_hterms, eq_pair_hterms};
+        result->all_hterms = all_hterms;
+        result->disj_pair_hterms = disj_pair_hterms;
+        result->sub_pair_hterms = sub_pair_hterms;
+        result->eq_pair_hterms = eq_pair_hterms;
+        return result;
     }
 
 
@@ -2650,6 +3019,8 @@ namespace smt {
         this->hts = all_hterms;
         // inf_graph assertions 
         this->eq_ht_pairs = this->th->inf_graph_eq_pairs_hterms_disj;
+        this->subht_pairs = this->th->inf_graph_subh_pair_hterms_disj;
+        this->disjht_pairs  = this->th->inf_graph_disjh_pair_hterms_disj;
         for(heap_term* ht : this->hts) {
             this->ht2root[ht] = ht;
             if(ht->is_emp()) {
@@ -2699,12 +3070,8 @@ namespace smt {
         #endif
 
         // DISJ TODO: add deducing for disj method
-        std::cout << "construct slhv deducer" << std::endl;
         this->ded = alloc(slhv_deducer, th, this, true);
-        std::cout << "construct slhv deducer end" << std::endl;
-        std::cout << "begin deducing" << std::endl;
         ded->deduce();
-        std::cout << "end deducing" << std::endl;
         if(this->ded->get_is_unsat()) {
             this->unsat_found = true;
         }
@@ -3862,7 +4229,6 @@ namespace smt {
                 }
             }
         }
-
         return result_ass;
     }
 
@@ -4108,7 +4474,14 @@ namespace smt {
             }
         } else if(assertion->is_app_of(basic_family_id, OP_DISTINCT)) {
             return this->translate_locdata_formula(assertion);
-        } else if(this->th->get_manager().is_bool(assertion)) {
+        } else if(this->th->is_subh(assertion) || this->th->is_disjh(assertion)) {
+            expr* disjsubht_enc_result = this->generate_init_ld_locvar_constraint_for_subht_disjht(assertion);
+            #ifdef SLHV_HTR_DEBUG
+            std::cout << "htr generate result: " << "assertion: " << mk_ismt2_pp(assertion, this->th->get_manager()) << " result: " << mk_ismt2_pp(disjsubht_enc_result, this->th->get_manager()) << std::endl;
+            #endif
+            return disjsubht_enc_result;
+        } 
+        else if(this->th->get_manager().is_bool(assertion)) {
             // ATTENTION: MAY MISS SITUATIONS
             return this->translate_locdata_formula(assertion);
         }
@@ -4218,7 +4591,29 @@ namespace smt {
         return result;
     }
 
+
+    expr* formula_encoder::generate_init_ld_locvar_constraint_for_subht_disjht(app* subdjht) {
+        if(!(this->th->is_subh(subdjht) || this->th->is_disjh(subdjht))) {
+            std::cout << "wrong app type for subh and disjh" << std::endl;
+            return nullptr;
+        } else {
+            app* lhs_arg = to_app(subdjht->get_arg(0));
+            app* rhs_arg = to_app(subdjht->get_arg(1));
+            heap_term* lhs_hterm = this->find_heap_term_for_ht_disj(lhs_arg);
+            heap_term* rhs_hterm = this->find_heap_term_for_ht_disj(rhs_arg);
+            if(this->th->is_subh(subdjht)) {
+                return this->get_shrel_boolvar(lhs_hterm, rhs_hterm);
+            } else {
+                expr_ref_vector init_shdj_rel_of_disjht(this->th->get_manager());
+                init_shdj_rel_of_disjht.push_back(this->get_djrel_boolvar(lhs_hterm, rhs_hterm));
+                init_shdj_rel_of_disjht.push_back(this->get_djrel_boolvar(rhs_hterm, lhs_hterm));
+                return this->syntax_maker->mk_and(2, init_shdj_rel_of_disjht.data());
+            }
+        }
+    }
+
     heap_term* formula_encoder::find_heap_term_for_ht_disj(app* orig_ht) {
+        // DISJ method, obtain heap_term from app
         std::vector<int> atomic_count(this->th->atomic_hterms_disj.size(), 0);
         if(this->th->is_atom_hterm(orig_ht)) {
             for(int i = 0; i < this->th->atomic_hterms_disj.size(); i ++) {
@@ -4452,7 +4847,18 @@ namespace smt {
         SASSERT(fec != nullptr);
         std::set<heap_term*> all_must_hold_hterms;
         std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
+        std::set<std::pair<heap_term*, heap_term*>> subht_pairs = this->fec->get_subht_pairs();
+        std::set<std::pair<heap_term*, heap_term*>> disjht_pairs = this->fec->get_disjht_pairs();
+        // all must hold hterms are used to denote uplus hts such that the disjoint relation induced by them is added to the graph globally
         for(auto p : all_eq_pairs) {
+            all_must_hold_hterms.insert(p.first);
+            all_must_hold_hterms.insert(p.second);
+        }
+        for(auto p : subht_pairs) {
+            all_must_hold_hterms.insert(p.first);
+            all_must_hold_hterms.insert(p.second);
+        }
+        for(auto p : disjht_pairs) {
             all_must_hold_hterms.insert(p.first);
             all_must_hold_hterms.insert(p.second);
         }
@@ -4463,6 +4869,17 @@ namespace smt {
             this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.first], this->ht2index[p.second]}, p);
             this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.second], this->ht2index[p.first]}, p);
         }
+        for(auto p : subht_pairs) {
+            this->insert_sh_pair({this->ht2index[p.first], this->ht2index[p.second]});
+            // inference graph update
+            this->th->infer_graph->add_sh_rel_pair_subht({this->ht2index[p.first], this->ht2index[p.second]}, p);
+        }
+        for(auto p : disjht_pairs) {
+            this->insert_dj_pair({this->ht2index[p.first], this->ht2index[p.second]});
+            this->insert_dj_pair({this->ht2index[p.second], this->ht2index[p.first]});
+            this->th->infer_graph->add_disj_rel_pair_disjht({this->ht2index[p.first], this->ht2index[p.second]}, p);
+            this->th->infer_graph->add_disj_rel_pair_disjht({this->ht2index[p.second], this->ht2index[p.first]}, p);
+        }
         heap_term* emp_ht = this->fec->get_emp_ht();
         for(heap_term* ht : all_must_hold_hterms) {
             this->insert_sh_pair({this->ht2index[emp_ht], this->ht2index[ht]});
@@ -4470,7 +4887,7 @@ namespace smt {
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
         for(heap_term* ht1 : this->fec->get_all_hterms()) {
-            for(heap_term* ht2 : all_must_hold_hterms) {
+            for(heap_term* ht2 : this->fec->get_all_hterms()) {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
@@ -5585,6 +6002,18 @@ namespace smt {
         this->premises = premises;
     }
 
+
+    inf_node::inf_node(std::pair<heap_term*, heap_term*> subht_disjht_p, bool is_subht, std::set<inf_node*> premises) {
+        this->reset_configs();
+        if(is_subht) {
+            this->is_subht_pair = true;
+            this->subht_pair = subht_disjht_p;
+        } else {
+            this->is_disjht_pair = true;
+            this->disjht_pair = subht_disjht_p;
+        }
+    }
+
     inf_node::inf_node(heap_term* com_ht, std::set<inf_node*> premises) {
         this->reset_configs();
         this->is_compound_heap_term = true;
@@ -5710,6 +6139,26 @@ namespace smt {
         return nullptr;
 
     }
+
+    inf_node* inference_graph::get_subht_pair_premise(std::pair<heap_term*, heap_term*> ht_p) {
+        for(inf_node* n : this->subht_pair_nodes) {
+            if(n->get_subht_pair() == ht_p) {
+                return n;
+            }
+        }
+        return nullptr;
+    }
+
+    inf_node* inference_graph::get_disjht_pair_premise( std::pair<heap_term*, heap_term*> ht_p) {
+        std::pair<heap_term*, heap_term*> mirror_pair = {ht_p.second, ht_p.first};
+        for(inf_node* n : this->disjht_pair_nodes) {
+            if(n->get_disjht_pair() == ht_p || n->get_disjht_pair() == mirror_pair) {
+                return n;
+            }
+        }
+        return nullptr;
+    }
+
     inf_node* inference_graph::get_disj_rel_premise(std::pair<int, int> disj_p) {
         
         std::pair<int, int> mirror_pair = {disj_p.second, disj_p.first};
@@ -5853,6 +6302,51 @@ namespace smt {
         this->nodes.insert(ht_eq_pair_node);
         this->ht_eq_pair_nodes.insert(ht_eq_pair_node);
     }
+
+
+    void inference_graph::add_subht_pair_node(std::pair<heap_term*, heap_term*> subht_p, expr* refined_assignment) {
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add disjht_pair node" << std::endl;
+        #endif
+        for(inf_node* sht_n : this->subht_pair_nodes) {
+            if(sht_n->get_subht_pair() == subht_p) {
+                return;
+            }
+        }
+        std::set<inf_node*> premises;
+        inf_node* pre_refine_assign_node = this->get_refine_assignment_premise(refined_assignment);
+        if(pre_refine_assign_node != nullptr) {
+            premises.insert(pre_refine_assign_node);
+        } else {
+            std::cout << "ERROR: ref assignment " << mk_ismt2_pp(refined_assignment, this->th->get_manager()) << " does not exist in node" << std::endl;
+        }
+        inf_node* subht_pair_node = alloc(inf_node, subht_p, true, premises);
+        this->nodes.insert(subht_pair_node);
+        this->subht_pair_nodes.insert(subht_pair_node);
+    }
+
+    void inference_graph::add_disjht_pair_node(std::pair<heap_term*, heap_term*> disjht_p, expr* refined_assignment) {
+        #ifdef SLHV_UNSAT_CORE_DEBUG
+        std::cout << "add subht_pair node" << std::endl;
+        #endif
+        std::pair<heap_term*, heap_term*> mirror_pair = {disjht_p.second, disjht_p.first};
+        for(inf_node* djht_n : this->disjht_pair_nodes) {
+            if(djht_n->get_disjht_pair() == disjht_p || djht_n->get_disjht_pair() == mirror_pair) {
+                return;
+            }
+        }
+        std::set<inf_node*> premises;
+        inf_node* pre_refine_assign_node = this->get_refine_assignment_premise(refined_assignment);
+        if(pre_refine_assign_node != nullptr) {
+            premises.insert(pre_refine_assign_node);
+        } else {
+            std::cout << "ERROR: ref assignment " << mk_ismt2_pp(refined_assignment, this->th->get_manager()) << " does not exist in node" << std::endl;
+        }
+        inf_node* disjht_pair_node = alloc(inf_node, disjht_p, false, premises);
+        this->nodes.insert(disjht_pair_node);
+        this->disjht_pair_nodes.insert(disjht_pair_node);
+    }
+
 
     void inference_graph::add_loc_eqclass_node(std::set<app*> loc_eq_constr) {
         #ifdef SLHV_UNSAT_CORE_DEBUG
@@ -6064,6 +6558,16 @@ namespace smt {
         this->disj_rel_nodes.insert(new_dj_node);
     }
 
+
+    void inference_graph::add_disj_rel_pair_disjht(std::pair<int, int> dj_p, std::pair<heap_term*, heap_term*> disjht) {
+        std::set<inf_node*> premises;
+        inf_node* disjht_node = this->get_disjht_pair_premise(disjht);
+        premises.insert(disjht_node);
+        inf_node* new_dj_node = alloc(inf_node, dj_p, true, false, premises);
+        this->nodes.insert(new_dj_node);
+        this->disj_rel_nodes.insert(new_dj_node);
+    }
+
     void inference_graph::add_sh_rel_pair(std::pair<int, int> sh_p, heap_term* com_ht) {
         #ifdef SLHV_UNSAT_CORE_DEBUG
         std::cout << "add  sh_rel_pair com_ht" << std::endl;
@@ -6129,6 +6633,15 @@ namespace smt {
         inf_node* ht2InHt3_node = this->get_sh_rel_premise(ht2InHt3);
         premises.insert(ht1InHt2_node);
         premises.insert(ht2InHt3_node);
+        inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
+        this->nodes.insert(new_sh_node);
+        this->sh_rel_nodes.insert(new_sh_node);
+    }
+
+    void inference_graph::add_sh_rel_pair_subht(std::pair<int, int> sh_p, std::pair<heap_term*, heap_term*> subht) {
+        std::set<inf_node*> premises;
+        inf_node* subht_node = this->get_subht_pair_premise(subht);
+        premises.insert(subht_node);
         inf_node* new_sh_node = alloc(inf_node, sh_p, false, true, premises);
         this->nodes.insert(new_sh_node);
         this->sh_rel_nodes.insert(new_sh_node);

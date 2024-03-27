@@ -21,6 +21,8 @@ Revision History:
 #include "ast/ast_ll_pp.h"
 #include "smt/smt_context.h"
 #include "smt/smt_conflict_resolution.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

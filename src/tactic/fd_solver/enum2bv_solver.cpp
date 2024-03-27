@@ -29,6 +29,8 @@ Notes:
 #include "ast/converters/generic_model_converter.h"
 #include "tactic/fd_solver/enum2bv_solver.h"
 #include "solver/solver_na2as.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 class enum2bv_solver : public solver_na2as {
     ast_manager&     m;

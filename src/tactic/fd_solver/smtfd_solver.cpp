@@ -134,6 +134,8 @@ Note:
 #include "solver/solver.h"
 #include "solver/solver_na2as.h"
 #include "solver/solver2tactic.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smtfd {
 

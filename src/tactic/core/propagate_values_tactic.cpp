@@ -25,6 +25,8 @@ Revision History:
 #include "ast/expr_substitution.h"
 #include "tactic/goal_shared_occs.h"
 #include "params/tactic_params.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace {
 class propagate_values_tactic : public tactic {

@@ -21,6 +21,8 @@ Revision History:
 #include "smt/smt_lookahead.h"
 #include "ast/ast_smt2_pp.h"
 #include "smt/params/smt_params_helper.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 

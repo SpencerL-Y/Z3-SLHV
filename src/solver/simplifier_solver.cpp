@@ -27,6 +27,8 @@ Author:
 #include "solver/solver.h"
 #include "solver/simplifier_solver.h"
 #include "solver/solver_preprocess.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 
 class simplifier_solver : public solver {

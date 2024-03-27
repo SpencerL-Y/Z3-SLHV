@@ -20,6 +20,8 @@ Revision History:
 #include "ast/datatype_decl_plugin.h"
 #include "ast/ast_pp.h"
 #include <sstream>
+// for SLHV debug
+#include "util/slhv_debug.h"
 using namespace format_ns;
 
 class psort_inst_cache {
