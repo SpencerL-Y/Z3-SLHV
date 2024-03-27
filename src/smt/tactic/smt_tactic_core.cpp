@@ -32,6 +32,8 @@ Notes:
 #include "solver/mus.h"
 #include "solver/parallel_tactical.h"
 #include "solver/parallel_params.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 typedef obj_map<expr, expr *> expr2expr_map;
 

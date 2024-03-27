@@ -49,6 +49,8 @@ Notes:
 #include "params/tactic_params.hpp"
 #include "parsers/smt2/smt2parser.h"
 #include "sat/sat_params.hpp"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 
 

@@ -28,6 +28,8 @@ Revision History:
 #include "ast/occurs.h"
 #include "ast/bv_decl_plugin.h"
 #include "solver/assertions/asserted_formulas.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 
 asserted_formulas::asserted_formulas(ast_manager & m, smt_params & sp, params_ref const& p):

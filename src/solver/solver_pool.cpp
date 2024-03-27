@@ -21,6 +21,8 @@ Notes:
 #include "solver/solver_na2as.h"
 #include "ast/proofs/proof_utils.h"
 #include "ast/ast_util.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 class pool_solver : public solver_na2as {
     solver_pool&       m_pool;

@@ -27,6 +27,8 @@ Notes:
 #include "smt/params/smt_params_helper.hpp"
 #include "solver/solver_na2as.h"
 #include "solver/mus.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace {
 

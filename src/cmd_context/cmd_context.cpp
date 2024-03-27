@@ -54,6 +54,8 @@ Notes:
 #include "cmd_context/cmd_context.h"
 #include <iostream>
 #include <execinfo.h>
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 func_decls::func_decls(ast_manager & m, func_decl * f):
     m_decls(TAG(func_decl*, f, 0)) {

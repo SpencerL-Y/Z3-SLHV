@@ -22,6 +22,8 @@ Notes:
 #include "ast/ast_smt2_pp.h"
 #include "ast/ast_ll_pp.h"
 #include "ast/ast_pp.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 template<typename Config>
 template<bool ProofGen>

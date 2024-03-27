@@ -7,6 +7,8 @@
 #include "ast/ast_pp.h"
 #include "ast/ast_ll_pp.h"
 #include "ast/arith_decl_plugin.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 // SLHV
 slhv_decl_plugin::slhv_decl_plugin() :
@@ -14,6 +16,8 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_list_segment_sym("lseg"),
     m_points_to_sym("pt"),
     m_locadd_symbol("locadd"),
+    m_subh_symbol("subh"),
+    m_disjh_symbol("disjh"),
     m_readloc_symbol("readloc"),
     m_readdata_symbol("readdata"),
     m_writeloc_symbol("writeloc"),
@@ -64,6 +68,8 @@ void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol con
     op_names.push_back(builtin_name("pt", OP_POINTS_TO));
     op_names.push_back(builtin_name("lseg", OP_LIST_SEGMENT));
     op_names.push_back(builtin_name("locadd", OP_LOCADD));
+    op_names.push_back(builtin_name("subh", OP_SUBH));
+    op_names.push_back(builtin_name("disjh", OP_DISJH));
     op_names.push_back(builtin_name("readloc", OP_READLOC));
     op_names.push_back(builtin_name("readdata", OP_READDATA));
     op_names.push_back(builtin_name("writeloc", OP_WRITELOC));
@@ -132,6 +138,44 @@ func_decl* slhv_decl_plugin::mk_locadd(unsigned arity, sort* const* domain) {
     return result_decl;
 
 }
+
+func_decl* slhv_decl_plugin::mk_subh(unsigned arity, sort* const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("subh takes exactly two arguments");
+        return nullptr;
+    }
+
+    sort* first_ht_sort =  domain[0];
+    sort* second_ht_sort = domain[1];
+
+    sort* final_sort = m_manager->mk_bool_sort();
+    func_decl_info info(m_family_id, OP_SUBH);
+    func_decl* result_decl = m_manager->mk_func_decl(m_subh_symbol, arity, domain, final_sort, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_subh result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl; 
+    #endif
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_disjh(unsigned arity, sort* const* domain) {
+
+    if(arity != 2) {
+        m_manager->raise_exception("disjh takes exactly two arguments");
+        return nullptr;
+    }
+
+    sort* first_ht_sort =  domain[0];
+    sort* second_ht_sort = domain[1];
+
+    sort* final_sort = m_manager->mk_bool_sort();
+    func_decl_info info(m_family_id, OP_DISJH);
+    func_decl* result_decl = m_manager->mk_func_decl(m_disjh_symbol, arity, domain, final_sort, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_subh result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl; 
+    #endif
+    return result_decl;
+}
+
 
 
 func_decl* slhv_decl_plugin::mk_readloc(unsigned arity, sort*const* domain) {
@@ -301,6 +345,10 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_locadd" << std::endl; 
     #endif
         return this->mk_locadd(arity, domain);
+    case OP_SUBH:
+        return this->mk_subh(arity, domain);
+    case OP_DISJH:
+        return this->mk_disjh(arity, domain);
     case OP_READLOC:
         return this->mk_readloc(arity, domain);
     case OP_READDATA:
@@ -390,6 +438,29 @@ app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
     app* result = m_manager->mk_app(locadd_decl, items.data());
     return result;
 }
+
+app* slhv_decl_plugin::mk_subh_value(int num_arg, expr_ref_vector items) {
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* subh_decl = this->mk_subh(num_arg, domain);
+    app* result = m_manager->mk_app(subh_decl, items.data());
+    return result;
+}
+
+app* slhv_decl_plugin::mk_disjh_value(int num_arg, expr_ref_vector items) {
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* subh_decl = this->mk_disjh(num_arg, domain);
+    app* result = m_manager->mk_app(subh_decl, items.data());
+    return result;
+}
+
+
+
 
 app* slhv_decl_plugin::mk_readloc_value(int num_arg, expr_ref_vector items) {
     sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);

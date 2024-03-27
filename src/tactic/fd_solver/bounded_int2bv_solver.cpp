@@ -28,6 +28,8 @@ Notes:
 #include "ast/rewriter/expr_safe_replace.h"
 #include "ast/bv_decl_plugin.h"
 #include "ast/arith_decl_plugin.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 class bounded_int2bv_solver : public solver_na2as {
     ast_manager&     m;

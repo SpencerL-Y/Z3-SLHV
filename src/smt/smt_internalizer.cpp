@@ -25,6 +25,8 @@ Revision History:
 #include "ast/for_each_expr.h"
 
 #include <iostream>
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace smt {
 
@@ -229,10 +231,10 @@ namespace smt {
        \remark pr is 0 if proofs are disabled.
     */
     void context::internalize_assertion(expr * n, proof * pr, unsigned generation) {
-        // #ifdef SLHV_DEBUG
-        // std::cout << "internalize assertion: " << 
-        // mk_ismt2_pp(n, this->m, 2) << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "internalize assertion: " << 
+        mk_ismt2_pp(n, this->m, 2) << std::endl;
+        #endif
         TRACE("internalize_assertion", tout << mk_pp(n, m) << "\n";); 
         TRACE("internalize_assertion_ll", tout << mk_ll_pp(n, m) << "\n";); 
         TRACE("generation", tout << "generation: " << m_generation << "\n";);
@@ -243,9 +245,9 @@ namespace smt {
         SASSERT(m.is_bool(n));
         if (is_gate(m, n)) {
 
-        // #ifdef SLHV_DEBUG
-        // std::cout << "is_gate: " << to_app(n)->get_decl_kind() << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "is_gate: " << to_app(n)->get_decl_kind() << std::endl;
+        #endif
             switch(to_app(n)->get_decl_kind()) {
             case OP_AND: {
                 for (expr * arg : *to_app(n)) {
@@ -298,17 +300,17 @@ namespace smt {
         }
         else if (m.is_distinct(n)) {
 
-        // #ifdef SLHV_DEBUG
-        // std::cout << "assert is_distinct: " << to_app(n)->get_decl_kind() << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "assert is_distinct: " << to_app(n)->get_decl_kind() << std::endl;
+        #endif
             assert_distinct(to_app(n), pr);
             mark_as_relevant(n);
         }
         else {
 
-        // #ifdef SLHV_DEBUG
-        // std::cout << "assert default" << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "assert default" << std::endl;
+        #endif
             assert_default(n, pr);
         }
     }
@@ -390,9 +392,9 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
-        // #ifdef SLHV_DEBUG
-        // std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
+        #endif
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -415,9 +417,9 @@ namespace smt {
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
-        // #ifdef SLHV_DEBUG
-        // std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        // #endif
+        #ifdef SLHV_DEBUG
+        std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        #endif
 
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));
@@ -522,6 +524,10 @@ namespace smt {
         that can internalize n.
     */
     bool context::internalize_theory_atom(app * n, bool gate_ctx) {
+        #ifdef SLHV_DEBUG
+        std::cout << "internalize_theory_atom: " << mk_ismt2_pp(n, m, 2) << std::endl;
+        #endif
+
         SASSERT(!b_internalized(n));
         theory * th  = m_theories.get_plugin(n->get_family_id());
         TRACE("datatype_bug", tout << "internalizing theory atom:\n" << mk_pp(n, m) << "\n";);

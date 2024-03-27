@@ -84,9 +84,6 @@ namespace opt {
     }
     
     void opt_solver::assert_expr_core(expr * t) {
-    #ifdef SLHV_DEBUG
-    std::cout << "opt solver assert_expr_core" << std::endl;
-    #endif
         m_last_model = nullptr;
         if (has_quantifiers(t)) {
             m_params.m_relevancy_lvl = 2;
@@ -166,9 +163,6 @@ namespace opt {
     }
 
     lbool opt_solver::check_sat_core2(unsigned num_assumptions, expr * const * assumptions) {
-#ifdef SLHV_DEBUG
-        std::cout << "check_sat_core2 for opt_solver" << std::endl;
-#endif
         TRACE("opt_verbose", {
             tout << "context size: " << m_context.size() << "\n";            
             for (unsigned i = 0; i < m_context.size(); ++i) {

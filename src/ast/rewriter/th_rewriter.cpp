@@ -39,6 +39,8 @@ Notes:
 #include "ast/ast_util.h"
 #include "ast/well_sorted.h"
 #include "ast/for_each_expr.h"
+// for SLHV debug
+#include "util/slhv_debug.h"
 
 namespace {
 struct th_rewriter_cfg : public default_rewriter_cfg {
