@@ -4471,7 +4471,7 @@ namespace smt {
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
         for(heap_term* ht1 : this->fec->get_all_hterms()) {
-            for(heap_term* ht2 : all_must_hold_hterms) {
+            for(heap_term* ht2 : this->fec->get_all_hterms()) {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
