@@ -343,6 +343,7 @@ namespace smt {
             this->set_conflict_slhv();
         }
     }
+    
 
 
 
@@ -510,10 +511,12 @@ namespace smt {
             std::cout << mk_ismt2_pp(this->atomic_hterms_disj[i], this->m) << "\t";
         }
         std::cout << std::endl;
-
+        int index = 0;
         for(heap_term* ht : all_hterms) {
+            std::cout << "index: " << index << "\t";
             ht->print_ht();
             ht->print(std::cout);
+            index ++;
         }
         #endif
         for(heap_term* ht : all_hterms) {
@@ -2169,6 +2172,9 @@ namespace smt {
         }
 
         for(app* subh_atom : this->refined_subheap_assertions) {
+            #ifdef DISJ_DEBUG
+            std::cout << "extract hterm for " << mk_ismt2_pp(subh_atom, this->get_manager()) << std::endl;
+            #endif
             // determine whether eq in inference graph
             bool use_inf_graph = false;
             for(app* inf_e : this->inf_graph_assertions_disj) {
@@ -2334,6 +2340,9 @@ namespace smt {
         }
 
         for(app* disjh_atom : this->refined_disjheap_assertions) {
+            #ifdef DISJ_DEBUG
+            std::cout << "extract hterm for " << mk_ismt2_pp(disjh_atom, this->get_manager()) << std::endl;
+            #endif
             // determine whether eq in inference graph
             bool use_inf_graph = false;
             for(app* inf_e : this->inf_graph_assertions_disj) {
@@ -4220,7 +4229,6 @@ namespace smt {
                 }
             }
         }
-
         return result_ass;
     }
 
@@ -4467,7 +4475,11 @@ namespace smt {
         } else if(assertion->is_app_of(basic_family_id, OP_DISTINCT)) {
             return this->translate_locdata_formula(assertion);
         } else if(this->th->is_subh(assertion) || this->th->is_disjh(assertion)) {
-            return this->generate_init_ld_locvar_constraint_for_subht_disjht(assertion);
+            expr* disjsubht_enc_result = this->generate_init_ld_locvar_constraint_for_subht_disjht(assertion);
+            #ifdef SLHV_HTR_DEBUG
+            std::cout << "htr generate result: " << "assertion: " << mk_ismt2_pp(assertion, this->th->get_manager()) << " result: " << mk_ismt2_pp(disjsubht_enc_result, this->th->get_manager()) << std::endl;
+            #endif
+            return disjsubht_enc_result;
         } 
         else if(this->th->get_manager().is_bool(assertion)) {
             // ATTENTION: MAY MISS SITUATIONS
@@ -4875,7 +4887,7 @@ namespace smt {
             this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
         }
         for(heap_term* ht1 : this->fec->get_all_hterms()) {
-            for(heap_term* ht2 : all_must_hold_hterms) {
+            for(heap_term* ht2 : this->fec->get_all_hterms()) {
                 if(ht1->is_subhterm_of(ht2)) {
                     this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
                     // inference graph update
