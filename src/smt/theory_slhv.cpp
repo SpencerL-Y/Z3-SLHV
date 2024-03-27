@@ -516,13 +516,13 @@ namespace smt {
         this->mem_mng->push_fec_ptr(fec);   
 
         fec->print_statistics();
-        if(true){
-        // if(fec->get_unsat_found()) {
-            this->set_conflict_slhv();
+        // if(true){
+        // // if(fec->get_unsat_found()) {
+        //     this->set_conflict_slhv();
 
-            this->mem_mng->dealloc_all();
-            return false;
-        }
+        //     this->mem_mng->dealloc_all();
+        //     return false;
+        // }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
 
 
