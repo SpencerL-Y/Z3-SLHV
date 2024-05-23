@@ -124,6 +124,7 @@ namespace api {
         m_arith_util(m()),
         m_bv_util(m()),
         m_datalog_util(m()),
+        m_slhv_util(m()),
         m_fpa_util(m()),
         m_sutil(m()),
         m_recfun(m()),
@@ -143,6 +144,7 @@ namespace api {
         m_fpa_fid   = m().mk_family_id("fpa");
         m_seq_fid   = m().mk_family_id("seq");
 	    m_char_fid   = m().mk_family_id("char");
+        m_slhv_fid  = m().mk_family_id("slhv");
         m_special_relations_fid   = m().mk_family_id("specrels");
         m_dt_plugin = static_cast<datatype_decl_plugin*>(m().get_plugin(m_dt_fid));
     

@@ -151,6 +151,8 @@ typedef enum
     Z3_SEQ_SORT,
     Z3_RE_SORT,
     Z3_CHAR_SORT,
+    Z3_INTHEAP_SORT,
+    Z3_INTLOC_SORT,
     Z3_UNKNOWN_SORT = 1000
 } Z3_sort_kind;
 
@@ -1312,6 +1314,24 @@ typedef enum {
 
     Z3_OP_INTERNAL,
     Z3_OP_RECURSIVE,
+   
+   // SLHV OPS
+    Z3_OP_HEAP_DISJUNION,
+    Z3_OP_POINTS_TO,
+    Z3_OP_LOCADD,
+    Z3_OP_READLOC,
+    Z3_OP_READDATA,
+    Z3_OP_WRITELOC,
+    Z3_OP_WRITEDATA,
+    Z3_OP_LOC2INT,
+    Z3_OP_INT2LOC,
+    Z3_OP_SUBH,
+    Z3_OP_DISJH,
+    Z3_OP_LIST_SEGMENT,
+    Z3_OP_HVAR_CONST,
+    Z3_OP_LOCVAR_CONST,
+    Z3_OP_EMP,
+    Z3_OP_NIL,
 
     Z3_OP_UNINTERPRETED
 } Z3_decl_kind;

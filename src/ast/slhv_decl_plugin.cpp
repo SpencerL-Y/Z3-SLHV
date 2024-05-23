@@ -7,6 +7,8 @@
 #include "ast/ast_pp.h"
 #include "ast/ast_ll_pp.h"
 #include "ast/arith_decl_plugin.h"
+#include "ast/datatype_decl_plugin.h"
+
 // for SLHV debug
 #include "util/slhv_debug.h"
 
@@ -534,4 +536,70 @@ app* slhv_decl_plugin::mk_emp_value() {
 
 bool slhv_decl_plugin::is_loc_value(app* e) {
     return is_app_of(e, m_family_id, OP_LOCVAR_CONST);
+}
+
+
+slhv_util::slhv_util(ast_manager& m) :
+    slhv_recognizers(m.mk_family_id("slhv")),
+    m_manager(m)
+{
+    // do the initialization in the 
+    this->slhv_plug = (slhv_decl_plugin*) m.get_plugin(this->m_fid);
+    family_id datatype_id = m.mk_family_id("datatype");
+    datatype_util dtu(m);
+    arith_util au(m);
+    datatype_decl_plugin* dt_plug = m.get_plugin(datatype_id);
+    if(!dt_plug->is_declared("Pt_R_0") && !dt_plug->is_declared("Pt_R_1")) {
+        sort* locsort = slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+        constructor_decl* cs0[1];
+        accessor_decl* Pt_R_0_accs[1] = {
+            mk_accessor_decl(m, symbol("loc"), type_ref(locsort))
+        };
+        constructor_decl* Pt_R_0 = mk_constructor_decl(symbol("Pt_R_0"), symbol("is_Pt_R_0"), 1, Pt_R_0_accs);
+        cs0[0] = Pt_R_0;
+        datatype_decl* dt0 = mk_datatype_decl(dtu, symbol("pt_record_0"), 0, nullptr, 1, cs0);
+
+
+        sort* intsort = au.mk_int();
+        constructor_decl* cs1[1];
+        accessor_decl* Pt_R_1_accs[1] = {
+            mk_accessor_decl(m, symbol("data"), type_ref(intsort))
+        };
+        constructor_decl* Pt_R_1 = mk_constructor_decl(symbol("Pt_R_1"), symbol("is_Pt_R_1"), 1, Pt_R_1_accs);
+        cs1[0] = Pt_R_1;
+        datatype_decl* dt1 = mk_datatype_decl(dtu, symbol("pt_record_1"), 0, nullptr, 1, cs1);
+        sort_ref_vector sort_vec0(m);
+        sort* pt_record_0_sort = dt0->instantiate(sort_vec0);
+        func_decl* ptrs0 = Pt_R_0->instantiate(pt_record_0_sort);
+        
+        sort_ref_vector sort_vec1(m);
+        sort* pt_record_1_sort = dt1->instantiate(sort_vec1);
+        func_decl* ptrs1 = Pt_R_1->instantiate(pt_record_1_sort);
+
+        slhv_plug->add_pt_record("Pt_R_0", 1, 0);
+        slhv_plug->add_pt_r_decl("Pt_R_0", ptrs0);
+        slhv_plug->add_pt_record("Pt_R_1", 0, 1);
+        slhv_plug->add_pt_r_decl("Pt_R_1", ptrs1);
+
+    } else {
+        sort* pt_record_0_sort = m.mk_sort(symbol("pt_record_0", 0, nullptr));
+        unsigned num_ptr0_constructors = dtu.get_datatype_num_constructors(pt_record_0_sort);
+        if(num_ptr0_constructors != 1) {
+            std::cout << "pt_record_0 error" << std::endl;
+        }
+        func_decl* ptrs0 = dtu.get_datatype_constructors(pt_record_0_sort)[0];
+
+
+        sort* pt_record_1_sort = m.mk_sort(symbol("pt_record_1", 0, nullptr));
+        unsigned num_ptr1_constructors = dtu.get_datatype_num_constructors(pt_record_1_sort);
+        if(num_ptr1_constructors != 1) {
+            std::cout << "pt_record_1 error" << std::endl;
+        }
+        func_decl* ptrs1 = dtu.get_datatype_constructors(pt_record_1_sort)[0];
+
+        slhv_plug->add_pt_record("Pt_R_0", 1, 0);
+        slhv_plug->add_pt_record("Pt_R_1", 0, 1);
+        slhv_plug->add_pt_r_decl("Pt_R_0", ptrs0);
+        slhv_plug->add_pt_r_decl("Pt_R_1", ptrs1);
+    }
 }
