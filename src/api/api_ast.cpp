@@ -23,6 +23,7 @@ Revision History:
 #include "ast/bv_decl_plugin.h"
 #include "ast/datatype_decl_plugin.h"
 #include "ast/array_decl_plugin.h"
+#include "ast/slhv_decl_plugin.h"
 #include "ast/pb_decl_plugin.h"
 #include "ast/ast_translation.h"
 #include "ast/ast_pp.h"
@@ -729,6 +730,10 @@ extern "C" {
         }
         else if (fid == mk_c(c)->get_char_fid() && k == CHAR_SORT) {
             return Z3_CHAR_SORT;
+        } else if(fid == mk_c(c)->get_slhv_fid() && k == INTHEAP_SORT) {
+            return Z3_INTHEAP_SORT;
+        } else if(fid == mk_c(c)->get_slhv_fid() && k == INTLOC_SORT) {
+            return Z3_INTLOC_SORT;
         }
         else {
             return Z3_UNKNOWN_SORT;
@@ -1424,6 +1429,35 @@ extern "C" {
 
         if (mk_c(c)->recfun().get_family_id() == _d->get_family_id())
             return Z3_OP_RECURSIVE;
+
+        if (mk_c(c)->get_slhv_fid() == _d->get_family_id()) {
+            switch ((_d->get_decl_kind())) {
+                case OP_HEAP_DISJUNION:  return Z3_OP_HEAP_DISJUNION;
+                case OP_POINTS_TO:       return Z3_OP_POINTS_TO;
+                case OP_LOCADD:          return Z3_OP_LOCADD;          
+                case OP_READLOC:         return Z3_OP_READLOC;  
+                case OP_READDATA:        return Z3_OP_READDATA;  
+                case OP_WRITELOC:        return Z3_OP_WRITELOC;  
+                case OP_WRITEDATA:       return Z3_OP_WRITEDATA;  
+                case OP_LOC2INT:         return Z3_OP_LOC2INT;  
+                case OP_INT2LOC:         return Z3_OP_INT2LOC;  
+                case OP_SUBH:            return Z3_OP_SUBH;
+                case OP_DISJH:           return Z3_OP_DISJH;
+                case OP_LIST_SEGMENT:    return Z3_OP_LIST_SEGMENT;      
+                case OP_HVAR_CONST:      return Z3_OP_HVAR_CONST;  
+                case OP_LOCVAR_CONST:    return Z3_OP_LOCVAR_CONST;      
+                case OP_EMP:             return Z3_OP_EMP;
+                case OP_NIL:             return Z3_OP_NI;
+            }
+            {
+            case /* constant-expression */:
+                /* code */
+                break;
+            
+            default:
+                break;
+            }
+        }
 
         return Z3_OP_UNINTERPRETED;
         Z3_CATCH_RETURN(Z3_OP_UNINTERPRETED);

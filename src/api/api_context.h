@@ -31,6 +31,8 @@ Revision History:
 #include "ast/fpa_decl_plugin.h"
 #include "ast/recfun_decl_plugin.h"
 #include "ast/special_relations_decl_plugin.h"
+// slhvapi
+#include "ast/slhv_decl_plugin.h"
 #include "ast/rewriter/seq_rewriter.h"
 #include "smt/params/smt_params.h"
 #include "smt/smt_kernel.h"
@@ -95,6 +97,8 @@ namespace api {
         seq_util                   m_sutil;
         recfun::util               m_recfun;
 
+        slhv_util                  m_slhv_util;
+
         // Support for old solver API
         smt_params                 m_fparams;
         // -------------------------------
@@ -118,6 +122,7 @@ namespace api {
         family_id                  m_seq_fid;
         family_id                  m_char_fid;
         family_id                  m_special_relations_fid;
+        family_id                  m_slhv_fid;
         datatype_decl_plugin *     m_dt_plugin;
         
         std::string                m_string_buffer; // temporary buffer used to cache strings sent to the "external" world.
@@ -163,6 +168,7 @@ namespace api {
         datatype_util& dtutil() { return m_dt_plugin->u(); }
         seq_util& sutil() { return m_sutil; }
         recfun::util& recfun() { return m_recfun; }
+        slhv_util& slhvtil() {return m_slhv_util;}
         family_id get_basic_fid() const { return basic_family_id; }
         family_id get_array_fid() const { return m_array_fid; }
         family_id get_arith_fid() const { return arith_family_id; }
@@ -173,6 +179,7 @@ namespace api {
         family_id get_fpa_fid() const { return m_fpa_fid; }
         family_id get_seq_fid() const { return m_seq_fid; }
         family_id get_char_fid() const { return m_char_fid; }
+        family_id get_slhv_fid() const {return m_slhv_fid;}
         datatype_decl_plugin * get_dt_plugin() const { return m_dt_plugin; }
         family_id get_special_relations_fid() const { return m_special_relations_fid; }
 

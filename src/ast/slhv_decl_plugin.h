@@ -246,3 +246,181 @@ class slhv_decl_plugin : public decl_plugin {
 
 };
 
+
+class slhv_recognizers {
+protected:
+       family_id m_fid;
+public: 
+    slhv_recognizers(family_id fid): m_fid(fid) {}
+    family_id get_family_id() const {return m_fid;}
+    bool is_intHeap(sort* s)  const {
+        return is_sort_of(s, m_fid, INTHEAP_SORT);
+    }
+    bool is_intHeap(expr* n) const {
+        return this->is_intHeap(n->get_sort());
+    }
+    bool is_intLoc(sort* s) const {
+        return is_sort_of(s, m_fid, INTLOC_SORT);
+    }
+    bool is_intLoc(expr* n) const {
+        return this->is_intLoc(n->get_sort());
+    }
+    bool is_hvar(expr* n) const {
+        return is_app_of(n, m_fid, OP_HVAR_CONST);
+    }
+    bool is_locvar(expr* n) const {
+        return is_app_of(n, m_fid, OP_LOCVAR_CONST);
+    }
+    bool is_uplus(expr* n) const {
+        return is_app_of(n, m_fid, OP_HEAP_DISJUNION);
+    }
+    bool is_pt(expr* n) const {
+        return is_app_of(n, m_fid, OP_POINTS_TO);
+    }
+    bool is_subh(expr* n) const {
+        return is_app_of(n, m_fid, OP_SUBH);
+    }
+    bool is_disjh(expr* n) const {
+        return is_app_of(n, m_fid, OP_DISJH);
+    }
+    bool is_locadd(expr* n) const {
+        return is_app_of(n, m_fid, OP_LOCADD);
+    }
+    bool is_emp(expr* n) const {
+        return is_app_of(n, m_fid, OP_EMP);
+    }
+    bool is_nil(expr* n) const {
+        return is_app_of(n, m_fid, OP_NIL);
+    }
+    MATCH_BINARY(is_pt);
+    MATCH_BINARY(is_disjh);
+    MATCH_BINARY(is_subh);
+    MATCH_BINARY(is_locadd);
+    MATCH_BINARY(is_uplus);
+    MATCH_TERNARY(is_uplus);
+    MATCH_QUATARY(is_uplus);
+};
+
+
+
+class slhv_util : public slhv_recognizers {
+    ast_manager & m_manager;
+    slhv_decl_plugin* slhv_plug;
+public:
+    // add record initialization here
+    // make sure pt_record_0 and pt_record_1 are both created
+    slhv_util(ast_manager& m);
+    ast_manager & get_manager() const {return m_manager;}
+    sort* mk_intheap_sort() {
+        
+        return slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
+    }
+    sort* mk_intloc_sort() {
+        
+        return slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr);
+    }
+    app* mk_uplus(int num_arg, std::vector<app*> hterm_args) {
+        if(num_arg != hterm_args.size()) {
+            std::cout << "ERROR: num_arg inconsistent with number of num in mk_uplus" << std::endl;
+            return nullptr;
+        }
+        
+        SASSERT(num_arg == hterm_args.size());
+        expr_ref_vector args_vec(m_manager);
+        for(app* arg : hterm_args) {
+            if(arg->get_sort() != this->mk_intheap_sort()) {
+                std::cout << "ERROR: sort inconsistent in mk_uplus" << std::endl;
+                return nullptr;
+            }
+            args_vec.push_back(arg);
+            m_manager.inc_ref(arg);
+        }
+        sort* e_ref_sort = this->mk_intheap_sort();
+        sort_ref_vector sorts_vec(m_manager);
+        for(int i = 0; i < num_arg; i ++) {
+            sorts_vec.push_back(e_ref_sort);
+        }
+        func_decl* uplus_decl = slhv_plug->mk_func_decl(OP_HEAP_DISJUNION, 0, nullptr, num_arg, sorts_vec.data(), e_ref_sort);
+        app* result =m_manager.mk_app(uplus_decl, args_vec.data());
+        return result;
+    }
+
+    app* mk_loc_record(app* loc) {
+        
+        func_decl* Pt_R_0_decl = slhv_plug->pt_record_decls["Pt_R_0"];
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(loc);
+        m_manager.inc_ref(loc);
+        app* result_record = m_manager.mk_app(Pt_R_0_decl, args_vec);
+        return result_record;
+    }
+    app* mk_data_record(app* data) {
+        arith_util aut(m);
+        if(data->get_sort() != aut.mk_int()) {
+            std::cout << "ERROR: error mk_data_record, data sort not int" << std::endl;
+            return nullptr;
+        }
+        
+        func_decl* Pt_R_1_decl = slhv_plug->pt_record_decls["Pt_R_1"];
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(data);
+        m_manager.inc_ref(data);
+        app* result_record = m_manager.mk_app(Pt_R_1_decl, args_vec);
+        return result_record;
+    }
+    app* mk_points_to_data(app* addrloc, app* data) {
+        if(addrloc->get_sort() != this->mk_intloc_sort()) {
+            std::cout << "ERROR: mk_points_to_data addrloc sort error" << std::endl;
+            return nullptr;
+        }
+        app* data_record = this->mk_data_record(data);
+        
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(addrloc);
+        args_vec.push_back(data_record);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(addrloc->get_sort());
+        sorts_vec.push_back(data_record->get_sort());
+        sort* result_sort = this->mk_intheap_sort();
+        func_decl* pt_decl = slhv_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), result_sort);
+        app* result_pt = m_manager.mk_app(pt_decl, args_vec);
+        return result_pt;
+    }
+
+    app* mk_points_to_loc(app* addrloc, app* ptloc) {
+        if(addrloc->get_sort() != this->mk_intloc_sort()) {
+            std::cout << "ERROR: mk_points_to_loc addrloc sort error" << std::endl;
+            return nullptr;
+        }
+        app* loc_record = this->mk_loc_record(ptloc);
+        
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(addrloc);
+        args_vec.push_back(loc_record);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(addrloc->get_sort());
+        sorts_vec.push_back(loc_record->get_sort());
+        sort* result_sort = this->mk_intheap_sort();
+        func_decl* pt_decl = slhv_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), result_sort);
+        app* result_pt = m_manager.mk_app(pt_decl, args_vec);
+        return result_pt;
+    }
+
+    app* mk_hvar(std::string hvar_name) {
+        
+        sort* range_sort = this->mk_intheap_sort();
+        unsigned num_args = 0;
+        func_decl* hvar_decl = slhv_plug->mk_const_hvar(symbol(hvar_name), range_sort, 0, nullptr);
+        app* hvar_result = m_manager.mk_app(hvar_decl, num_args, nullptr);
+        return hvar_result;
+    }
+
+    app* mk_locvar(std::string locvar_name) {
+        sort* range_sort = this->mk_intloc_sort();
+        unsigned num_args = 0;
+        func_decl* locvar_decl = slhv_plug->mk_const_locvar(symbol(locvar_name), range_sort, 0, nullptr);
+        app* locvar_result - m_manager.mk_app(locvar_decl, num_args, nullptr);
+        return locvar_result;
+    }
+};
+
