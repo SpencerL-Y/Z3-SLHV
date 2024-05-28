@@ -1,6 +1,8 @@
 
 #pragma once
 #include "ast/ast.h"
+#include "ast/arith_decl_plugin.h"
+#include "ast/datatype_decl_plugin.h"
 
 #include <map>
 #include <set>
@@ -87,13 +89,19 @@ class slhv_decl_plugin : public decl_plugin {
     app* global_nil;
 
 
+    arith_util* au_ptr;
+    // dt util is for api
+    datatype_util* dt_util_ptr;
     // this is the map that remembering the pt_records defined in smtlib2 file
+
     int record_type_num;
     
     std::map<std::string, pt_record*> pt_record_map;
     std::map<std::string, func_decl*> pt_record_decls;
 
     slhv_decl_plugin();
+
+    void slhv_datatype_init();
 
 
     void add_pt_record(std::string record_name, int ln, int dn) {
@@ -111,7 +119,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     void add_pt_r_decl(std::string record_name, func_decl* pt_r) {
         if(this->pt_record_decls.find(record_name) != this->pt_record_decls.end()) {
-            SASSERT(false);
+            std::cout << "WARNING pt record decl: " << pt_r->get_name() << " already exists" << std::endl;
+            return;
         } else {
             this->pt_record_decls[record_name] = pt_r;
         }
@@ -277,12 +286,6 @@ public:
     bool is_pt(expr* n) const {
         return is_app_of(n, m_fid, OP_POINTS_TO);
     }
-    bool is_subh(expr* n) const {
-        return is_app_of(n, m_fid, OP_SUBH);
-    }
-    bool is_disjh(expr* n) const {
-        return is_app_of(n, m_fid, OP_DISJH);
-    }
     bool is_locadd(expr* n) const {
         return is_app_of(n, m_fid, OP_LOCADD);
     }
@@ -292,13 +295,6 @@ public:
     bool is_nil(expr* n) const {
         return is_app_of(n, m_fid, OP_NIL);
     }
-    MATCH_BINARY(is_pt);
-    MATCH_BINARY(is_disjh);
-    MATCH_BINARY(is_subh);
-    MATCH_BINARY(is_locadd);
-    MATCH_BINARY(is_uplus);
-    MATCH_TERNARY(is_uplus);
-    MATCH_QUATARY(is_uplus);
 };
 
 
@@ -319,7 +315,24 @@ public:
         
         return slhv_plug->mk_sort(INTLOC_SORT, 0, nullptr);
     }
-    app* mk_uplus(int num_arg, std::vector<app*> hterm_args) {
+
+    app* mk_emp() {
+        sort* intheap_sort = this->mk_intheap_sort();
+        func_decl* emp_decl = this->slhv_plug->mk_const_emp(intheap_sort, 0, nullptr);
+        expr* const* args = nullptr;
+        app* result = m_manager.mk_app(emp_decl, args);
+        return result;
+    }
+
+    app* mk_nil() {
+        sort* intloc_sort = this->mk_intloc_sort();
+        func_decl* nil_decl = this->slhv_plug->mk_const_nil(intloc_sort, 0, nullptr);
+        expr* const* args = nullptr;
+        app* result = m_manager.mk_app(nil_decl, args);
+        return result;
+    }
+
+    app* mk_uplus(unsigned num_arg, std::vector<app*> hterm_args) {
         if(num_arg != hterm_args.size()) {
             std::cout << "ERROR: num_arg inconsistent with number of num in mk_uplus" << std::endl;
             return nullptr;
@@ -355,13 +368,9 @@ public:
         return result_record;
     }
     app* mk_data_record(app* data) {
-        arith_util aut(m);
-        if(data->get_sort() != aut.mk_int()) {
-            std::cout << "ERROR: error mk_data_record, data sort not int" << std::endl;
-            return nullptr;
-        }
-        
+        arith_util aut(m_manager);
         func_decl* Pt_R_1_decl = slhv_plug->pt_record_decls["Pt_R_1"];
+        std::cout << "mk_data_record: " << Pt_R_1_decl->get_name() << " " << Pt_R_1_decl->get_arity() << " " << Pt_R_1_decl->get_range()->get_name() << std::endl;
         expr_ref_vector args_vec(m_manager);
         args_vec.push_back(data);
         m_manager.inc_ref(data);
@@ -369,12 +378,7 @@ public:
         return result_record;
     }
     app* mk_points_to_data(app* addrloc, app* data) {
-        if(addrloc->get_sort() != this->mk_intloc_sort()) {
-            std::cout << "ERROR: mk_points_to_data addrloc sort error" << std::endl;
-            return nullptr;
-        }
         app* data_record = this->mk_data_record(data);
-        
         expr_ref_vector args_vec(m_manager);
         args_vec.push_back(addrloc);
         args_vec.push_back(data_record);
@@ -388,10 +392,6 @@ public:
     }
 
     app* mk_points_to_loc(app* addrloc, app* ptloc) {
-        if(addrloc->get_sort() != this->mk_intloc_sort()) {
-            std::cout << "ERROR: mk_points_to_loc addrloc sort error" << std::endl;
-            return nullptr;
-        }
         app* loc_record = this->mk_loc_record(ptloc);
         
         expr_ref_vector args_vec(m_manager);
@@ -419,8 +419,11 @@ public:
         sort* range_sort = this->mk_intloc_sort();
         unsigned num_args = 0;
         func_decl* locvar_decl = slhv_plug->mk_const_locvar(symbol(locvar_name), range_sort, 0, nullptr);
-        app* locvar_result - m_manager.mk_app(locvar_decl, num_args, nullptr);
+        app* locvar_result = m_manager.mk_app(locvar_decl, num_args, nullptr);
         return locvar_result;
     }
+
+
+
 };
 
