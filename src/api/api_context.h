@@ -168,7 +168,7 @@ namespace api {
         datatype_util& dtutil() { return m_dt_plugin->u(); }
         seq_util& sutil() { return m_sutil; }
         recfun::util& recfun() { return m_recfun; }
-        slhv_util& slhvtil() {return m_slhv_util;}
+        slhv_util& slhvutil() {return m_slhv_util;}
         family_id get_basic_fid() const { return basic_family_id; }
         family_id get_array_fid() const { return m_array_fid; }
         family_id get_arith_fid() const { return arith_family_id; }

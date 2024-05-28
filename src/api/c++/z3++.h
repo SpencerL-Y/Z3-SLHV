@@ -297,12 +297,16 @@ namespace z3 {
            \brief Return a RoundingMode sort.
          */
         sort fpa_rounding_mode_sort();
+        
+        // slhv sort declaration
+        sort intloc_sort();
+        sort intheap_sort();
         /**
            \brief Sets RoundingMode of FloatingPoints.
          */
         void set_rounding_mode(rounding_mode rm);
         /**
-           \brief Return an enumeration sort: enum_names[0], ..., enum_names[n-1].
+           \brief Return an enumeration sort: enum_names[0], ..., enum_names[n-1].intloc_sort
            \c cs and \c ts are output parameters. The method stores in \c cs the constants corresponding to the enumerated elements,
            and in \c ts the predicates for testing if terms of the enumeration sort correspond to an enumeration.
         */
@@ -393,6 +397,11 @@ namespace z3 {
 
         template<size_t precision>
         expr fpa_const(char const * name);
+        // slhv const declaration
+        expr locvar_const(char const* name);
+        expr hvar_const(char const* name);
+        expr emp_const();
+        expr nil_const();
 
         /**
            \brief create a de-Bruijn variable.
@@ -713,6 +722,15 @@ namespace z3 {
             \brief Return true if this sort is a regular expression sort.
         */
         bool is_re() const { return sort_kind() == Z3_RE_SORT; }
+        // slhv sort judgement
+        /**
+            \brief Return true if this sort is intloc sort.
+        */
+        bool is_intloc() const {return sort_kind() == Z3_INTLOC_SORT;}
+        /**
+            \brief Return true if this sort is intheap sort.
+        */
+        bool is_intheap() const {return sort_kind() == Z3_INTHEAP_SORT;}
         /**
             \brief Return true if this sort is a Finite domain sort.
         */
@@ -3436,6 +3454,9 @@ namespace z3 {
     inline sort context::seq_sort(sort& s) { Z3_sort r = Z3_mk_seq_sort(m_ctx, s); check_error(); return sort(*this, r); }
     inline sort context::re_sort(sort& s) { Z3_sort r = Z3_mk_re_sort(m_ctx, s); check_error(); return sort(*this, r); }
     inline sort context::fpa_sort(unsigned ebits, unsigned sbits) { Z3_sort s = Z3_mk_fpa_sort(m_ctx, ebits, sbits); check_error(); return sort(*this, s); }
+    // slhv sort making
+    inline sort context::intloc_sort() {Z3_sort s = Z3_mk_intloc_sort(m_ctx); check_error(); return sort(*this, s);}
+    inline sort context::intheap_sort() {Z3_sort s = Z3_mk_intheap_sort(m_ctx); check_error(); return sort(*this, s);}
 
     template<>
     inline sort context::fpa_sort<16>() { return fpa_sort(5, 11); }
@@ -3720,6 +3741,21 @@ namespace z3 {
     inline expr context::string_const(char const * name) { return constant(name, string_sort()); }
     inline expr context::bv_const(char const * name, unsigned sz) { return constant(name, bv_sort(sz)); }
     inline expr context::fpa_const(char const * name, unsigned ebits, unsigned sbits) { return constant(name, fpa_sort(ebits, sbits)); }
+    // slhv var making
+    inline expr context::locvar_const(char const* name) {return constant(name, intloc_sort());}
+    inline expr context::hvar_const(char const* name){return  constant(name, intheap_sort());}
+    inline expr context::emp_const() {
+        Z3_ast r = Z3_mk_emp(m_ctx);
+        check_error();
+        return expr(*this, r);
+    }
+    inline expr context::nil_const() {
+        Z3_ast r = Z3_mk_nil(m_ctx);
+        check_error();
+        return expr(*this, r);
+    }
+
+
 
     template<size_t precision>
     inline expr context::fpa_const(char const * name) { return constant(name, fpa_sort<precision>()); }
@@ -4090,8 +4126,41 @@ namespace z3 {
     }
 
 
+    // slhv expr making
+    inline expr data_record(expr const& data) {
+        context& ctx = data.ctx();
+        Z3_ast r = Z3_mk_data_record(ctx, data);
+        return expr(ctx, r);
+    }
 
+    inline expr points_to(expr const& addr, expr const& content) {
+        check_context(addr, content);
+        context& ctx = addr.ctx();
+        Z3_ast r = Z3_mk_pt(ctx, addr, content);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
 
+    inline expr uplus(expr_vector const& args) {
+        context& ctx = args[0u].ctx();
+        array<Z3_ast> _args(args);
+        Z3_ast r = Z3_mk_uplus(ctx, _args.size(), _args.ptr());
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr uplus(expr ht1, expr ht2) {
+        check_context(ht1, ht2);
+        context& ctx = ht1.ctx();
+        expr_vector args_vec(ctx);
+        args_vec.push_back(ht1);
+        args_vec.push_back(ht2);
+        array<Z3_ast> _args(args_vec);
+        Z3_ast r = Z3_mk_uplus(ctx, _args.size(), _args.ptr());
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+    
 
     inline expr_vector context::parse_string(char const* s) {
         Z3_ast_vector r = Z3_parse_smtlib2_string(*this, s, 0, 0, 0, 0, 0, 0);
@@ -4213,6 +4282,8 @@ namespace z3 {
         check_error();
         return expr(ctx(), r);
     }
+
+
 
     typedef std::function<void(expr const& proof, expr_vector const& clause)> on_clause_eh_t;
 

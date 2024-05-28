@@ -7420,7 +7420,152 @@ extern "C" {
     */
     uint64_t Z3_API Z3_get_estimated_alloc_size(void);
 
+
+    /**
+       \brief Create the intheap type.
+
+       \sa Z3_mk_intheap_sort
+
+       def_API('Z3_mk_intheap_sort', SORT, (_in(CONTEXT), ))
+    */
+    Z3_sort Z3_API Z3_mk_intheap_sort(Z3_context c);
+
+    /**
+       \brief Create the intloc type.
+
+       \sa Z3_mk_intloc_sort
+
+       def_API('Z3_mk_intloc_sort', SORT, (_in(CONTEXT), ))
+    */
+    Z3_sort Z3_API Z3_mk_intloc_sort(Z3_context c);
+
+
+    /**
+       \brief Create the emp ast
+
+       \sa Z3_mk_emp
+
+       def_API('Z3_mk_emp', AST, (_in(CONTEXT), ))
+    */
+
+    Z3_ast Z3_API Z3_mk_emp(Z3_context c);
+
+    /**
+       \brief Create the nil ast
+
+       \sa Z3_mk_nil
+
+       def_API('Z3_mk_nil', AST, (_in(CONTEXT), ))
+    */
+
+    Z3_ast Z3_API Z3_mk_nil(Z3_context c);
+
+    /**
+       \brief Create the pt ast
+
+       \sa Z3_mk_pt
+
+       def_API('Z3_mk_pt', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_pt(Z3_context c, Z3_ast from, Z3_ast to);
+
+    /**
+       \brief Create the uplus ast
+
+       \sa Z3_mk_uplus
+
+       def_API('Z3_mk_uplus', AST, (_in(CONTEXT), _in(UINT), _in_array(1, AST)))
+    */
+    Z3_ast Z3_API Z3_mk_uplus(Z3_context c, unsigned num_args, Z3_ast const args[]);
+
+
+    /**
+       \brief Create the data record
+
+       \sa Z3_mk_data_record
+
+       def_API('Z3_mk_data_record', AST, (_in(CONTEXT), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_data_record(Z3_context c, Z3_ast data);
+
+    /**
+       \brief Is nil judgement
+
+       \sa Z3_is_nil
+
+       def_API('Z3_is_nil', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_nil(Z3_context c, Z3_ast e);
+
+    
+    /**
+       \brief Is emp judgement
+
+       \sa Z3_is_emp
+
+       def_API('Z3_is_emp', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_emp(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is intLoc judgement
+
+       \sa Z3_is_intLoc
+
+       def_API('Z3_is_intLoc', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_intLoc(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is intHeap judgement
+
+       \sa Z3_is_intHeap
+
+       def_API('Z3_is_intHeap', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_intHeap(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is locvar judgement
+
+       \sa Z3_is_locvar
+
+       def_API('Z3_is_locvar', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_locvar(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is hvar judgement
+
+       \sa Z3_is_hvar
+
+       def_API('Z3_is_hvar', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_hvar(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is pt judgement
+
+       \sa Z3_is_pt
+
+       def_API('Z3_is_pt', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_pt(Z3_context c, Z3_ast e);
+
+    /**
+       \brief Is uplus judgement
+
+       \sa Z3_is_uplus
+
+       def_API('Z3_is_uplus', BOOL, (_in(CONTEXT), _in(AST)))
+    */
+    bool Z3_API Z3_is_uplus(Z3_context c, Z3_ast e);
+
+
     /**@}*/
+
+
+    
 
 #ifdef __cplusplus
 }
