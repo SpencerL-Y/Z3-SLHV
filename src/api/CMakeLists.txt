@@ -59,6 +59,7 @@ z3_add_component(api
     api_rcf.cpp
     api_seq.cpp
     api_solver.cpp
+    api_slhv.cpp
     api_special_relations.cpp
     api_stats.cpp
     api_tactic.cpp

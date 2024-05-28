@@ -1447,15 +1447,8 @@ extern "C" {
                 case OP_HVAR_CONST:      return Z3_OP_HVAR_CONST;  
                 case OP_LOCVAR_CONST:    return Z3_OP_LOCVAR_CONST;      
                 case OP_EMP:             return Z3_OP_EMP;
-                case OP_NIL:             return Z3_OP_NI;
-            }
-            {
-            case /* constant-expression */:
-                /* code */
-                break;
-            
-            default:
-                break;
+                case OP_NIL:             return Z3_OP_NIL;
+                default: return Z3_OP_INTERNAL;
             }
         }
 
