@@ -4,5 +4,5 @@
 #define Z3_BUILD_NUMBER    2
 #define Z3_REVISION_NUMBER 0
 
-#define Z3_FULL_VERSION    "4.12.2.0 8f64260dfe5c913058aac9c88afc8dd0fef5c19b NOTFOUND"
-#define Z3GITHASH 8f64260dfe5c913058aac9c88afc8dd0fef5c19b
+#define Z3_FULL_VERSION    "4.12.2.0 b0c38adec6423b60ff3c72e43d0e1c8c4e5e7bbc"
+#define Z3GITHASH b0c38adec6423b60ff3c72e43d0e1c8c4e5e7bbc

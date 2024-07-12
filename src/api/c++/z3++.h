@@ -4176,6 +4176,14 @@ namespace z3 {
         ctx.check_error();
         return expr(ctx, r);
     }
+
+    inline expr locadd(expr first, expr second) {
+        check_context(first, second);
+        context& ctx = first.ctx();
+        Z3_ast r = Z3_mk_locadd(first, second);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
     
 
     inline expr_vector context::parse_string(char const* s) {
