@@ -4180,7 +4180,7 @@ namespace z3 {
     inline expr locadd(expr first, expr second) {
         check_context(first, second);
         context& ctx = first.ctx();
-        Z3_ast r = Z3_mk_locadd(first, second);
+        Z3_ast r = Z3_mk_locadd(ctx, first, second);
         ctx.check_error();
         return expr(ctx, r);
     }
