@@ -7488,6 +7488,26 @@ extern "C" {
     */
     Z3_ast Z3_API Z3_mk_data_record(Z3_context c, Z3_ast data);
 
+
+    /**
+       \brief Create the data record
+
+       \sa Z3_mk_subh
+
+       def_API('Z3_mk_subh', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_subh(Z3_context c, Z3_ast large_h, Z3_ast sub_h);
+
+    /**
+       \brief Create the data record
+
+       \sa Z3_mk_disjh
+
+       def_API('Z3_mk_disjh', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h);
+
+
     /**
        \brief Is nil judgement
 
