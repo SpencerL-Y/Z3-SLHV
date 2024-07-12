@@ -424,6 +424,35 @@ public:
     }
 
 
+    app* mk_subh(app* sub_h, app* large_h) {
+        sort* range_sort = this->m_manager.mk_bool_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(sub_h);
+        args_vec.push_back(large_h);
+        unsigned num_args = 2;
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(large_h->get_sort());
+        sorts_vec.push_back(sub_h->get_sort());
+        func_decl* subh_decl = slhv_plug->mk_func_decl(OP_SUBH, 0, nullptr, 2, sorts_vec.data(), range_sort);
+        app* subh_result = m_manager.mk_app(subh_decl, args_vec);
+        return subh_result;
+    }
+
+    app* mk_disjh(app* first_h, app* second_h) {
+        sort* range_sort = this->m_manager.mk_bool_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(first_h);
+        args_vec.push_back(second_h);
+        unsigned num_args = 2;
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(first_h->get_sort());
+        sorts_vec.push_back(second_h->get_sort());
+        func_decl* disjh_decl = slhv_plug->mk_func_decl(OP_DISJH, 0, nullptr, 2, sorts_vec.data(), range_sort);
+        app* disj_result = m_manager.mk_app(disjh_decl, args_vec);
+        return disj_result;
+    }
+
+
 
 };
 
