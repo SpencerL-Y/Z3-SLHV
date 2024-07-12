@@ -12,7 +12,7 @@
 
 
 # Handle dependencies (necessary when compiling the static library)
-if(NOT FALSE)
+if(NOT ON)
   include(CMakeFindDependencyMacro)
 
   # Threads::Threads
