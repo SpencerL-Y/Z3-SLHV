@@ -452,6 +452,20 @@ public:
         return disj_result;
     }
 
+    app* mk_locadd(app* start_addr, app* added) {
+        sort* range_sort = this->mk_intloc_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(start_addr);
+        args_vec.push_back(added);
+        unsigned num_args = 2;
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(start_addr->get_sort());
+        sorts_vec.push_back(added->get_sort());
+        func_decl* locadd_decl = slhv_plug->mk_func_decl(OP_LOCADD, 0, nullptr, 2, sorts_vec.data(), range_sort);
+        app* locadd_result = m_manager.mk_app(locadd_decl, args_vec);
+        return locadd_result;
+    }
+
 
 
 };

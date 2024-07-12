@@ -7506,6 +7506,15 @@ extern "C" {
        def_API('Z3_mk_disjh', AST, (_in(CONTEXT), _in(AST), _in(AST)))
     */
     Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h);
+    /**
+       \brief Create the data record
+
+       \sa Z3_mk_locadd
+
+       def_API('Z3_mk_locadd', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second);
+
 
 
     /**

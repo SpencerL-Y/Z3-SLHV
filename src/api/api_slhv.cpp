@@ -140,6 +140,21 @@ Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h) {
     Z3_CATCH_RETURN(nullptr);
 }
 
+Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second) {
+    Z3_TRY;
+    LOG_Z3_mk_locadd(c, first, second);
+    RESET_ERROR_CODE();
+    app* apped_first = to_app(first);
+    app* apped_second = to_app(second);
+    if(mk_c(c)->slhvutil().is_intLoc(apped_first) && mk_c(c)->autil().is_int(apped_second)) {
+        Z3_ast result =  of_ast(mk_c(c)->slhvutil().mk_locadd(apped_first, apped_second));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
 
 
 bool Z3_API Z3_is_nil(Z3_context c, Z3_ast e) {
@@ -224,6 +239,7 @@ bool Z3_API Z3_is_uplus(Z3_context c, Z3_ast e) {
     return result;
     Z3_CATCH_RETURN(false);
 }
+
 
 
 }
