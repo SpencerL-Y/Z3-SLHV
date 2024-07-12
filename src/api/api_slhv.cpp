@@ -108,6 +108,38 @@ Z3_ast Z3_API Z3_mk_data_record(Z3_context c, Z3_ast data) {
     Z3_CATCH_RETURN(nullptr);
 }
 
+Z3_ast Z3_API Z3_mk_subh(Z3_context c, Z3_ast sub_h, Z3_ast large_h) {
+    Z3_TRY;
+    LOG_Z3_mk_subh(c, large_h, sub_h);
+    RESET_ERROR_CODE();
+    app* app_sub_h = to_app(sub_h);
+    app* app_large_h = to_app(large_h);
+    if(mk_c(c)->slhvutil().is_intHeap(app_large_h) && mk_c(c)->slhvutil().is_intHeap(app_sub_h)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_subh(to_app(sub_h), to_app(large_h)));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h) {
+    Z3_TRY;
+    LOG_Z3_mk_disjh(c, first_h, second_h);
+    RESET_ERROR_CODE();
+    app* app_first_h = to_app(first_h);
+    app* app_second_h = to_app(second_h);
+    if(mk_c(c)->slhvutil().is_intHeap(app_first_h) && mk_c(c)->slhvutil().is_intHeap(app_second_h)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_disjh(to_app(first_h), to_app(second_h)));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
 
 
 bool Z3_API Z3_is_nil(Z3_context c, Z3_ast e) {

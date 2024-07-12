@@ -4160,6 +4160,22 @@ namespace z3 {
         ctx.check_error();
         return expr(ctx, r);
     }
+
+    inline expr subh(expr small_ht, expr large_ht) {
+        check_context(small_ht, large_ht);
+        context& ctx = small_ht.ctx();
+        Z3_ast r = Z3_mk_subh(ctx, small_ht, large_ht);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr disjh(expr first_ht, expr second_ht) {
+        check_context(first_ht, second_ht);
+        context& ctx = first_ht.ctx();
+        Z3_ast r = Z3_mk_disjh(ctx, first_ht, second_ht);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
     
 
     inline expr_vector context::parse_string(char const* s) {
