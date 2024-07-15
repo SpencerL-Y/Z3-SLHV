@@ -3742,8 +3742,14 @@ namespace z3 {
     inline expr context::bv_const(char const * name, unsigned sz) { return constant(name, bv_sort(sz)); }
     inline expr context::fpa_const(char const * name, unsigned ebits, unsigned sbits) { return constant(name, fpa_sort(ebits, sbits)); }
     // slhv var making
-    inline expr context::locvar_const(char const* name) {return constant(name, intloc_sort());}
-    inline expr context::hvar_const(char const* name){return  constant(name, intheap_sort());}
+    inline expr context::locvar_const(char const* name) {
+        Z3_ast r = Z3_mk_locvar(*this, name);
+        return expr(*this, r);
+    }
+    inline expr context::hvar_const(char const* name){
+        Z3_ast r = Z3_mk_hvar(*this, name);;
+        return expr(*this, r);
+    }
     inline expr context::emp_const() {
         Z3_ast r = Z3_mk_emp(m_ctx);
         check_error();

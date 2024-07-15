@@ -7515,6 +7515,26 @@ extern "C" {
     */
     Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second);
 
+   /**
+       \brief Create the data record
+
+       \sa Z3_mk_hvar
+
+       def_API('Z3_mk_hvar', AST, (_in(CONTEXT), _in(STRING)))
+    */
+    Z3_ast Z3_API Z3_mk_hvar(Z3_context c, Z3_string name);
+
+   /**
+       \brief Create the data record
+
+       \sa Z3_mk_locvar
+
+       def_API('Z3_mk_locvar', AST, (_in(CONTEXT), _in(STRING)))
+    */
+    Z3_ast Z3_API Z3_mk_locvar(Z3_context c, Z3_string name);
+
+
+
 
 
     /**
