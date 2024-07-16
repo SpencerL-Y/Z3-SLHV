@@ -156,6 +156,24 @@ Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second) {
     Z3_CATCH_RETURN(nullptr);
 }
 
+Z3_ast Z3_API Z3_mk_hvar(Z3_context c, Z3_string name) {
+    Z3_TRY;
+    LOG_Z3_mk_hvar(c, name);
+    RESET_ERROR_CODE();
+    Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_hvar(name));
+    RETURN_Z3(result);
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_locvar(Z3_context c, Z3_string name) {
+    Z3_TRY;
+    LOG_Z3_mk_locvar(c, name);
+    RESET_ERROR_CODE();
+    Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_locvar(name));
+    RETURN_Z3(result);
+    Z3_CATCH_RETURN(nullptr);
+}
+
 
 bool Z3_API Z3_is_nil(Z3_context c, Z3_ast e) {
     Z3_TRY;

@@ -4698,6 +4698,8 @@ namespace smt {
         }
         else {
             std::cout << "ERROR: unknown hterm in collect hteq pt" << std::endl;
+            std::cout << mk_ismt2_pp(arg1, this->th->get_manager()) << std::endl;
+            std::cout << "family id: " << arg1->get_family_id() << std::endl;
         }
 
         if(this->th->is_points_to(arg2)) {
@@ -4715,6 +4717,8 @@ namespace smt {
             // Do nothing
         } else {
             std::cout << "ERROR: unknown hterm in collect hteq pt" << std::endl;
+            std::cout << mk_ismt2_pp(arg2, this->th->get_manager()) << std::endl;
+            std::cout << "family id: " << arg2->get_family_id() << std::endl;
         }
 
         return hteq_pts;
