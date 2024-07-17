@@ -466,8 +466,9 @@ namespace smt {
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
-            refined_assertions.push_back(to_app(converted_to_nnf_assertion));
-            inf_graph->add_refined_assignment_node(converted_to_nnf_assertion, e);
+            expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
+            refined_assertions.push_back(to_app(negation_eliminated_assertion));
+            inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
         }
         #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -1211,6 +1212,85 @@ namespace smt {
             return this->m.mk_app(apped_assertion_decl, new_args);
         }
     }
+
+
+    expr* theory_slhv::eliminate_heap_negation_for_assertion_disj(expr* assertion) {
+        // TODO: add negation elimination
+        app* apped_expr = to_app(assertion);
+        if(apped_expr->get_num_args() == 0) {
+            return assertion;
+        } else if(apped_expr->is_app_of(basic_family_id, OP_AND)) {
+            expr_ref_vector conjuncts(this->m);
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                conjuncts.push_back(this->eliminate_heap_negation_for_assertion_disj(apped_expr->get_arg(i)));
+            }
+            return this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
+        } else if(apped_expr->is_app_of(basic_family_id, OP_OR)) {
+
+            expr_ref_vector disjuncts(this->m);
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                disjuncts.push_back(this->eliminate_heap_negation_for_assertion_disj(apped_expr->get_arg(i)));
+            }
+            return this->syntax_maker->mk_or(disjuncts.size(), disjuncts.data());
+        }
+        else if(apped_expr->is_app_of(basic_family_id, OP_NOT)) {
+            // negation
+            app* negated_inner = to_app(apped_expr->get_arg(0));
+            if(negated_inner->is_app_of(basic_family_id, OP_EQ)) {
+                app* negated_inner_arg0 = to_app(negated_inner->get_arg(0));
+                if(this->is_heapterm(negated_inner_arg0) ) {
+                    // DO Heap negation elimination
+                    app* first_ht = negated_inner_arg0;
+                    app* second_ht = to_app(negated_inner->get_arg(1));
+                    std::vector<std::vector<app*>> elim_negation_temp_output = this->syntax_maker->mk_hterm_disequality_new(first_ht, second_ht);
+                    expr_ref_vector disjuncts(this->m);
+                    for(std::vector<app*> conjuntion : elim_negation_temp_output) {
+                        expr_ref_vector conjuncts(this->m);
+                        for(app* conj : conjuntion) {
+                            conjuncts.push_back(conj);
+                        }
+                        app* conj_clause = this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
+                        disjuncts.push_back(conj_clause);
+                    }
+                    app* disj_clause = this->syntax_maker->mk_or(disjuncts.size(), disjuncts.data());
+                    return disj_clause;
+                } else {
+                    return apped_expr;
+                }
+            } else {
+                return apped_expr;
+            }
+        } else if(apped_expr->is_app_of(basic_family_id, OP_DISTINCT)) {
+            app* apped_arg0 = to_app(apped_expr->get_arg(0));
+            if(this->is_heapterm(apped_arg0)) {
+                // DO Heap negation elimination
+                app* first_ht = apped_arg0;
+                app* second_ht = to_app(apped_arg0->get_arg(1));
+                std::vector<std::vector<app*>> elim_negation_temp_output = this->syntax_maker->mk_hterm_disequality_new(first_ht, second_ht);
+                    expr_ref_vector disjuncts(this->m);
+                    for(std::vector<app*> conjuntion : elim_negation_temp_output) {
+                        expr_ref_vector conjuncts(this->m);
+                        for(app* conj : conjuntion) {
+                            conjuncts.push_back(conj);
+                        }
+                        app* conj_clause = this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
+                        disjuncts.push_back(conj_clause);
+                    }
+                    app* disj_clause = this->syntax_maker->mk_or(disjuncts.size(), disjuncts.data());
+                    return disj_clause;
+            } else {
+                return apped_expr;
+            }
+        } else if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
+            return apped_expr;
+        } 
+        else {
+            return assertion;
+        }
+        return assertion;
+    }
+
+
 
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
         if(this->is_uplus(hterm)) {
