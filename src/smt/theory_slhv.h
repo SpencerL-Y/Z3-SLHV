@@ -73,6 +73,7 @@ namespace smt
         void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
+        expr* eliminate_heap_negation_for_assertion_disj(expr* assertion);
         hterm_extracted_content* extract_all_hterms_disj();
         
         // =========================================================
