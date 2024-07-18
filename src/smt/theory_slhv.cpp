@@ -307,7 +307,7 @@ namespace smt {
             std::cout  << l << std::endl;
         }
         std::cout << "conflict unsat core exprs ====== " << std::endl;
-        for(expr* e : this->outside_unsat_core) {
+        for(expr* e : outside_unsat_core) {
             std::cout << mk_pp(e, this->m) << std::endl;
         }
         #endif
@@ -467,6 +467,7 @@ namespace smt {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
+            std::cout << "eliminate_heap_negation_for_assertion_disj over" << std::endl;
             refined_assertions.push_back(to_app(negation_eliminated_assertion));
             inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
         }
@@ -1215,6 +1216,9 @@ namespace smt {
 
 
     expr* theory_slhv::eliminate_heap_negation_for_assertion_disj(expr* assertion) {
+        #ifdef SLHV_PRINT
+        std::cout << "eliminate_heap_negation_for_assertion_disj" << std::endl;
+        #endif
         // TODO: add negation elimination
         app* apped_expr = to_app(assertion);
         if(apped_expr->get_num_args() == 0) {
@@ -1246,7 +1250,9 @@ namespace smt {
                     expr_ref_vector disjuncts(this->m);
                     for(std::vector<app*> conjuntion : elim_negation_temp_output) {
                         expr_ref_vector conjuncts(this->m);
+                        std::cout << "conjunct: " << std::endl;
                         for(app* conj : conjuntion) {
+                            std::cout << mk_ismt2_pp(conj, this->m) << std::endl;
                             conjuncts.push_back(conj);
                         }
                         app* conj_clause = this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
@@ -7138,7 +7144,7 @@ namespace smt {
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         
         app* final_result = this->mk_eq(eq_lhs, eq_rhs_uplus);
-        // this->th->get_context().internalize(final_result, false);
+        this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -7410,6 +7416,7 @@ namespace smt {
 
         #ifdef SLHV_PRINT
         std::cout << "mk hterm disequality new" << std::endl;
+        std::cout << "first disjunct" << std::endl;
         #endif
 
         app* ht1_hvar = this->mk_fresh_hvar();
@@ -7528,6 +7535,9 @@ namespace smt {
         // this->th->get_context().internalize(x_in_ht2, false);
         // this->th->get_context().internalize(x_notin_ht1, false);
         final_result.push_back(third_disj);
+        #ifdef SLHV_PRINT
+        std::cout << "mk hterm disequality over" << std::endl;
+        #endif
         return final_result;
     }
 
