@@ -7149,11 +7149,18 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_addr_in_hterm_new(app* hterm, app* addr) {
-        if(this->slhv_decl_plug->pt_record_map.size() != 1) {
+        pt_record* data_record = nullptr;
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!rc->get_pt_record_name().compare("Pt_R_1")) {
+                data_record = rc;
+            }
+        }
+        if(data_record == nullptr) {
+            std::cout << "ERROR: data record not found" << std::endl;
             return nullptr;
         }
-        int pt_locfield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_loc_num();
-        int pt_datafield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_data_num();
+        int pt_locfield_num = data_record->get_loc_num();
+        int pt_datafield_num = data_record->get_data_num();
 
         app* fresh_unrelated_h = this->mk_fresh_hvar();
         std::vector<app*> record_fresh_locvars;
@@ -7165,9 +7172,8 @@ namespace smt {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = this->slhv_decl_plug->get_first_record();
         
-        app* addr_pt_record = this->mk_record(only_record, record_fresh_locvars, record_fresh_datavars);
+        app* addr_pt_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
 
         app* rhs_pt = this->mk_points_to_new(addr, addr_pt_record);
         std::vector<app*> rhs_uplus_args;
@@ -7240,11 +7246,18 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_addr_notin_hterm_new(app* hterm, app* addr) {
-        if(this->slhv_decl_plug->pt_record_map.size() != 1) {
+        pt_record* data_record = nullptr;
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!rc->get_pt_record_name().compare("Pt_R_1")) {
+                data_record = rc;
+            }
+        }
+        if(data_record == nullptr) {
+            std::cout << "ERROR: data record not found" << std::endl;
             return nullptr;
         }
-        int pt_locfield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_loc_num();
-        int pt_datafield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_data_num();
+        int pt_locfield_num = data_record->get_loc_num();
+        int pt_datafield_num = data_record->get_data_num();
         app* fresh_whole_h = this->mk_fresh_hvar();
         std::vector<app*> record_fresh_datavars;
         std::vector<app*> record_fresh_locvars;
@@ -7255,8 +7268,7 @@ namespace smt {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
         SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = this->slhv_decl_plug->get_first_record();
-        app* rhs_record = this->mk_record(only_record, record_fresh_locvars, record_fresh_datavars);
+        app* rhs_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
         app* rhs_points_to = this->mk_points_to_new(addr, rhs_record);
         app* eq_lhs = fresh_whole_h;
         std::vector<app*> uplus_args;
@@ -7404,16 +7416,26 @@ namespace smt {
     }
 
     std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
-        if(this->slhv_decl_plug->pt_record_map.size() != 1) {
+        if(this->slhv_decl_plug->pt_record_map.size() != 2) {
+            std::cout << "ERROR: not standard pt records types" << std::endl;
             SASSERT(false);
         }
-        int pt_locfield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_loc_num();
-        int pt_datafield_num = (*slhv_decl_plug->pt_record_map.begin()).second->get_data_num();
-
-        SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = this->slhv_decl_plug->get_first_record();
+        pt_record* data_record = nullptr;
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {            
+            if(!rc->get_pt_record_name().compare("Pt_R_1")) {
+                data_record = rc;
+                break;
+            }
+        }
+        if(data_record == nullptr) {
+            std::cout << "ERROR: data record not found" << std::endl;
+            std::vector<std::vector<app*>> error_result;
+            return error_result;
+        }
         std::vector<std::vector<app*>> final_result;
 
+        int pt_locfield_num = data_record->get_loc_num();
+        int pt_datafield_num = data_record->get_data_num();
         #ifdef SLHV_PRINT
         std::cout << "mk hterm disequality new" << std::endl;
         std::cout << "first disjunct" << std::endl;
@@ -7453,8 +7475,8 @@ namespace smt {
         app* ht1_eq_lhs = ht1_hvar;
         app* ht2_eq_lhs = ht2_hvar;
 
-        app* ht1_eq_rhs_record = this->mk_record(only_record, ht1_pt_locvars, ht1_pt_datavars);
-        app* ht2_eq_rhs_record = this->mk_record(only_record, ht2_pt_locvars, ht2_pt_datavars);
+        app* ht1_eq_rhs_record = this->mk_record(data_record, ht1_pt_locvars, ht1_pt_datavars);
+        app* ht2_eq_rhs_record = this->mk_record(data_record, ht2_pt_locvars, ht2_pt_datavars);
 
         app* ht1_eq_rhs_pt = this->mk_points_to_new(x, ht1_eq_rhs_record);
         app* ht2_eq_rhs_pt = this->mk_points_to_new(x, ht2_eq_rhs_record);
@@ -7567,7 +7589,10 @@ namespace smt {
             app* second_eq_lhs_fhvar = this->mk_fresh_hvar();
             second_eq_lhs = second_eq_lhs_fhvar;
         }
-
+        if(all_records.size() > 0) {
+            std::cout << "ERROR: all records contain other record" << std::endl;
+            return final_result;
+        }
         #ifdef SLHV_PRINT
         std::cout << "begin negation elimnation encoding" << std::endl;
         #endif
@@ -7752,9 +7777,17 @@ namespace smt {
 
     app* slhv_syntax_maker::mk_points_to_new(app* addr_loc, app* record_loc) {
 
-        SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
-        pt_record* only_record = this->slhv_decl_plug->get_first_record();
-        func_decl* only_pt_r_decl = this->slhv_decl_plug->pt_record_decls[only_record->get_pt_record_name()];
+        pt_record* data_record = nullptr;
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!rc->get_pt_record_name().compare("Pt_R_1")) {
+                data_record = rc;
+            }
+        }
+        if(data_record == nullptr) {
+            std::cout << "ERROR: data record not found" << std::endl;
+            return nullptr;
+        }
+        func_decl* data_pt_r_decl = this->slhv_decl_plug->pt_record_decls[data_record->get_pt_record_name()];
         SASSERT(this->th->is_locterm(addr_loc));
         SASSERT(this->th->is_recordterm(record_loc));
         std::vector<app*> args = {addr_loc, record_loc};
@@ -7764,7 +7797,7 @@ namespace smt {
             args_vec.push_back(arg);
         }
         sort* loc_sort = this->slhv_decl_plug->mk_sort(INTLOC_SORT, 0, nullptr);
-        sort* record_sort = only_pt_r_decl->get_range();
+        sort* record_sort = data_pt_r_decl->get_range();
         sort_ref_vector sorts_vec(this->th->get_manager()); 
         sorts_vec.push_back(loc_sort);
         sorts_vec.push_back(record_sort);
@@ -7826,7 +7859,6 @@ namespace smt {
         func_decl* record_decl = this->slhv_decl_plug->pt_record_decls[r->get_pt_record_name()];
         #ifdef SLHV_PRINT
         std::cout << "make record " << record_decl->get_name() << " sort: " << std::endl;
-        
         #endif
         app* result = this->th->get_manager().mk_app(record_decl, args_vec);
         #ifdef SLHV_PRINT

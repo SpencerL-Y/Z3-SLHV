@@ -7,8 +7,14 @@
 
 (declare-datatype 
     pt_record_0
-    ((Pt_R_0 (l Int)))
+    ((Pt_R_0 (loc IntLoc)))
 )
+
+(declare-datatype 
+    pt_record_1
+    ((Pt_R_1 (data Int)))
+)
+
 
 (assert (not (= h1 h2) ) )
 (check-sat)
