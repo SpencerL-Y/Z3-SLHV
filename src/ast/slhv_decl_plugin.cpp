@@ -46,10 +46,10 @@ void slhv_decl_plugin::slhv_datatype_init() {
     this->au_ptr = alloc(arith_util, m);
     arith_util& au = *this->au_ptr;
     if(this->pt_record_decls.find("Pt_R_0") == this->pt_record_decls.end()) {
-        sort* intsort = this->mk_sort(INTLOC_SORT, 0, nullptr);
+        sort* locsort = this->mk_sort(INTLOC_SORT, 0, nullptr);
         sort_ref_vector srts0(m);
         accessor_decl* Pt_R_0_accs[1] = {
-            mk_accessor_decl(m, symbol("data"), type_ref(intsort))
+            mk_accessor_decl(m, symbol("loc"), type_ref(locsort))
         };
         constructor_decl* cs0[1] = { mk_constructor_decl(symbol("Pt_R_0"), symbol("is-Pt_R_0"), 1, Pt_R_0_accs)};
         datatype_decl* dt0 = mk_datatype_decl(dtu, symbol("pt_record_0"), 0, nullptr, 1, cs0);
@@ -61,23 +61,23 @@ void slhv_decl_plugin::slhv_datatype_init() {
         this->add_pt_record("Pt_R_0", 1, 0);
         this->add_pt_r_decl("Pt_R_0", Pt_R_0_decl);
     }
-    // if(this->pt_record_decls.find("Pt_R_1") == this->pt_record_decls.end()) {
+    if(this->pt_record_decls.find("Pt_R_1") == this->pt_record_decls.end()) {
 
-    //     sort* intsort = au.mk_int();
-    //     sort_ref_vector srts1(m);
-    //     accessor_decl* Pt_R_1_accs[1] = {
-    //         mk_accessor_decl(m, symbol("data"), type_ref(intsort))
-    //     };
-    //     constructor_decl* cs1[1] = { mk_constructor_decl(symbol("Pt_R_1"), symbol("is-Pt_R_1"), 1, Pt_R_1_accs)};
-    //     datatype_decl* dt1 = mk_datatype_decl(dtu, symbol("pt_record_1"), 0, nullptr, 1, cs1);
-    //     VERIFY(dtu.plugin().mk_datatypes(1, &dt1, 0, nullptr, srts1))
-    //     sort* record1_sort = srts1.get(0);
-    //     ptr_vector<func_decl> const & decls1 = *dtu.get_datatype_constructors(record1_sort);
-    //     func_decl* Pt_R_1_decl = decls1.get(0);
+        sort* intsort = au.mk_int();
+        sort_ref_vector srts1(m);
+        accessor_decl* Pt_R_1_accs[1] = {
+            mk_accessor_decl(m, symbol("data"), type_ref(intsort))
+        };
+        constructor_decl* cs1[1] = { mk_constructor_decl(symbol("Pt_R_1"), symbol("is-Pt_R_1"), 1, Pt_R_1_accs)};
+        datatype_decl* dt1 = mk_datatype_decl(dtu, symbol("pt_record_1"), 0, nullptr, 1, cs1);
+        VERIFY(dtu.plugin().mk_datatypes(1, &dt1, 0, nullptr, srts1))
+        sort* record1_sort = srts1.get(0);
+        ptr_vector<func_decl> const & decls1 = *dtu.get_datatype_constructors(record1_sort);
+        func_decl* Pt_R_1_decl = decls1.get(0);
         
-    //     this->add_pt_record("Pt_R_1", 0, 1);
-    //     this->add_pt_r_decl("Pt_R_1", Pt_R_1_decl);
-    // } 
+        this->add_pt_record("Pt_R_1", 0, 1);
+        this->add_pt_r_decl("Pt_R_1", Pt_R_1_decl);
+    } 
 }
 
 
