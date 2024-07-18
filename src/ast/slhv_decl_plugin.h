@@ -101,6 +101,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     slhv_decl_plugin();
 
+
+    void slhv_constant_init();
     void slhv_datatype_init();
 
 
