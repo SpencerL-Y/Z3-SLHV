@@ -35,6 +35,22 @@ slhv_decl_plugin::slhv_decl_plugin() :
 {
 }
 
+void slhv_decl_plugin::slhv_constant_init() {
+    if(this->global_nil != nullptr) {
+        std::cout << "ERROR: global nil is not null, cannot init slhv const" << std::endl;
+        return;
+    }
+    if(this->global_emp != nullptr) {
+        std::cout << "ERROR: global emp is not null, cannot init slhv const" << std::endl;
+        return;
+    }
+    sort* heap_sort = this->mk_sort(INTHEAP_SORT, 0, nullptr);
+    sort* intloc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
+    app* emp = this->m_manager->mk_app(symbol("emp"), 0, nullptr, heap_sort);
+    app* nil = this->m_manager->mk_app(symbol("nil"), 0, nullptr, intloc_sort);
+    this->global_emp = emp;
+    this->global_nil = nil;
+}
 
 void slhv_decl_plugin::slhv_datatype_init() {
 
@@ -590,5 +606,6 @@ slhv_util::slhv_util(ast_manager& m) :
 {
     // do the initialization in the 
     this->slhv_plug = (slhv_decl_plugin*) m.get_plugin(this->m_fid);
+    this->slhv_plug->slhv_constant_init();
     this->slhv_plug->slhv_datatype_init();
 }

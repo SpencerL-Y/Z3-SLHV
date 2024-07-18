@@ -467,7 +467,6 @@ namespace smt {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
-            std::cout << "eliminate_heap_negation_for_assertion_disj over" << std::endl;
             refined_assertions.push_back(to_app(negation_eliminated_assertion));
             inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
         }
