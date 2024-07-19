@@ -1654,10 +1654,6 @@ namespace smt {
             this->global_nil = expression;
             return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } else if(is_datavar(expression)) {
-
-            #ifdef SLHV_PRINT
-            std::cout << "collect data var: " << mk_ismt2_pp(expression, this->m) << std::endl;
-            #endif
             collected_datavars.insert(expression);
             return make_tuple(collected_locvars, collected_hvars, collected_datavars);
         } 
@@ -7143,7 +7139,7 @@ namespace smt {
         // app_ref final_result(this->th->get_context().mk_eq_atom(eq_lhs, eq_rhs_uplus), this->th->get_manager());
         
         app* final_result = this->mk_eq(eq_lhs, eq_rhs_uplus);
-        this->th->get_context().internalize(final_result, false);
+        // this->th->get_context().internalize(final_result, false);
         return final_result;
     }
 
@@ -7415,12 +7411,13 @@ namespace smt {
     }
 
     std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
-        if(this->slhv_decl_plug->pt_record_map.size() != 2) {
-            std::cout << "ERROR: not standard pt records types" << std::endl;
-            SASSERT(false);
-        }
+        // if(this->slhv_decl_plug->pt_record_map.size() != 2) {
+        //     std::cout << "ERROR: not standard pt records types" << std::endl;
+        //     SASSERT(false);
+        // }
         pt_record* data_record = nullptr;
-        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {            
+        for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {          
+            std::cout << "rc name: " << rc->get_pt_record_name() << std::endl;
             if(!rc->get_pt_record_name().compare("Pt_R_1")) {
                 data_record = rc;
                 break;

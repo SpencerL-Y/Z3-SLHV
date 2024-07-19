@@ -1,6 +1,6 @@
 #pragma once
 
-// #define SLHV_DEBUG
+#define SLHV_DEBUG
 
 
 // debug macro
@@ -13,7 +13,7 @@
 // #define SOLVING_INFO
 
 // for new encoding 
-// #define DISJ_DEBUG
+#define DISJ_DEBUG
 
 // for inf graph debug
 // #define INF_GRAPH_DEBUG
