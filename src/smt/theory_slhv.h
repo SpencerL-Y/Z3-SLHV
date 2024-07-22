@@ -679,7 +679,7 @@ namespace smt
             std::set<std::pair<heap_term*, heap_term*>> must_hold_eq_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> must_hold_sub_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> must_hold_disj_pair_hterms;
-            
+
 
             hterm_extracted_content() {}
     };
@@ -1436,6 +1436,9 @@ namespace smt
         }
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
+            #ifdef SLHV_DEBUG
+            std::cout << "mk_value for heap value proc" << std::endl;
+            #endif
             ast_manager& m = mg.get_manager();
             slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
             if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
