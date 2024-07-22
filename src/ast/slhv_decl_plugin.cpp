@@ -46,8 +46,10 @@ void slhv_decl_plugin::slhv_constant_init() {
     }
     sort* heap_sort = this->mk_sort(INTHEAP_SORT, 0, nullptr);
     sort* intloc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
-    app* emp = this->m_manager->mk_app(symbol("emp"), 0, nullptr, heap_sort);
-    app* nil = this->m_manager->mk_app(symbol("nil"), 0, nullptr, intloc_sort);
+    func_decl* emp_decl = this->mk_const_emp(heap_sort, 0, nullptr);
+    func_decl* nil_decl = this->mk_const_nil(intloc_sort, 0, nullptr);
+    app* emp = this->m_manager->mk_app(emp_decl, (unsigned int)0, nullptr);
+    app* nil = this->m_manager->mk_app(nil_decl, (unsigned int)0, nullptr);
     this->global_emp = emp;
     this->global_nil = nil;
 }

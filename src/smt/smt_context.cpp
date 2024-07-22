@@ -3525,9 +3525,6 @@ namespace smt {
         if (r == l_true && get_cancel_flag()) {
             r = l_undef;
         }
-        #ifdef SLHV_DEBUG
-        std::cout << "TODO HERE: figure out how to add model for SLHV" << std::endl;
-        #endif
         if (r == l_true && gparams::get_value("model_validate") == "true") {
             recfun::util u(m);
             model_ref mdl;

@@ -7559,12 +7559,10 @@ namespace smt {
         std::vector<expr*> one_field_distinct;
         for(int i = 0; i < pt_locfield_num; i ++) {            
             app* e = this->mk_distinct(ht1_pt_locvars[i], ht2_pt_locvars[i]);
-            // this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(int i = 0; i < pt_datafield_num; i ++) {
             app* e = this->mk_distinct(ht1_pt_datavars[i], ht2_pt_datavars[i]);
-            // this->th->get_context().internalize(e, false);
             one_field_distinct.push_back(e);
         }
         for(expr* e : one_field_distinct) {
@@ -7574,8 +7572,6 @@ namespace smt {
             first_disj.push_back(to_app(e));
             first_disj.push_back(ht1_to_hvar_eq);
             first_disj.push_back(ht2_to_hvar_eq);
-            // this->th->get_context().internalize(ht1_eq, false);
-            // this->th->get_context().internalize(ht2_eq, false);
             final_result.push_back(first_disj);
         } 
         // second disjunct
@@ -7589,8 +7585,6 @@ namespace smt {
         second_disj.push_back(x_notin_ht2);
         second_disj.push_back(ht1_to_hvar_eq);
         second_disj.push_back(ht2_to_hvar_eq);
-        // this->th->get_context().internalize(x_in_ht1, false);
-        // this->th->get_context().internalize(x_notin_ht2, false);
         final_result.push_back(second_disj);
 
         // third_disjunct
@@ -7915,6 +7909,7 @@ namespace smt {
         #ifdef SLHV_PRINT
         std::cout << "record made: " << mk_ismt2_pp(result, this->th->get_manager()) << std::endl;
         #endif
+        this->th->get_context().internalize(result, false);
         return result;
     }
  
@@ -8010,7 +8005,7 @@ namespace smt {
                 #endif
                 heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
-                enode* data_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                enode* data_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                 pt_proc->add_dependency(model_value_dependency(addr_enode));
                 pt_proc->add_dependency(model_value_dependency(data_enode));
                 SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
@@ -8077,6 +8072,7 @@ namespace smt {
                 return write_loc_proc;
             } else {
                 std::cout << "ERROR: mk heap value should not come here" << std::endl;
+                std::cout << "ERROR enode formula: " << mk_ismt2_pp(oapp, this->get_manager()) << std::endl;
             }
         } else if(this->is_locterm(oapp)) {
             if(this->is_locvar(oapp)) {

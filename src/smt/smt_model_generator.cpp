@@ -372,19 +372,27 @@ namespace smt {
                     dependencies.reset();
                     dependency_values.reset();
                     model_value_proc * proc = root2proc[n];
-                    SASSERT(proc);
+                    if(proc == nullptr) {
+                        std::cout << "proc is null" << std::endl;
+                    }
                     proc->get_dependencies(dependencies);
                     for (model_value_dependency const& d : dependencies) {
                         #ifdef SLHV_DEBUG
                         std::cout << "dependency: " << mk_pp(d.get_enode()->get_expr(), m) << std::endl;
                         #endif
                         if (d.is_fresh_value()) {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "dependency is fresh value" << std::endl;
+                            #endif
                             CTRACE("mg_top_sort", !d.get_value()->get_value(), 
                                    tout << "#" << n->get_owner_id() << " " << mk_pp(n->get_expr(), m) << " -> " << d << "\n";);
                             SASSERT(d.get_value()->get_value());
                             dependency_values.push_back(d.get_value()->get_value());
                         }
                         else {
+                            #ifdef SLHV_DEBUG
+                            std::cout << "dependency is not fresh value" << std::endl;
+                            #endif
                             enode * child = d.get_enode();
                             TRACE("mg_top_sort", tout << "#" << n->get_owner_id() << " (" << mk_pp(n->get_expr(), m) << "): " 
                                   << mk_pp(child->get_expr(), m) << " " << mk_pp(child->get_root()->get_expr(), m) << "\n";);
