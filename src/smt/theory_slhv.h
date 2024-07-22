@@ -47,6 +47,7 @@ namespace smt
         std::set<app*> refined_heap_subassertions;
         std::set<app*> refined_subheap_assertions;
         std::set<app*> refined_disjheap_assertions;
+        std::set<app*> refined_musthold_heap_assertions;
         std::set<app*> inf_graph_assertions_disj;
         std::set<app*> inf_graph_data_assertions;
         std::set<app*> inf_graph_loc_assertions;
@@ -70,6 +71,7 @@ namespace smt
         bool locvars_contain_nil_disj();
         // DISJ TODO
         void collect_heap_subassertions_disj(std::vector<app*> outside_assertions);
+        void collect_heap_musthold_heap_assertions_disj(std::vector<app*> outside_assertions);
         void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
@@ -263,6 +265,7 @@ namespace smt
         }
 
         bool is_arith_formula(app* l);
+        bool is_boolean_formula(app* l);
         bool is_not_heap_or_loc_formula(app* l);
         pt_record* analyze_pt_record_type(app* record_app);
 
@@ -672,6 +675,11 @@ namespace smt
             std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> sub_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> disj_pair_hterms;
+            // for disj
+            std::set<std::pair<heap_term*, heap_term*>> must_hold_eq_pair_hterms;
+            std::set<std::pair<heap_term*, heap_term*>> must_hold_sub_pair_hterms;
+            std::set<std::pair<heap_term*, heap_term*>> must_hold_disj_pair_hterms;
+            
 
             hterm_extracted_content() {}
     };

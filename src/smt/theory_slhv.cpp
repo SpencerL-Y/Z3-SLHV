@@ -411,6 +411,28 @@ namespace smt {
         } 
     }
 
+
+    bool theory_slhv::is_boolean_formula(app* l) {
+        if(l->get_num_args() == 0) {
+            if(l->get_family_id() == basic_family_id) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            bool result = true;
+            for(int i = 0; i < l->get_num_args(); i ++) {
+                
+                bool curr_result = this->is_boolean_formula(to_app(l->get_arg(i)));
+                result = result && curr_result;
+                if(!result) {
+                    return result;
+                }
+            }
+            return result;
+        }
+    }
+
     bool theory_slhv::is_not_heap_or_loc_formula(app* l) {
         if(l->get_num_args() == 0) {
             if(l->get_family_id() == this->get_family_id()) {
@@ -498,9 +520,9 @@ namespace smt {
         this->preprocessing_disj();
         auto extracted_ht_result = this->extract_all_hterms_disj();
         std::set<heap_term*> all_hterms = extracted_ht_result->all_hterms;
-        this->inf_graph_eq_pairs_hterms_disj = extracted_ht_result->eq_pair_hterms;
-        this->inf_graph_subh_pair_hterms_disj = extracted_ht_result->sub_pair_hterms;
-        this->inf_graph_disjh_pair_hterms_disj = extracted_ht_result->disj_pair_hterms;
+        this->inf_graph_eq_pairs_hterms_disj = extracted_ht_result->must_hold_eq_pair_hterms;
+        this->inf_graph_subh_pair_hterms_disj = extracted_ht_result->must_hold_sub_pair_hterms;
+        this->inf_graph_disjh_pair_hterms_disj = extracted_ht_result->must_hold_disj_pair_hterms;
         #ifdef DISJ_DEBUG
         std::cout << "all heap constraints: " << std::endl;
         for(app* hc : refined_heap_subassertions) {
@@ -1339,6 +1361,7 @@ namespace smt {
         // collect different types of constraints
         // DISJ TODO
         this->collect_heap_subassertions_disj(this->refined_asssertions_disj);
+        this->collect_heap_musthold_heap_assertions_disj(this->refined_asssertions_disj);
         this->collect_loc_data_inf_graph_assertions_disj(this->inf_graph_assertions_disj);
         #ifdef DISJ_DEBUG
         std::cout << "slhv disj preprocessing end" << std::endl;
@@ -1773,6 +1796,25 @@ namespace smt {
         }
     }
 
+
+    void theory_slhv::collect_heap_musthold_heap_assertions_disj(std::vector<app*> outside_assertions) {
+        // collect all heap constraint that must be hold in the assertions
+        for(auto e : outside_assertions) {
+            if(e->is_app_of(basic_family_id, OP_EQ)) {
+                app* apped_arg1 = to_app(e->get_arg(0));
+                if(this->is_heapterm(apped_arg1)) {
+                    this->refined_musthold_heap_assertions.insert(e);
+                }
+            } else if (this->is_subh(e)) {
+                this->refined_musthold_heap_assertions.insert(e);
+            } else if(this->is_disjh(e)) {
+                this->refined_musthold_heap_assertions.insert(e);
+            } else {
+                // pass
+            }
+        }
+    }
+
     void theory_slhv::collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions){
         for(auto e : inf_assertions) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
@@ -2086,6 +2128,10 @@ namespace smt {
         std::set<std::pair<heap_term*, heap_term*>> eq_pair_hterms;
         std::set<std::pair<heap_term*, heap_term*>> sub_pair_hterms;
         std::set<std::pair<heap_term*, heap_term*>> disj_pair_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> must_hold_eq_pair_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> must_hold_sub_pair_hterms;
+        std::set<std::pair<heap_term*, heap_term*>> must_hold_disj_pair_hterms;
+
         for(app* eq : this->refined_heap_subassertions) {
             // determine whether eq in inference graph
             bool use_inf_graph = false;
@@ -2246,6 +2292,9 @@ namespace smt {
             if(use_inf_graph) {
                 this->infer_graph->add_ht_eq_pair_node({eq_lhs, eq_rhs}, eq);
                 eq_pair_hterms.insert({eq_lhs, eq_rhs});
+                if(this->refined_musthold_heap_assertions.find(eq) != this->refined_musthold_heap_assertions.end()) {
+                    must_hold_eq_pair_hterms.insert({eq_lhs, eq_rhs});
+                }
             }
             #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm end" << std::endl;
@@ -2414,6 +2463,9 @@ namespace smt {
             if(use_inf_graph) {
                 this->infer_graph->add_subht_pair_node({subh_lhs, subh_rhs}, subh_atom);
                 sub_pair_hterms.insert({subh_lhs, subh_rhs});
+                if(this->refined_musthold_heap_assertions.find(subh_atom) != this->refined_musthold_heap_assertions.end()) {
+                    must_hold_sub_pair_hterms.insert({subh_lhs, subh_rhs});
+                }
             }
             #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm end" << std::endl;
@@ -2582,6 +2634,9 @@ namespace smt {
             if(use_inf_graph) {
                 this->infer_graph->add_disjht_pair_node({disjh_lhs, disjh_rhs}, disjh_atom);
                 disj_pair_hterms.insert({disjh_lhs, disjh_rhs});
+                if(this->refined_musthold_heap_assertions.find(disjh_atom) != this->refined_musthold_heap_assertions.end()) {
+                    must_hold_disj_pair_hterms.insert({disjh_lhs, disjh_rhs});
+                }
             }
             #ifdef SLHV_PRINT
             std::cout << "extract rhs hterm end" << std::endl;
