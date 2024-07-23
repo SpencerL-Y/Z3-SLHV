@@ -150,6 +150,8 @@ namespace smt
         // model generation
         arith_factory* data_factory;
         std::map<app*, std::set<app*>> hvar2ptset;
+        std::map<app*, std::set<app*>> pt2eqPtset;
+        std::map<app*, bool> hvar2hasMultiplePt;
         std::map<enode*, heap_value_proc*> enode2proc;
         // memory management
         mem_management* mem_mng;
@@ -324,6 +326,8 @@ namespace smt
         bool build_models() const override { 
             return true;
         }
+
+        bool contain_only_single_pt(app* oapp);
 
         model_value_proc * mk_value(enode * n, model_generator & mg) override;
 
