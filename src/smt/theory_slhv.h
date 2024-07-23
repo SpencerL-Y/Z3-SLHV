@@ -76,6 +76,7 @@ namespace smt
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
         expr* eliminate_heap_negation_for_assertion_disj(expr* assertion);
+        expr* adjust_heap_equation_hvar_position(expr* assertion);
         hterm_extracted_content* extract_all_hterms_disj();
         
         // =========================================================
