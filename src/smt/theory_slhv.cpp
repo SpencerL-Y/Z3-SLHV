@@ -491,7 +491,7 @@ namespace smt {
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
             refined_assertions.push_back(to_app(hteq_adjusted_assertion));
-            inf_graph->add_refined_assignment_node(hteq_adjusted_assertions, e);
+            inf_graph->add_refined_assignment_node(hteq_adjusted_assertion, e);
         }
         #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -1335,8 +1335,8 @@ namespace smt {
             }
         } else {
             expr_ref_vector args(this->get_manager());
-            for(app* arg : apped_expr->get_args()) {
-                args.push_back(this->adjust_heap_equation_hvar_position(arg));
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                args.push_back(this->adjust_heap_equation_hvar_position(to_app(apped_expr->get_arg(i))));
             }
             return this->get_manager().mk_app(apped_expr->get_decl(), args.data());
         }
@@ -8026,34 +8026,55 @@ namespace smt {
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is points to" << std::endl;
                 #endif
-                heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
-                enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
-                enode* data_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
-                pt_proc->add_dependency(model_value_dependency(addr_enode));
-                pt_proc->add_dependency(model_value_dependency(data_enode));
-                SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
+                
                 enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
-                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
-                this->enode2proc[curr_enode] = pt_proc;
-                return pt_proc;
+                if(this->enode2proc.find(curr_enode) == this->enode2proc.end()) {
+                    // the points to is not processed yet
+                    heap_value_proc* pt_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
+                    enode* addr_enode = this->ctx.get_enode(oapp->get_arg(0))->get_root();
+                    enode* data_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
+                    pt_proc->add_dependency(model_value_dependency(addr_enode));
+                    pt_proc->add_dependency(model_value_dependency(data_enode));
+                    SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
+                    SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                    this->enode2proc[curr_enode] = pt_proc;
+                    return pt_proc;
+                } else {
+                    return this->enode2proc[curr_enode];
+                }
             } else if(this->is_hvar(oapp)) {
                 #ifdef MODEL_GEN_INFO
                 std::cout << "is hvar" << std::endl;
                 #endif
                 heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 std::set<enode*> depended_nodes;
-                for(app* dp_pt : this->hvar2ptset[oapp]) {
-                    depended_nodes.insert(
-                        this->ctx.get_enode(dp_pt)->get_root()
-                    );
+                std::set<app*> hvarPtSet = this->hvar2ptset[oapp];
+                if(hvarPtSet.size() == 1) {
+                    // the hvar is just a points to, they share the same root
+                    enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                    if(this->enode2proc.find(curr_enode) == this->enode2proc.end()) {
+                        // points to enode:
+                        app* apped_pt = *hvarPtSet.begin();
+                        // the points to is not processed yet
+                        return this->mk_value(this->ctx.get_enode(apped_pt), mg);
+                    } else {
+                        return this->enode2proc[curr_enode];
+                    }
+                } else {
+                    // the hvar has several points to
+                    for(app* dp_pt : this->hvar2ptset[oapp]) {
+                        depended_nodes.insert(
+                            this->ctx.get_enode(dp_pt)
+                        );
+                    }
+                    for(enode* dpn : depended_nodes ){
+                        hvar_proc->add_dependency(model_value_dependency(dpn));
+                    }
+                    enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                    SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                    this->enode2proc[curr_enode] = hvar_proc;
+                    return hvar_proc;
                 }
-                for(enode* dpn : depended_nodes ){
-                    hvar_proc->add_dependency(model_value_dependency(dpn));
-                }
-                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
-                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
-                this->enode2proc[curr_enode] = hvar_proc;
-                return hvar_proc;
             } else if(this->is_emp(oapp)) {
                 
                 #ifdef MODEL_GEN_INFO
