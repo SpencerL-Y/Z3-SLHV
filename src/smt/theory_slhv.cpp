@@ -489,8 +489,9 @@ namespace smt {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
-            refined_assertions.push_back(to_app(negation_eliminated_assertion));
-            inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
+            expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
+            refined_assertions.push_back(to_app(hteq_adjusted_assertion));
+            inf_graph->add_refined_assignment_node(hteq_adjusted_assertions, e);
         }
         #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -1318,6 +1319,28 @@ namespace smt {
     }
 
 
+    expr* theory_slhv::adjust_heap_equation_hvar_position(expr* assertion){
+        app* apped_expr = to_app(assertion);
+        if(apped_expr->is_app_of(basic_family_id, OP_EQ)) {
+            app* apped_arg0 = to_app(apped_expr->get_arg(0));
+            if(this->is_heapterm(apped_arg0)) {
+                app* apped_arg1 = to_app(apped_expr->get_arg(1));
+                if(this->is_hvar(apped_arg1) && !this->is_hvar(apped_arg0)) {
+                    return this->syntax_maker->mk_eq(apped_arg1, apped_arg0);
+                } else {
+                    return apped_expr;
+                }
+            } else {
+                return apped_expr;
+            }
+        } else {
+            expr_ref_vector args(this->get_manager());
+            for(app* arg : apped_expr->get_args()) {
+                args.push_back(this->adjust_heap_equation_hvar_position(arg));
+            }
+            return this->get_manager().mk_app(apped_expr->get_decl(), args.data());
+        }
+    }
 
     app* theory_slhv::eliminate_uplus_uplus_hterm(app* hterm) {
         if(this->is_uplus(hterm)) {
