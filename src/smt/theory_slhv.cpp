@@ -489,9 +489,9 @@ namespace smt {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
-            expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
-            refined_assertions.push_back(to_app(hteq_adjusted_assertion));
-            inf_graph->add_refined_assignment_node(hteq_adjusted_assertion, e);
+            // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
+            refined_assertions.push_back(to_app(negation_eliminated_assertion));
+            inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
         }
         #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -1029,6 +1029,29 @@ namespace smt {
                         pts_subsumed.insert(pt_ht->get_atoms()[0]);
                     }
                     this->hvar2ptset[hvar_app] = pts_subsumed;
+                } else if(sbs->get_main_heap_term()->is_atom_pt()) {
+                    app* pt_app = sbs->get_main_heap_term()->get_atoms()[0];
+                    std::set<app*> eqPtSet;
+                    for(heap_term* pt_ht : sbs->get_pt_atoms()) {
+                        app* curr_pt = pt_ht->get_atoms()[0];
+                        eqPtSet.insert(curr_pt);
+                    }
+                    this->pt2eqPtset[pt_app] = eqPtSet;
+                }
+            }
+            for(auto pt_set_rec : this->hvar2ptset) {
+                if(pt_set_rec.second.size() == 0) {
+                    this->hvar2hasMultiplePt[pt_set_rec.first] = false;
+                } else {
+                    app* begin_pt = *pt_set_rec.second.begin();
+                    std::set<app*> curr_eq_ptset = this->pt2eqPtset[begin_pt];
+                    for(auto contain_pt : pt_set_rec.second) {
+                        if(curr_eq_ptset.find(contain_pt) == curr_eq_ptset.end()) {
+                            this->hvar2hasMultiplePt[pt_set_rec.first] = true;
+                            break;
+                        }
+                    }
+                    this->hvar2hasMultiplePt[pt_set_rec.first] = false;
                 }
             }
             std::cout << "free heap vars:" << std::endl;
@@ -1272,9 +1295,13 @@ namespace smt {
                     expr_ref_vector disjuncts(this->m);
                     for(std::vector<app*> conjuntion : elim_negation_temp_output) {
                         expr_ref_vector conjuncts(this->m);
+                        #ifdef SLHV_DEBUG
                         std::cout << "conjunct: " << std::endl;
+                        #endif
                         for(app* conj : conjuntion) {
+                            #ifdef SLHV_DEBUG
                             std::cout << mk_ismt2_pp(conj, this->m) << std::endl;
+                            #endif
                             conjuncts.push_back(conj);
                         }
                         app* conj_clause = this->syntax_maker->mk_and(conjuncts.size(), conjuncts.data());
@@ -8012,6 +8039,42 @@ namespace smt {
     }
 
 
+
+    bool theory_slhv::contain_only_single_pt(app* oapp) {
+        std::set<app*> hvarPtSet = this->hvar2ptset[oapp];
+        if(hvarPtSet.size() == 1) {
+            return true;
+        } else {
+            std::vector<app*> subsumed_pts;
+            for(app* subpt : hvarPtSet) {
+                subsumed_pts.push_back(subpt);
+            }
+            for(auto record : this->model_subsume_info) {
+                std::vector<app*> record_atoms = record->get_main_heap_term()->get_atoms();
+                if(record_atoms.size() == 1 && record_atoms[0] == subsumed_pts[0]) {
+                    for(int i = 1; i < subsumed_pts.size(); i ++) {
+                        bool found = false;
+                        for(heap_term* subrecord : record->get_pt_atoms()) {
+                            std::vector<app*> subrecord_atoms = subrecord->get_atoms();
+                            if(subrecord_atoms[0] == subsumed_pts[i]) {
+                                found = true;
+                                break;
+                            }
+                        }
+                        if(!found) {
+                            return false;
+                        }
+                    }
+                    return true;
+                } else {
+                    std::cout << "ERROR: contain only not found" << std::endl;
+                    return false;
+                }
+            }
+            return false;
+        }
+    }
+
     model_value_proc * theory_slhv::mk_value(enode * n, model_generator & mg) {
         // TODO READWRITE: add dependency here later
         theory_var v = n->get_th_var(get_id());
@@ -8049,32 +8112,25 @@ namespace smt {
                 heap_value_proc* hvar_proc = alloc(heap_value_proc, this->get_id(), this->slhv_plug->mk_sort(INTHEAP_SORT, 0, nullptr));
                 std::set<enode*> depended_nodes;
                 std::set<app*> hvarPtSet = this->hvar2ptset[oapp];
-                if(hvarPtSet.size() == 1) {
-                    // the hvar is just a points to, they share the same root
-                    enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
-                    if(this->enode2proc.find(curr_enode) == this->enode2proc.end()) {
-                        // points to enode:
-                        app* apped_pt = *hvarPtSet.begin();
-                        // the points to is not processed yet
-                        return this->mk_value(this->ctx.get_enode(apped_pt), mg);
-                    } else {
-                        return this->enode2proc[curr_enode];
+                // the hvar has several points to
+                for(app* dp_pt : this->hvar2ptset[oapp]) {
+                    enode* dp_pt_enode = this->ctx.get_enode(dp_pt)->get_root();
+                    if(dp_pt_enode == this->ctx.get_enode(oapp)->get_root()) {
+                        // the hvar is a single points to
+                        return this->mk_value(this->ctx.get_enode(dp_pt), mg);
                     }
-                } else {
-                    // the hvar has several points to
-                    for(app* dp_pt : this->hvar2ptset[oapp]) {
-                        depended_nodes.insert(
-                            this->ctx.get_enode(dp_pt)
-                        );
-                    }
-                    for(enode* dpn : depended_nodes ){
-                        hvar_proc->add_dependency(model_value_dependency(dpn));
-                    }
-                    enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
-                    SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
-                    this->enode2proc[curr_enode] = hvar_proc;
-                    return hvar_proc;
+                    depended_nodes.insert(
+                        dp_pt_enode
+                    );
                 }
+                for(enode* dpn : depended_nodes ){
+                    hvar_proc->add_dependency(model_value_dependency(dpn));
+                }
+                enode* curr_enode = this->ctx.get_enode(oapp)->get_root();
+                SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
+                this->enode2proc[curr_enode] = hvar_proc;
+                return hvar_proc;
+                
             } else if(this->is_emp(oapp)) {
                 
                 #ifdef MODEL_GEN_INFO
