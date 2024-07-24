@@ -76,6 +76,7 @@ namespace smt
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
         expr* eliminate_heap_negation_for_assertion_disj(expr* assertion);
+        expr* adjust_heap_equation_hvar_position(expr* assertion);
         hterm_extracted_content* extract_all_hterms_disj();
         
         // =========================================================
@@ -149,6 +150,8 @@ namespace smt
         // model generation
         arith_factory* data_factory;
         std::map<app*, std::set<app*>> hvar2ptset;
+        std::map<app*, std::set<app*>> pt2eqPtset;
+        std::map<app*, bool> hvar2hasMultiplePt;
         std::map<enode*, heap_value_proc*> enode2proc;
         // memory management
         mem_management* mem_mng;
@@ -323,6 +326,8 @@ namespace smt
         bool build_models() const override { 
             return true;
         }
+
+        bool contain_only_single_pt(app* oapp);
 
         model_value_proc * mk_value(enode * n, model_generator & mg) override;
 
@@ -679,7 +684,7 @@ namespace smt
             std::set<std::pair<heap_term*, heap_term*>> must_hold_eq_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> must_hold_sub_pair_hterms;
             std::set<std::pair<heap_term*, heap_term*>> must_hold_disj_pair_hterms;
-            
+
 
             hterm_extracted_content() {}
     };
@@ -1436,6 +1441,9 @@ namespace smt
         }
 
         app* mk_value(model_generator& mg, expr_ref_vector const& values)  {
+            #ifdef SLHV_DEBUG
+            std::cout << "mk_value for heap value proc" << std::endl;
+            #endif
             ast_manager& m = mg.get_manager();
             slhv_decl_plugin* plug = (slhv_decl_plugin*) m.get_plugin(m.mk_family_id("slhv"));
             if(this->m_sort->get_name() == INTHEAP_SORT_STR) {
