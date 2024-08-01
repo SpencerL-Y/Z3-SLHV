@@ -1559,8 +1559,6 @@ namespace smt
         private:
         theory_slhv* th;
 
-        std::set<expr*> dangling_nodes;
-
         public:
         memsafe_wrapper(theory_slhv* t) : th(t) {}
 
@@ -1578,9 +1576,6 @@ namespace smt
         app* use_mk_distinct(expr* lhs, expr* rhs);
 
         
-        void add_dangling(expr* node) {
-            this->dangling_nodes.insert(node);
-        }
     };
 
 } // namespace smt
