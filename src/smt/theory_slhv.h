@@ -75,7 +75,12 @@ namespace smt
         void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
         expr* convert_to_nnf_recursive(expr* assertion);
+        expr* convert_points_to_addr_disj(expr* assertion);
+        expr* convert_points_to_addr_var_for_atomics_disj(expr* atomic);
+        expr* convert_points_to_addr_var_for_term_disj(app* term, std::vector<app*>& aux);
         expr* eliminate_heap_negation_for_assertion_disj(expr* assertion);
+        app* eliminate_negated_subh(app* subh_app);
+        app* eliminate_negated_disjh(app* disjh_app);
         expr* adjust_heap_equation_hvar_position(expr* assertion);
         hterm_extracted_content* extract_all_hterms_disj();
         
@@ -1383,6 +1388,8 @@ namespace smt
 
         app* mk_uplus_app(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
+        app* mk_subh(expr* lhs, expr* rhs);
+        app* mk_disj(expr* ht1, expr* ht2);
 
         // logic with record:
 
@@ -1402,6 +1409,9 @@ namespace smt
         app* mk_points_to_multi(app* addr_loc, app* record_term);// DONE
         // TODOs:
         app* mk_record(pt_record* r, std::vector<app*> locvars, std::vector<app*> datavars);// DONE
+        // for single position records
+        app* mk_data_record(app* data_content);
+        app* mk_loc_record(app* loc_content);
 
         std::vector<std::vector<app*>> mk_hterm_disequality_multi(app* lhs, app* rhs); // DONE
 
@@ -1549,8 +1559,6 @@ namespace smt
         private:
         theory_slhv* th;
 
-        std::set<expr*> dangling_nodes;
-
         public:
         memsafe_wrapper(theory_slhv* t) : th(t) {}
 
@@ -1568,9 +1576,6 @@ namespace smt
         app* use_mk_distinct(expr* lhs, expr* rhs);
 
         
-        void add_dangling(expr* node) {
-            this->dangling_nodes.insert(node);
-        }
     };
 
 } // namespace smt

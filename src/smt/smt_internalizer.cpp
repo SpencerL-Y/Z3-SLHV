@@ -392,9 +392,6 @@ namespace smt {
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_rec: "<< mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
         TRACE("internalize", tout << "internalizing:\n" << mk_pp(n, m) << "\n";);
         TRACE("internalize_bug", tout << "internalizing:\n" << mk_bounded_pp(n, m) << "\n";);
         if (is_var(n)) {
@@ -847,20 +844,10 @@ namespace smt {
        \brief Internalize the given term into the logical context.
     */
     void context::internalize_term(app * n) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_term: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        std::cout << "family id of the term: " << n->get_family_id() << std::endl;
-        #endif
         if (e_internalized(n)) {
-            #ifdef SLHV_DEBUG
-            std::cout << "e_internalized: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
             theory * th = m_theories.get_plugin(n->get_family_id());
             
             if (th != nullptr) {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalize_term theory: " << th->get_name() << std::endl;
-            #endif
                 // This code is necessary because some theories may decide
                 // not to create theory variables for a nested application.
                 // Example:
@@ -886,15 +873,9 @@ namespace smt {
             return; // it is not necessary to apply sort constraint
         }
         else if (internalize_theory_term(n)) {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalized theory term: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
             // skip
         }
         else {
-            #ifdef SLHV_DEBUG
-            std::cout << "internalize uninterpreted: " << mk_ismt2_pp(n, m, 2) << std::endl;
-            #endif
             internalize_uninterpreted(n);
         }
         SASSERT(e_internalized(n));

@@ -488,10 +488,12 @@ namespace smt {
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
+            
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
-            refined_assertions.push_back(to_app(negation_eliminated_assertion));
-            inf_graph->add_refined_assignment_node(negation_eliminated_assertion, e);
+            expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
+            refined_assertions.push_back(to_app(points_to_adjusted_assertion));
+            inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
         }
         #ifdef SLHV_HTR_DEBUG
         std::cout << "================= current refined assignment ==============" << std::endl;
@@ -605,17 +607,19 @@ namespace smt {
             for(int i = 0; i < mdc.get_num_constants(); i ++) {
                 expr_ref temp_val(this->m);
                 mdc.eval(mdc.get_constant(i), temp_val);
-                // #ifdef SLHV_PRINT
                 std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                 std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                // #endif
+
                 // output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                 // output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
                 name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
             }
+            std::cout << "translated model over" << std::endl;
+
             std::set<std::string> true_var_names;
             std::map<std::string, int> loc_data_var2val;
             for(auto key_val_p : name2val) {
+                std::cout << key_val_p.first << std::endl;
                 if(key_val_p.second->get_sort()->get_name() == "Bool") {
                     if(this->m.is_true(key_val_p.second)) {
                         true_var_names.insert(key_val_p.first);
@@ -960,10 +964,10 @@ namespace smt {
             for(int i = 0; i < mdc.get_num_constants(); i ++) {
                 expr_ref temp_val(this->m);
                 mdc.eval(mdc.get_constant(i), temp_val);
-                // #ifdef SLHV_PRINT
+                #ifdef SLHV_PRINT
                 std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                 std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                // #endif
+                #endif
                 output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
                 output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
                 name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
@@ -1260,11 +1264,176 @@ namespace smt {
     }
 
 
+    expr* theory_slhv::convert_points_to_addr_disj(expr* assertion) {
+        app* apped_expr = to_app(assertion);
+        if(apped_expr->is_app_of(basic_family_id, OP_NOT) ||
+           apped_expr->is_app_of(basic_family_id, OP_EQ) ||
+           apped_expr->is_app_of(basic_family_id, OP_DISTINCT)) {
+            return this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
+        } else {
+            func_decl* apped_expr_decl = apped_expr->get_decl();
+            std::vector<expr*> old_args;
+            expr_ref_vector new_args(this->get_manager());
+            for(int i = 0; i < apped_expr->get_num_args(); i ++) {
+                old_args.push_back(apped_expr->get_arg(i));
+            }
+            for(expr* arg : old_args) {
+                new_args.push_back(this->convert_points_to_addr_disj(arg));
+            }
+            return this->m.mk_app(apped_expr_decl, new_args.data());
+        }
+    }
+
+
+    expr* theory_slhv::convert_points_to_addr_var_for_atomics_disj(expr* atomic) {
+        app* apped_atomic = to_app(atomic);
+        if(apped_atomic->is_app_of(basic_family_id, OP_NOT)) {
+            app* inner_arg = to_app(apped_atomic->get_arg(0));
+            if(inner_arg->is_app_of(basic_family_id, OP_EQ)) {
+                app* inner_first = to_app(inner_arg->get_arg(0));
+                app* inner_second = to_app(inner_arg->get_arg(1));
+                if(this->is_heapterm(inner_first)) {
+                    std::vector<app*> aux_equalities;
+                    // iterate over all terms and replace complex points to
+                    app* new_inner_first = to_app(this->convert_points_to_addr_var_for_term_disj(inner_first, aux_equalities));
+                    app* new_inner_second = to_app(this->convert_points_to_addr_var_for_term_disj(inner_second, aux_equalities));
+                    if(aux_equalities.size() > 0) {
+                        app* new_result = this->syntax_maker->mk_not(
+                            this->syntax_maker->mk_eq(new_inner_first, new_inner_second)
+                        );
+                        expr_ref_vector result_conj_args(this->m);
+                        result_conj_args.push_back(new_result);
+                        for(auto arg : aux_equalities) {
+                            result_conj_args.push_back(arg);
+                        }
+                        app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                        return new_non_atomic;
+                    } else {
+                        return apped_atomic;
+                    }
+                } else {
+                    return apped_atomic;
+                }
+            } else if(inner_arg->is_app_of(basic_family_id, OP_DISTINCT)){
+
+                app* inner_first = to_app(inner_arg->get_arg(0));
+                app* inner_second = to_app(inner_arg->get_arg(1));
+                if(this->is_heapterm(inner_first)) {
+                    std::vector<app*> aux_equalities;
+                    // iterate over all terms and replace complex points to
+
+                    app* new_inner_first = to_app(this->convert_points_to_addr_var_for_term_disj(inner_first, aux_equalities));
+                    app* new_inner_second = to_app(this->convert_points_to_addr_var_for_term_disj(inner_second, aux_equalities));
+                    if(aux_equalities.size() > 0) {
+                        app* new_result = this->syntax_maker->mk_not(
+                        this->syntax_maker->mk_distinct(
+                            new_inner_first, new_inner_second
+                        ));
+                        expr_ref_vector result_conj_args(this->m);
+                        result_conj_args.push_back(new_result);
+                        for(auto arg : aux_equalities) {
+                            result_conj_args.push_back(arg);
+                        }
+                        app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                        return new_non_atomic;
+                    } else {
+                        return apped_atomic;
+                    }
+                }
+            } else {
+                // do nothing
+                return apped_atomic;  
+            }
+        } else if(apped_atomic->is_app_of(basic_family_id, OP_EQ)){
+            app* first_arg = to_app(apped_atomic->get_arg(0));
+            app* second_arg = to_app(apped_atomic->get_arg(1));
+            if(this->is_heapterm(first_arg)) {
+                    std::vector<app*> aux_equalities;
+                    // iterate over all terms and replace complex points to
+                    app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
+                    app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
+                    if(aux_equalities.size() > 0) {
+                        app* new_result = 
+                            this->syntax_maker->mk_eq(new_first_arg, new_second_arg);
+                        
+                        expr_ref_vector result_conj_args(this->m);
+                        result_conj_args.push_back(new_result);
+                        for(auto arg : aux_equalities) {
+                            result_conj_args.push_back(arg);
+                        }
+                        app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                        return new_non_atomic;
+                } else {
+                    return apped_atomic;
+                }
+            }   
+        } else if(apped_atomic->is_app_of(basic_family_id, OP_DISTINCT)) {
+            app* first_arg = to_app(apped_atomic->get_arg(0));
+            app* second_arg = to_app(apped_atomic->get_arg(1));
+            if(this->is_heapterm(first_arg)) {
+                std::vector<app*> aux_equalities;
+                // iterate over all terms and replace complex points to
+
+                app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
+                app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
+                if(aux_equalities.size() > 0) {
+                    app* new_result = this->syntax_maker->mk_distinct(
+                       new_first_arg, new_second_arg
+                    );
+                    expr_ref_vector result_conj_args(this->m);
+                    result_conj_args.push_back(new_result);
+                    for(auto arg : aux_equalities) {
+                        result_conj_args.push_back(arg);
+                    }
+                    app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                    return new_non_atomic;
+                } else {
+                    return apped_atomic;
+                }
+            }
+        } else {
+            std::cout << "ERROR: convert points to should not come here" << std::endl;
+        }
+    }   
+
+
+    expr* theory_slhv::convert_points_to_addr_var_for_term_disj(app* term, std::vector<app*>& aux) {
+        if(this->is_points_to(term)) {
+            app* addr = to_app(term->get_arg(0));
+            if(this->is_locvar(addr) || this->is_nil(addr)) {
+                return term;
+            } else {
+                app* fresh_locvar = this->syntax_maker->mk_fresh_locvar();;
+                app* locvar_eq = this->syntax_maker->mk_eq(fresh_locvar, addr);
+                app* pt_rec = to_app(term->get_arg(1));
+                func_decl* pt_decl = term->get_decl();
+                expr_ref_vector new_args(this->get_manager());
+                new_args.push_back(fresh_locvar);
+                new_args.push_back(pt_rec);
+                app* new_result = this->get_manager().mk_app(pt_decl, new_args.data());
+                return new_result;
+            }
+        } else {
+            func_decl* term_decl = term->get_decl();
+            std::vector<app*> old_args;
+            expr_ref_vector new_args(this->get_manager());
+            for(int i = 0; i < term->get_num_args(); i ++) {
+                old_args.push_back(to_app(term->get_arg(i)));    
+            }
+            for(app* oa : old_args) {
+                new_args.push_back(this->convert_points_to_addr_var_for_term_disj(oa, aux));
+            }
+            return this->m.mk_app(term_decl, new_args.data());
+        }
+    }
+
+
+
+
     expr* theory_slhv::eliminate_heap_negation_for_assertion_disj(expr* assertion) {
         #ifdef SLHV_PRINT
         std::cout << "eliminate_heap_negation_for_assertion_disj" << std::endl;
         #endif
-        // TODO: add negation elimination
         app* apped_expr = to_app(assertion);
         if(apped_expr->get_num_args() == 0) {
             return assertion;
@@ -1312,6 +1481,10 @@ namespace smt {
                 } else {
                     return apped_expr;
                 }
+            } else if (this->is_subh(negated_inner)){
+                return this->eliminate_negated_subh(negated_inner);
+            } else if (this->is_disjh(negated_inner)) {
+                return this->eliminate_negated_disjh(negated_inner);
             } else {
                 return apped_expr;
             }
@@ -1343,6 +1516,72 @@ namespace smt {
             return assertion;
         }
         return assertion;
+    }
+
+
+    app* theory_slhv::eliminate_negated_subh(app* subh_app) {
+        // TODO: not sure whether data record is enough for negation
+        if(this->is_subh(subh_app)) {
+            app* first_ht = to_app(subh_app->get_arg(0));
+            app* second_ht = to_app(subh_app->get_arg(1));
+            app* x = this->syntax_maker->mk_fresh_locvar();
+            app* d = this->syntax_maker->mk_fresh_datavar();
+            app* d1 = this->syntax_maker->mk_fresh_datavar();
+            app* d2 = this->syntax_maker->mk_fresh_datavar();
+            // first disj
+            app* first_disj = this->syntax_maker->mk_disj(first_ht, second_ht);
+            // second disj
+            app* second_disj_data_record = this->syntax_maker->mk_data_record(d);
+            app* second_disj_pt = this->syntax_maker->mk_points_to_new(x, second_disj_data_record);
+            app* first_ht_contain_pt = this->syntax_maker->mk_subh(second_disj_pt, first_ht);
+            app* second_ht_disj_pt = this->syntax_maker->mk_disj(second_disj_pt, second_ht);
+            app* second_disj = this->syntax_maker->mk_and(first_ht_contain_pt, second_ht_disj_pt);
+            // third disj
+            app* first_ht_pt_data_record = this->syntax_maker->mk_data_record(d1);
+            app* first_ht_pt = this->syntax_maker->mk_points_to_new(x, first_ht_pt_data_record);
+            app* second_ht_pt_data_record  =this->syntax_maker->mk_data_record(d2);
+            app* second_ht_pt = this->syntax_maker->mk_points_to_new(x, second_ht_pt_data_record);
+            app* subsume1 = this->syntax_maker->mk_subh(first_ht_pt, first_ht);
+            app* subsume2 = this->syntax_maker->mk_subh(second_ht_pt, second_ht);
+            app* data_neq = this->syntax_maker->mk_not(this->syntax_maker->mk_eq(d1, d2));
+            app* third_disj = this->syntax_maker->mk_and(subsume1, subsume2, data_neq);
+
+            // result
+            app* result = this->syntax_maker->mk_or(first_disj, second_disj, third_disj);
+            return result;
+        } else {
+            std::cout << "ERROR: not subh, cannot negated" << std::endl;
+            return nullptr;
+        }
+    }
+
+    app* theory_slhv::eliminate_negated_disjh(app* disjh_app){
+        if(this->is_disjh(disjh_app)) {
+            app* first_ht = to_app(disjh_app->get_arg(0));
+            app* second_ht = to_app(disjh_app->get_arg(1));
+            app* x = this->syntax_maker->mk_fresh_locvar();
+            app* d1 = this->syntax_maker->mk_fresh_datavar();
+            app* d2 = this->syntax_maker->mk_fresh_datavar();
+            // first subsume disj
+            app* first_ht_in_second_ht = this->syntax_maker->mk_subh(first_ht, second_ht);
+            // second subsume disj
+            app* second_ht_in_first_ht = this->syntax_maker->mk_subh(second_ht, first_ht);
+            // third disj
+            app* first_pt_data_record = this->syntax_maker->mk_data_record(d1);
+            app* first_pt = this->syntax_maker->mk_points_to_new(x, first_pt_data_record);
+            app* pt_in_first_ht = this->syntax_maker->mk_subh(first_pt, first_ht);
+            app* second_pt_data_record = this->syntax_maker->mk_data_record(d2);
+            app* second_pt = this->syntax_maker->mk_points_to_new(x, second_pt_data_record);
+            app* pt_in_second_ht = this->syntax_maker->mk_subh(second_pt, second_ht);
+            app* third_disj = this->syntax_maker->mk_and(pt_in_first_ht, pt_in_second_ht);
+            
+
+            app* result = this->syntax_maker->mk_or(first_ht_in_second_ht, second_ht_in_first_ht, third_disj);
+            return result;
+        } else {
+            std::cout << "ERROR: not disjh, cannot negated" << std::endl;
+            return nullptr;
+        }
     }
 
 
@@ -3612,6 +3851,7 @@ namespace smt {
 
 
     std::set<expr*> formula_encoder::generate_deduced_assumptions_disj() {
+        std::cout << "begin generate deduced assumptions disj" << std::endl;
         std::set<expr*> result_ass;
         if(this->ded->get_is_unsat()) {
             result_ass.insert(this->th->get_manager().mk_false());
@@ -3625,14 +3865,20 @@ namespace smt {
             result_ass.insert(this->shrel_var_map[p]);
         }
         
+        std::cout << "establish ldvar eqroot" << std::endl;
         for(auto i : this->ded->get_ldvar2eqroot()) {
+            std::cout << mk_ismt2_pp(i.first, this->th->get_manager()) << " == " << mk_ismt2_pp(i.second, this->th->get_manager()) << std::endl;
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             app* translated_second = this->translate_locterm_to_liaterm(i.second);
             result_ass.insert(this->syntax_maker->mk_eq(translated_first, translated_second));
         }
+
+        std::cout << "establish ldvar neqroot" << std::endl;
         for(auto i : this->ded->get_ldvar2neqvars()) {
+            
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             for(auto neq_var : i.second) {
+                std::cout << mk_ismt2_pp(i.first,  this->th->get_manager()) << " != " << mk_ismt2_pp(neq_var, this->th->get_manager()) << std::endl;
                 app* translated_neq_var = this->translate_locterm_to_liaterm(neq_var);
                 result_ass.insert(this->syntax_maker->mk_distinct(translated_first, translated_neq_var));
             }
@@ -7009,6 +7255,30 @@ namespace smt {
         return this->msw->use_mk_distinct(lhs, rhs);
     }
 
+    app* slhv_syntax_maker::mk_subh(expr* lhs, expr* rhs) {
+        sort_ref_vector sort_args(this->th->get_manager());
+        sort_args.push_back(lhs->get_sort());
+        sort_args.push_back(rhs->get_sort());
+        expr_ref_vector args(this->th->get_manager());
+        args.push_back(lhs);
+        args.push_back(rhs);
+        func_decl* subh_decl = this->slhv_decl_plug->mk_subh(sort_args.size(), sort_args.data());
+        app* result = this->th->get_manager().mk_app(subh_decl, args.data());
+        return result;
+    }
+
+    app* slhv_syntax_maker::mk_disj(expr* ht1, expr* ht2) {
+        sort_ref_vector sorts_args(this->th->get_manager());
+        sorts_args.push_back(ht1->get_sort());
+        sorts_args.push_back(ht2->get_sort());
+        expr_ref_vector args(this->th->get_manager());
+        args.push_back(ht1);
+        args.push_back(ht2);
+        func_decl* disjh_decl = this->slhv_decl_plug->mk_disjh(sorts_args.size(), sorts_args.data());
+        app* result = this->th->get_manager().mk_app(disjh_decl, args.data());
+        return result;
+    }
+
 
 
     app* slhv_syntax_maker::mk_read_formula(app* from_hvar, app* read_addr, app* read_data) {
@@ -7962,6 +8232,40 @@ namespace smt {
         this->th->get_context().internalize(result, false);
         return result;
     }
+
+
+    app* slhv_syntax_maker::mk_data_record(app* data_content) {
+        pt_record* data_record = nullptr;
+        for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!r->get_pt_record_name().compare("Pt_R_1")) {
+                data_record = r;
+                break;
+            }
+        }
+        SASSERT(data_record != nullptr);
+        std::vector<app*> locvars;
+        std::vector<app*> datavars;
+        datavars.push_back(data_content);
+        app* data_record_app = this->mk_record(data_record,  locvars, datavars);
+        return data_record_app;
+    }
+
+    app* slhv_syntax_maker::mk_loc_record(app* loc_content) {
+
+        pt_record* loc_record = nullptr;
+        for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
+            if(!r->get_pt_record_name().compare("Pt_R_0")) {
+                loc_record = r;
+                break;
+            }
+        }
+        SASSERT(loc_record != nullptr);
+        std::vector<app*> locvars;
+        std::vector<app*> datavars;
+        locvars.push_back(loc_content);
+        app* loc_record_app = this->mk_record(loc_record,  locvars, datavars);
+        return loc_record_app;
+    }
  
     slhv_fresh_var_maker::slhv_fresh_var_maker(theory_slhv* t) {
         this->th = t;
@@ -8351,5 +8655,7 @@ namespace smt {
         app* result = this->th->get_manager().mk_distinct(2, exprs.data());
         return result;
     }
+
+
 
 }
