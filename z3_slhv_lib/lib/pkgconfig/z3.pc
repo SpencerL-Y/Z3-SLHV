@@ -1,0 +1,13 @@
+prefix=/home/clexma/Desktop/fox3/slhv/Z3-slhv/z3_slhv_lib
+exec_prefix=/home/clexma/Desktop/fox3/slhv/Z3-slhv/z3_slhv_lib
+libdir=${exec_prefix}/lib
+sharedlibdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: z3
+Description: The Z3 Theorem Prover
+Version: 4.12.2.0
+
+Requires:
+Libs: -L${libdir} -L${sharedlibdir} -lz3
+Cflags: -I${includedir}

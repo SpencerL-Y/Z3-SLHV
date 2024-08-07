@@ -239,6 +239,56 @@ namespace smt
             }
             return false;
         }
+        bool is_subh(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SUBH)) {
+                return true;
+            }
+            return false;
+        }
+
+        bool is_disjh(app const* n) const {
+            if(n->is_app_of(get_id(), OP_DISJH))  {
+                return true;
+            }
+            return false;
+        }
+
+        bool is_readloc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_READLOC)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_readdata(app const* n) const {
+            if(n->is_app_of(get_id(), OP_READDATA)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_writeloc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_WRITELOC)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_writedata(app const* n) const {
+            if(n->is_app_of(get_id(), OP_WRITEDATA)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_loc2int(app const* n) const {
+            if(n->is_app_of(get_id(), OP_LOC2INT)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_int2loc(app const* n) const {
+            if(n->is_app_of(get_id(), OP_INT2LOC)) {
+                return true;
+            }
+            return false;
+        }
         bool is_datavar(app const* n) const {
             // TODO: maybe buggy here
             if(n->get_num_args() == 0 && n->get_sort() == this->m.mk_sort(arith_family_id, INT_SORT)) {
@@ -1388,7 +1438,9 @@ namespace smt
         app* mk_uplus_app(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
         app* mk_subh(expr* lhs, expr* rhs);
+
         app* mk_disjh(expr* ht1, expr* ht2);
+
 
         // logic with record:
 
