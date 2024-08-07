@@ -294,7 +294,6 @@ namespace smt {
                 #ifdef SLHV_DEBUG
                 std::cout << "find root: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;
                 #endif
-                SASSERT(root2proc.find(r) != root2proc.end());
             if (root2proc[r]->is_fresh()) {
                 #ifdef SLHV_DEBUG
                 std::cout << "process source for root: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;

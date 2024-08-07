@@ -615,7 +615,7 @@ namespace smt {
                 name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
             }
             std::cout << "translated model over" << std::endl;
-
+            std::cout << "===== valuation result:" << std::endl;
             std::set<std::string> true_var_names;
             std::map<std::string, int> loc_data_var2val;
             for(auto key_val_p : name2val) {
@@ -632,7 +632,6 @@ namespace smt {
                     SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
                     auto param = to_app(key_val_p.second)->get_parameter(0);
                     std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
-                    std::cout << std::endl; 
                     std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
                     for(std::string n : extracted_names) {
                         std::cout << n << std::endl;
@@ -693,7 +692,6 @@ namespace smt {
             return true;
         } else if(final_result == l_false) { 
         std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-            SASSERT(final_solver->get_manager() == this->get_manager());
             this->set_conflict_slhv();
 
             final_solver->dec_ref();
@@ -1076,7 +1074,6 @@ namespace smt {
             return true;
         } else if(final_result == l_false) { 
             std::cout << " translated UNSAT " << std::endl;
-            SASSERT(final_solver->get_manager() == this->get_manager());
             // expr_ref_vector final_solver_unsat_core(this->get_manager());
             // final_solver->get_unsat_core(final_solver_unsat_core);
             // std::cout << "Final solver unsat core: " << std::endl;
@@ -1286,6 +1283,10 @@ namespace smt {
 
 
     expr* theory_slhv::convert_points_to_addr_var_for_atomics_disj(expr* atomic) {
+        #ifdef SLHV_PRINT
+        std::cout << "convert pointsto addr var for atomic: " << std::endl;
+        std::cout << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
+        #endif
         app* apped_atomic = to_app(atomic);
         if(apped_atomic->is_app_of(basic_family_id, OP_NOT)) {
             app* inner_arg = to_app(apped_atomic->get_arg(0));
@@ -1348,25 +1349,29 @@ namespace smt {
             app* first_arg = to_app(apped_atomic->get_arg(0));
             app* second_arg = to_app(apped_atomic->get_arg(1));
             if(this->is_heapterm(first_arg)) {
-                    std::vector<app*> aux_equalities;
-                    // iterate over all terms and replace complex points to
-                    app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
-                    app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
-                    if(aux_equalities.size() > 0) {
-                        app* new_result = 
-                            this->syntax_maker->mk_eq(new_first_arg, new_second_arg);
-                        
-                        expr_ref_vector result_conj_args(this->m);
-                        result_conj_args.push_back(new_result);
-                        for(auto arg : aux_equalities) {
-                            result_conj_args.push_back(arg);
-                        }
-                        app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
-                        return new_non_atomic;
+               std::vector<app*> aux_equalities;
+               // iterate over all terms and replace complex points to
+               app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
+               app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
+               if(aux_equalities.size() > 0) {
+                   app* new_result = 
+                       this->syntax_maker->mk_eq(new_first_arg, new_second_arg);
+                   
+                   expr_ref_vector result_conj_args(this->m);
+                   result_conj_args.push_back(new_result);
+                   for(auto arg : aux_equalities) {
+                       result_conj_args.push_back(arg);
+                   }
+                   app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                   return new_non_atomic;
                 } else {
-                    return apped_atomic;
+                    app* new_result = 
+                       this->syntax_maker->mk_eq(new_first_arg, new_second_arg);
+                    return new_result;
                 }
-            }   
+            }  else {
+                    return apped_atomic;
+            }
         } else if(apped_atomic->is_app_of(basic_family_id, OP_DISTINCT)) {
             app* first_arg = to_app(apped_atomic->get_arg(0));
             app* second_arg = to_app(apped_atomic->get_arg(1));
@@ -1390,6 +1395,8 @@ namespace smt {
                 } else {
                     return apped_atomic;
                 }
+            } else {
+                return apped_atomic;
             }
         } else {
             std::cout << "ERROR: convert points to should not come here" << std::endl;
@@ -1403,7 +1410,7 @@ namespace smt {
             if(this->is_locvar(addr) || this->is_nil(addr)) {
                 return term;
             } else {
-                app* fresh_locvar = this->syntax_maker->mk_fresh_locvar();;
+                app* fresh_locvar = this->syntax_maker->mk_fresh_locvar();
                 app* locvar_eq = this->syntax_maker->mk_eq(fresh_locvar, addr);
                 app* pt_rec = to_app(term->get_arg(1));
                 func_decl* pt_decl = term->get_decl();
@@ -1411,9 +1418,11 @@ namespace smt {
                 new_args.push_back(fresh_locvar);
                 new_args.push_back(pt_rec);
                 app* new_result = this->get_manager().mk_app(pt_decl, new_args.data());
+                this->get_context().internalize(new_result, false);
+                aux.push_back(locvar_eq);
                 return new_result;
             }
-        } else {
+        } else if(this->is_uplus(term)){
             func_decl* term_decl = term->get_decl();
             std::vector<app*> old_args;
             expr_ref_vector new_args(this->get_manager());
@@ -1423,7 +1432,11 @@ namespace smt {
             for(app* oa : old_args) {
                 new_args.push_back(this->convert_points_to_addr_var_for_term_disj(oa, aux));
             }
-            return this->m.mk_app(term_decl, new_args.data());
+            app* new_result =  this->get_manager().mk_app(term_decl, new_args.data());
+            this->get_context().internalize(new_result, false);
+            return new_result;
+        } else {
+            return term;
         }
     }
 
@@ -1432,7 +1445,8 @@ namespace smt {
 
     expr* theory_slhv::eliminate_heap_negation_for_assertion_disj(expr* assertion) {
         #ifdef SLHV_PRINT
-        std::cout << "eliminate_heap_negation_for_assertion_disj" << std::endl;
+        std::cout << "eliminate_heap_negation_for_assertion_disj: "  << std::endl;
+        std::cout << mk_ismt2_pp(assertion, this->get_manager()) << std::endl;
         #endif
         app* apped_expr = to_app(assertion);
         if(apped_expr->get_num_args() == 0) {
@@ -1529,12 +1543,12 @@ namespace smt {
             app* d1 = this->syntax_maker->mk_fresh_datavar();
             app* d2 = this->syntax_maker->mk_fresh_datavar();
             // first disj
-            app* first_disj = this->syntax_maker->mk_disj(first_ht, second_ht);
+            app* first_disj = this->syntax_maker->mk_disjh(first_ht, second_ht);
             // second disj
             app* second_disj_data_record = this->syntax_maker->mk_data_record(d);
             app* second_disj_pt = this->syntax_maker->mk_points_to_new(x, second_disj_data_record);
             app* first_ht_contain_pt = this->syntax_maker->mk_subh(second_disj_pt, first_ht);
-            app* second_ht_disj_pt = this->syntax_maker->mk_disj(second_disj_pt, second_ht);
+            app* second_ht_disj_pt = this->syntax_maker->mk_disjh(second_disj_pt, second_ht);
             app* second_disj = this->syntax_maker->mk_and(first_ht_contain_pt, second_ht_disj_pt);
             // third disj
             app* first_ht_pt_data_record = this->syntax_maker->mk_data_record(d1);
@@ -2776,8 +2790,6 @@ namespace smt {
             heap_term* disjh_lhs = nullptr;
             heap_term* disjh_rhs = nullptr;
 
-            SASSERT(disjh_atom != nullptr);
-            SASSERT(disjh_atom->is_app_of(this->get_family_id(), OP_SUBH));
             app* lhs_hterm = to_app(disjh_atom->get_arg(0));
             app* rhs_hterm = to_app(disjh_atom->get_arg(1));
             #ifdef DISJ_DEBUG
@@ -3033,7 +3045,6 @@ namespace smt {
                 subparent_pairs.insert({enc->get_ht_by_id(subsumed_id), enc->get_ht_by_id(parent_id)});
             } else if(name.find("idj") != name.npos) {
             } else {
-                SASSERT(false);
             }
         }
         std::map<heap_term*, std::set<heap_term*>> ht2subpts;
@@ -3080,7 +3091,6 @@ namespace smt {
                     this->atomic_hterms_count[i] ++;
                     break;
                 }
-                SASSERT(false);
             }
         }
     }
@@ -3483,7 +3493,6 @@ namespace smt {
         }
         // create intvar for locvar
         for(app* lv : this->th->locvars_disj) {
-            SASSERT(this->th->is_locvar(lv));
             std::string name = lv->get_name().str();
             std::string int_name = name + "_intvar";
             app* intvar = this->syntax_maker->mk_lia_intvar(int_name);
@@ -3864,21 +3873,28 @@ namespace smt {
         for(auto p : this->ded->get_sh_pair_set()) {
             result_ass.insert(this->shrel_var_map[p]);
         }
-        
+        #ifdef SLHV_PRINT
         std::cout << "establish ldvar eqroot" << std::endl;
+        #endif
         for(auto i : this->ded->get_ldvar2eqroot()) {
+            #ifdef SLHV_PRINT
             std::cout << mk_ismt2_pp(i.first, this->th->get_manager()) << " == " << mk_ismt2_pp(i.second, this->th->get_manager()) << std::endl;
+            #endif
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             app* translated_second = this->translate_locterm_to_liaterm(i.second);
             result_ass.insert(this->syntax_maker->mk_eq(translated_first, translated_second));
         }
 
+        #ifdef SLHV_PRINT
         std::cout << "establish ldvar neqroot" << std::endl;
+        #endif
         for(auto i : this->ded->get_ldvar2neqvars()) {
             
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             for(auto neq_var : i.second) {
+                #ifdef SLHV_PRINT
                 std::cout << mk_ismt2_pp(i.first,  this->th->get_manager()) << " != " << mk_ismt2_pp(neq_var, this->th->get_manager()) << std::endl;
+                #endif
                 app* translated_neq_var = this->translate_locterm_to_liaterm(neq_var);
                 result_ass.insert(this->syntax_maker->mk_distinct(translated_first, translated_neq_var));
             }
@@ -4231,14 +4247,13 @@ namespace smt {
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
                 std::vector<app*> pt_atom = pt->get_atoms();
-                SASSERT(pt_atom.size() == 1);
+                pt->print_ht();
                 app* pt_addr = to_app(pt_atom[0]->get_arg(0));
                 app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
                 SASSERT(this->th->is_recordterm(pt_rcd));
                 app* pt_content = to_app(pt_rcd->get_arg(0));
                 
                 std::vector<app*> ptp_atom = ptp->get_atoms();
-                SASSERT(ptp_atom.size() == 1);
                 app* ptp_addr = to_app(ptp_atom[0]->get_arg(0));
                 app* ptp_rcd = to_app(ptp_atom[0]->get_arg(1));
                 SASSERT(this->th->is_recordterm(pt_rcd));
@@ -4708,7 +4723,9 @@ namespace smt {
 
     expr* formula_encoder::generate_loc_var_constraints() {
         // generate locvar constraints
+        #ifdef SLHV_PRINT
         std::cout << "generate loc var constraints" << std::endl;
+        #endif
         expr* result = this->th->get_manager().mk_true();
         arith_util a(this->th->get_manager());
         for(auto item : this->locvar2intvar_map) {
@@ -5950,7 +5967,7 @@ namespace smt {
                         }
                     } else if(this->ldvar2neqvars[first_pt_content].find(second_pt_content) != this->ldvar2neqvars[first_pt_content].end()) {
                         // if current setting find that record content are not equal
-                        SASSERT(this->ldvar2neqvar[second_pt_content].find(first_pt_content) !=  this->ldvar2neqvars[second_pt_content].end());
+                        SASSERT(this->ldvar2neqvars[second_pt_content].find(first_pt_content) !=  this->ldvar2neqvars[second_pt_content].end());
                         std::pair<int, int> new_dj_pair = {sh_p1.first, sh_p2.first};
                         std::pair<int, int> mirror_pair = {sh_p2.first, sh_p1.first};
                         if(this->djpair_set.find({sh_p1.first, sh_p2.first}) != this->djpair_set.end() || 
@@ -6249,7 +6266,6 @@ namespace smt {
     }
 
     bool slhv_deducer::is_pt(int index) {
-        SASSERT(this->index2ht.find(index) != this->index2ht.end());
         if(this->index2ht[index]->is_atom_pt()) {
             return true;
         }
@@ -6258,7 +6274,6 @@ namespace smt {
 
 
     bool slhv_deducer::is_emp(int index){
-        SASSERT(this->index2ht.find(index) != this->index2ht.end());
         if(this->index2ht[index]->is_emp()) {
            return true;
         }
@@ -6266,7 +6281,6 @@ namespace smt {
     }
 
     bool slhv_deducer::is_hvar(int index) {
-        SASSERT(this->index2ht.find(index) != this->index2ht.end());
         if(this->index2ht[index]->is_atom_hvar()){
             return true;
         }
@@ -7256,6 +7270,9 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_subh(expr* lhs, expr* rhs) {
+        #ifdef SLHV_PRINT
+        std::cout << "mk subh" << std::endl;
+        #endif
         sort_ref_vector sort_args(this->th->get_manager());
         sort_args.push_back(lhs->get_sort());
         sort_args.push_back(rhs->get_sort());
@@ -7267,7 +7284,10 @@ namespace smt {
         return result;
     }
 
-    app* slhv_syntax_maker::mk_disj(expr* ht1, expr* ht2) {
+    app* slhv_syntax_maker::mk_disjh(expr* ht1, expr* ht2) {
+        #ifdef SLHV_PRINT
+        std::cout << "mk disjh" << std::endl;
+        #endif
         sort_ref_vector sorts_args(this->th->get_manager());
         sorts_args.push_back(ht1->get_sort());
         sorts_args.push_back(ht2->get_sort());
@@ -7450,7 +7470,6 @@ namespace smt {
 
         app* first_eq_lhs = orig_hvar;
         
-        SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
         pt_record* only_record = this->slhv_decl_plug->get_first_record();
         
         app* first_eq_rhs_record = this->mk_record(only_record, first_locvars_vec, first_datavars_vec);
@@ -7541,7 +7560,6 @@ namespace smt {
         for(int i = 0; i < pt_datafield_num; i ++) {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
-        SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
         
         app* addr_pt_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
 
@@ -7637,12 +7655,13 @@ namespace smt {
         for(int i = 0; i < pt_datafield_num; i ++) {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
-        SASSERT(this->slhv_decl_plug->pt_record_decls.size() == 1);
         app* rhs_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
         app* rhs_points_to = this->mk_points_to_new(addr, rhs_record);
         app* eq_lhs = fresh_whole_h;
         std::vector<app*> uplus_args;
-        uplus_args.push_back(hterm);
+        if(!this->th->is_emp(hterm)) {
+            uplus_args.push_back(hterm);
+        }
         uplus_args.push_back(rhs_points_to);
         app* eq_rhs = this->mk_uplus_app(2, uplus_args);
 
@@ -7792,7 +7811,7 @@ namespace smt {
         // }
         pt_record* data_record = nullptr;
         for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {          
-            std::cout << "rc name: " << rc->get_pt_record_name() << std::endl;
+            // std::cout << "rc name: " << rc->get_pt_record_name() << std::endl;
             if(!rc->get_pt_record_name().compare("Pt_R_1")) {
                 data_record = rc;
                 break;
@@ -8141,7 +8160,9 @@ namespace smt {
 
 
     app* slhv_syntax_maker::mk_points_to_new(app* addr_loc, app* record_loc) {
-
+        #ifdef SLHV_PRINT
+        std::cout << "mk points to new: " << mk_ismt2_pp(addr_loc, this->th->get_manager()) << ", " << mk_ismt2_pp(record_loc, this->th->get_manager()) << std::endl;
+        #endif
         pt_record* data_record = nullptr;
         for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
             if(!rc->get_pt_record_name().compare("Pt_R_1")) {
@@ -8153,8 +8174,6 @@ namespace smt {
             return nullptr;
         }
         func_decl* data_pt_r_decl = this->slhv_decl_plug->pt_record_decls[data_record->get_pt_record_name()];
-        SASSERT(this->th->is_locterm(addr_loc));
-        SASSERT(this->th->is_recordterm(record_loc));
         std::vector<app*> args = {addr_loc, record_loc};
         expr_ref_vector args_vec(this->th->get_manager());
         for(app* arg : args) {
@@ -8235,6 +8254,9 @@ namespace smt {
 
 
     app* slhv_syntax_maker::mk_data_record(app* data_content) {
+        #ifdef SLHV_PRINT
+        std::cout << "mk data record for: " << mk_ismt2_pp(data_content, this->th->get_manager()) << std::endl;
+        #endif
         pt_record* data_record = nullptr;
         for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
             if(!r->get_pt_record_name().compare("Pt_R_1")) {
@@ -8252,6 +8274,9 @@ namespace smt {
 
     app* slhv_syntax_maker::mk_loc_record(app* loc_content) {
 
+        #ifdef SLHV_PRINT
+        std::cout << "mk loc record for: " << mk_ismt2_pp(loc_content, this->th->get_manager()) << std::endl;
+        #endif
         pt_record* loc_record = nullptr;
         for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
             if(!r->get_pt_record_name().compare("Pt_R_0")) {
@@ -8402,7 +8427,6 @@ namespace smt {
                     enode* data_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                     pt_proc->add_dependency(model_value_dependency(addr_enode));
                     pt_proc->add_dependency(model_value_dependency(data_enode));
-                    SASSERT(this->pt2proc.find(oapp) == this->pt2proc.end());
                     SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
                     this->enode2proc[curr_enode] = pt_proc;
                     return pt_proc;

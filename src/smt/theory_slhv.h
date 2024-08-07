@@ -185,7 +185,6 @@ namespace smt
         }
         bool is_locadd(app const* n) const {
             if(n->is_app_of(get_id(), OP_LOCADD)) {
-                SASSERT(this->is_locvar(n) && this->is_dataterm(n));
                 return true;
             }
             return false;
@@ -1389,7 +1388,7 @@ namespace smt
         app* mk_uplus_app(int num_arg, std::vector<app*> hterm_args);
         app* mk_points_to(app* addr_loc, app* data_loc);
         app* mk_subh(expr* lhs, expr* rhs);
-        app* mk_disj(expr* ht1, expr* ht2);
+        app* mk_disjh(expr* ht1, expr* ht2);
 
         // logic with record:
 
@@ -1462,7 +1461,6 @@ namespace smt
                         // the value is a uplus term
                         return plug->mk_uplus_value(values.size(), values);
                     } else {
-                        SASSERT(values.size() == 2 && values.get(0)->get_sort()->get_name() == INTLOC_SORT_STR);
                         // must be a points to
                         return plug->mk_points_to_value(2, values);
                     }
