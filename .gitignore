@@ -100,3 +100,4 @@ CMakeSettings.json
 .DS_Store
 dbg/**
 *.wsp
+z3_slhv_lib
