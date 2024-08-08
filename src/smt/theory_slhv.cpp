@@ -615,9 +615,7 @@ namespace smt {
                 name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
             }
             std::cout << "translated model over" << std::endl;
-
             std::cout << "===== valuation result:" << std::endl;
-
             std::set<std::string> true_var_names;
             std::map<std::string, int> loc_data_var2val;
             for(auto key_val_p : name2val) {
@@ -1285,12 +1283,10 @@ namespace smt {
 
 
     expr* theory_slhv::convert_points_to_addr_var_for_atomics_disj(expr* atomic) {
-
         #ifdef SLHV_PRINT
         std::cout << "convert pointsto addr var for atomic: " << std::endl;
         std::cout << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
         #endif
-
         app* apped_atomic = to_app(atomic);
         if(apped_atomic->is_app_of(basic_family_id, OP_NOT)) {
             app* inner_arg = to_app(apped_atomic->get_arg(0));
@@ -1353,7 +1349,6 @@ namespace smt {
             app* first_arg = to_app(apped_atomic->get_arg(0));
             app* second_arg = to_app(apped_atomic->get_arg(1));
             if(this->is_heapterm(first_arg)) {
-
                std::vector<app*> aux_equalities;
                // iterate over all terms and replace complex points to
                app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
@@ -1377,7 +1372,6 @@ namespace smt {
             }  else {
                     return apped_atomic;
             }
-
         } else if(apped_atomic->is_app_of(basic_family_id, OP_DISTINCT)) {
             app* first_arg = to_app(apped_atomic->get_arg(0));
             app* second_arg = to_app(apped_atomic->get_arg(1));
@@ -1401,10 +1395,8 @@ namespace smt {
                 } else {
                     return apped_atomic;
                 }
-
             } else {
                 return apped_atomic;
-
             }
         } else {
             std::cout << "ERROR: convert points to should not come here" << std::endl;
@@ -1418,9 +1410,7 @@ namespace smt {
             if(this->is_locvar(addr) || this->is_nil(addr)) {
                 return term;
             } else {
-
                 app* fresh_locvar = this->syntax_maker->mk_fresh_locvar();
-
                 app* locvar_eq = this->syntax_maker->mk_eq(fresh_locvar, addr);
                 app* pt_rec = to_app(term->get_arg(1));
                 func_decl* pt_decl = term->get_decl();
@@ -1428,13 +1418,11 @@ namespace smt {
                 new_args.push_back(fresh_locvar);
                 new_args.push_back(pt_rec);
                 app* new_result = this->get_manager().mk_app(pt_decl, new_args.data());
-
                 this->get_context().internalize(new_result, false);
                 aux.push_back(locvar_eq);
                 return new_result;
             }
         } else if(this->is_uplus(term)){
-
             func_decl* term_decl = term->get_decl();
             std::vector<app*> old_args;
             expr_ref_vector new_args(this->get_manager());
@@ -1444,13 +1432,11 @@ namespace smt {
             for(app* oa : old_args) {
                 new_args.push_back(this->convert_points_to_addr_var_for_term_disj(oa, aux));
             }
-
             app* new_result =  this->get_manager().mk_app(term_decl, new_args.data());
             this->get_context().internalize(new_result, false);
             return new_result;
         } else {
             return term;
-
         }
     }
 
@@ -1459,10 +1445,8 @@ namespace smt {
 
     expr* theory_slhv::eliminate_heap_negation_for_assertion_disj(expr* assertion) {
         #ifdef SLHV_PRINT
-
         std::cout << "eliminate_heap_negation_for_assertion_disj: "  << std::endl;
         std::cout << mk_ismt2_pp(assertion, this->get_manager()) << std::endl;
-
         #endif
         app* apped_expr = to_app(assertion);
         if(apped_expr->get_num_args() == 0) {
@@ -1559,16 +1543,12 @@ namespace smt {
             app* d1 = this->syntax_maker->mk_fresh_datavar();
             app* d2 = this->syntax_maker->mk_fresh_datavar();
             // first disj
-
             app* first_disj = this->syntax_maker->mk_disjh(first_ht, second_ht);
-
             // second disj
             app* second_disj_data_record = this->syntax_maker->mk_data_record(d);
             app* second_disj_pt = this->syntax_maker->mk_points_to_new(x, second_disj_data_record);
             app* first_ht_contain_pt = this->syntax_maker->mk_subh(second_disj_pt, first_ht);
-
             app* second_ht_disj_pt = this->syntax_maker->mk_disjh(second_disj_pt, second_ht);
-
             app* second_disj = this->syntax_maker->mk_and(first_ht_contain_pt, second_ht_disj_pt);
             // third disj
             app* first_ht_pt_data_record = this->syntax_maker->mk_data_record(d1);
@@ -2810,8 +2790,6 @@ namespace smt {
             heap_term* disjh_lhs = nullptr;
             heap_term* disjh_rhs = nullptr;
 
-
-
             app* lhs_hterm = to_app(disjh_atom->get_arg(0));
             app* rhs_hterm = to_app(disjh_atom->get_arg(1));
             #ifdef DISJ_DEBUG
@@ -3855,7 +3833,6 @@ namespace smt {
         std::set<expr*> result_ass;
         if(this->ded->get_is_unsat()) {
             result_ass.insert(this->th->get_manager().mk_false());
-
             return result_ass;
         }
         expr* result = this->th->get_manager().mk_true();
@@ -3866,20 +3843,14 @@ namespace smt {
             result_ass.insert(this->shrel_var_map[p]);
         }
         
-        std::cout << "establish ldvar eqroot" << std::endl;
         for(auto i : this->ded->get_ldvar2eqroot()) {
-            std::cout << mk_ismt2_pp(i.first, this->th->get_manager()) << " == " << mk_ismt2_pp(i.second, this->th->get_manager()) << std::endl;
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             app* translated_second = this->translate_locterm_to_liaterm(i.second);
             result_ass.insert(this->syntax_maker->mk_eq(translated_first, translated_second));
         }
-
-        std::cout << "establish ldvar neqroot" << std::endl;
         for(auto i : this->ded->get_ldvar2neqvars()) {
-            
             app* translated_first = this->translate_locterm_to_liaterm(i.first);
             for(auto neq_var : i.second) {
-                std::cout << mk_ismt2_pp(i.first,  this->th->get_manager()) << " != " << mk_ismt2_pp(neq_var, this->th->get_manager()) << std::endl;
                 app* translated_neq_var = this->translate_locterm_to_liaterm(neq_var);
                 result_ass.insert(this->syntax_maker->mk_distinct(translated_first, translated_neq_var));
             }
@@ -5594,297 +5565,6 @@ namespace smt {
                         loc_neq_constraints.insert(lc);
                     }
                 }
-
-            }
-        }
-        for(heap_term* ht : all_hterms) {
-            if(!(ht->is_atom_hvar() || ht->is_atom_pt())) {
-                auto pset = ht->get_all_distinct_atomic_pairs();
-                for(auto pair : pset) {
-                    auto ht_pair = this->fec->get_ht_pair_by_vec_pair(pair);
-                    if(!ht_pair.first->is_emp() && !ht_pair.second->is_emp()) { 
-                        this->insert_dj_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
-                        this->insert_dj_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
-                        // inference graph update
-                        this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]}, ht);
-                        this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]}, ht);
-                    }
-                }
-            }
-        }
-    }
-
-    void slhv_deducer::initialize_shdj_disj() {
-        // RULE P2 and P3
-        SASSERT(fec != nullptr);
-        std::set<heap_term*> all_must_hold_hterms;
-        std::set<std::pair<heap_term*, heap_term*>> all_eq_pairs = this->fec->get_eq_ht_pairs();
-        std::set<std::pair<heap_term*, heap_term*>> subht_pairs = this->fec->get_subht_pairs();
-        std::set<std::pair<heap_term*, heap_term*>> disjht_pairs = this->fec->get_disjht_pairs();
-        // all must hold hterms are used to denote uplus hts such that the disjoint relation induced by them is added to the graph globally
-        for(auto p : all_eq_pairs) {
-            all_must_hold_hterms.insert(p.first);
-            all_must_hold_hterms.insert(p.second);
-        }
-        for(auto p : subht_pairs) {
-            all_must_hold_hterms.insert(p.first);
-            all_must_hold_hterms.insert(p.second);
-        }
-        for(auto p : disjht_pairs) {
-            all_must_hold_hterms.insert(p.first);
-            all_must_hold_hterms.insert(p.second);
-        }
-        for(auto p : all_eq_pairs) {
-            this->insert_sh_pair({this->ht2index[p.first], this->ht2index[p.second]});
-            this->insert_sh_pair({this->ht2index[p.second], this->ht2index[p.first]});
-            // inference graph update
-            this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.first], this->ht2index[p.second]}, p);
-            this->th->infer_graph->add_sh_rel_pair({this->ht2index[p.second], this->ht2index[p.first]}, p);
-        }
-        for(auto p : subht_pairs) {
-            this->insert_sh_pair({this->ht2index[p.first], this->ht2index[p.second]});
-            // inference graph update
-            this->th->infer_graph->add_sh_rel_pair_subht({this->ht2index[p.first], this->ht2index[p.second]}, p);
-        }
-        for(auto p : disjht_pairs) {
-            this->insert_dj_pair({this->ht2index[p.first], this->ht2index[p.second]});
-            this->insert_dj_pair({this->ht2index[p.second], this->ht2index[p.first]});
-            this->th->infer_graph->add_disj_rel_pair_disjht({this->ht2index[p.first], this->ht2index[p.second]}, p);
-            this->th->infer_graph->add_disj_rel_pair_disjht({this->ht2index[p.second], this->ht2index[p.first]}, p);
-        }
-        heap_term* emp_ht = this->fec->get_emp_ht();
-        for(heap_term* ht : all_must_hold_hterms) {
-            this->insert_sh_pair({this->ht2index[emp_ht], this->ht2index[ht]});
-            // inference graph update
-            this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[emp_ht], this->ht2index[ht]});
-        }
-        for(heap_term* ht1 : this->fec->get_all_hterms()) {
-            for(heap_term* ht2 : this->fec->get_all_hterms()) {
-                if(ht1->is_subhterm_of(ht2)) {
-                    this->insert_sh_pair({this->ht2index[ht1], this->ht2index[ht2]});
-                    // inference graph update
-                    if(!(ht2->is_atom_hvar() || ht2->is_atom_pt() || ht2->is_emp())) {
-                        if(this->th->infer_graph->contain_comht_node(ht2)) {
-                            this->th->infer_graph->add_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]}, ht2);
-                        }
-                    } else {
-                        this->th->infer_graph->add_isolated_sh_rel_pair({this->ht2index[ht1], this->ht2index[ht2]});
-                    }
-                }
-            }
-        }
-        for(heap_term* ht : all_must_hold_hterms) {
-            if(!(ht->is_atom_hvar() || ht->is_atom_pt())) {
-                auto pset = ht->get_all_distinct_atomic_pairs();
-                for(auto pair : pset) {
-                    auto ht_pair = this->fec->get_ht_pair_by_vec_pair(pair);
-                    if(!ht_pair.first->is_emp() && !ht_pair.second->is_emp()) { 
-                        this->insert_dj_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]});
-                        this->insert_dj_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]});
-                        // inference graph update
-                        if(this->th->infer_graph->contain_comht_node(ht)) {
-                            this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.first], this->ht2index[ht_pair.second]}, ht);
-                            this->th->infer_graph->add_disj_rel_pair({this->ht2index[ht_pair.second], this->ht2index[ht_pair.first]}, ht);
-                        }
-                    }
-                }
-            }
-        }
-    }
-           
-
-    void slhv_deducer::initialize_ldeqneq() {
-        // initialize eq classes
-        for(app* var : this->th->curr_datavars) {
-            this->ldvar2eqroot[var]  = var;
-        }
-        for(app* var : this->th->curr_locvars) {
-            this->ldvar2eqroot[var] = var;
-        }
-        this->ldvar2eqroot[this->th->global_nil] = this->th->global_nil;
-        
-        // RULE P1
-        SASSERT(this->th != nullptr);
-        std::set<app*> data_cnstrs = this->th->curr_data_cnstr;
-        std::set<app*> loc_cnstrs = this->th->curr_loc_cnstr;
-
-        // for eqclass node construction
-        std::set<app*> loc_eq_constraints;
-        std::set<app*> data_eq_constraints;
-        std::set<app*> loc_neq_constraints;
-        std::set<app*> data_neq_constraints;
-        // deal with eq and neq vars in data constraints
-        for(app* dc : data_cnstrs) {
-            if(dc->is_app_of(basic_family_id, OP_EQ)) {
-                app* arg1 = to_app(dc->get_arg(0));
-                app* arg2 = to_app(dc->get_arg(1));
-                if(this->th->is_datavar(arg1) && this->th->is_datavar(arg2))  {
-                    if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
-                        // merge equivalence class
-                        if(this->ldvar2eqroot[arg1] != this->ldvar2eqroot[arg2]) {
-                            app* new_root = this->ldvar2eqroot[arg1];
-                            app* replaced_root = this->ldvar2eqroot[arg2];
-                            if(new_root == replaced_root) {
-                                continue;
-                            }
-                            std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
-                            for(auto item : this->ldvar2eqroot) {
-                                if(item.second == replaced_root) {
-                                    tmp_ldvar2eqroot[item.first] = new_root;
-                                }
-                            }
-                            this->ldvar2eqroot = tmp_ldvar2eqroot;
-                        }
-                        // for eqclass node construction
-                        data_eq_constraints.insert(dc);
-                    } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
-                        this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
-                        // for eqclass node construction
-                        data_eq_constraints.insert(dc);
-                    } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
-                        this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
-                        // for eqclass node construction
-                        data_eq_constraints.insert(dc);
-                    } else {
-                        app* new_root = arg1;
-                        this->ldvar2eqroot[arg1] = new_root;
-                        this->ldvar2eqroot[arg2] = new_root;
-                        // for eqclass node construction
-                        data_eq_constraints.insert(dc);
-                    }
-                }
-            } else if(dc->is_app_of(basic_family_id, OP_DISTINCT)) {
-                app* arg1 = to_app(dc->get_arg(0));
-                app* arg2 = to_app(dc->get_arg(1));
-                if(this->th->is_datavar(arg1) && this->th->is_datavar(arg2))  {
-                    if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
-                        this->ldvar2neqvars[arg1].insert(arg2);
-                        // for neq relation node construction
-                        data_neq_constraints.insert(dc);
-                    } else {
-                        std::set<app*> new_neq_set;
-                        new_neq_set.insert(arg2);
-                        this->ldvar2neqvars[arg1] = new_neq_set;
-                        // for neq relation node construction
-                        data_neq_constraints.insert(dc);
-                    }
-                    if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
-                        this->ldvar2neqvars[arg2].insert(arg1);
-                        // for neq relation node construction
-                        data_neq_constraints.insert(dc);
-                    } else {
-                        std::set<app*> new_neq_set;
-                        new_neq_set.insert(arg1);
-                        this->ldvar2neqvars[arg2] = new_neq_set;
-                        // for neq relation node construction
-                        data_neq_constraints.insert(dc);
-                    }
-                }
-            } else if(dc->is_app_of(basic_family_id, OP_NOT)) {
-                app* inner = to_app(dc->get_arg(0));
-                if(inner->is_app_of(basic_family_id, OP_EQ)) {
-                    app* arg1 = to_app(inner->get_arg(0));
-                    app* arg2 = to_app(inner->get_arg(1));
-                    if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2)))  {
-                        if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
-                            this->ldvar2neqvars[arg1].insert(arg2);
-                            // for neq relation node construction
-                            data_neq_constraints.insert(dc);
-                        } else {
-                            std::set<app*> new_neq_set;
-                            new_neq_set.insert(arg2);
-                            this->ldvar2neqvars[arg1] = new_neq_set;
-                            // for neq relation node construction
-                            data_neq_constraints.insert(dc);
-                        }
-                        if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
-                            this->ldvar2neqvars[arg2].insert(arg1);
-                            // for neq relation node construction
-                            data_neq_constraints.insert(dc);
-                        } else {
-                            std::set<app*> new_neq_set;
-                            new_neq_set.insert(arg1);
-                            this->ldvar2neqvars[arg2] = new_neq_set;
-                            // for neq relation node construction
-                            data_neq_constraints.insert(dc);
-                        }
-                    }
-                }
-            } else {
-                std::cout << "unsupported data constraint operation" << std::endl;
-                SASSERT(false);
-            }
-        }
-
-        // deal with eq and neq vars in loc constraints
-        for(app* lc : loc_cnstrs) {
-            if(lc->is_app_of(basic_family_id, OP_EQ)) {
-                app* arg1 = to_app(lc->get_arg(0));
-                app* arg2 = to_app(lc->get_arg(1));
-                if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
-                    #ifdef DED_INFO
-                    std::cout << "add eq vars: " << mk_ismt2_pp(arg1, this->th->get_manager() ) << " == " <<mk_ismt2_pp(arg2, this->th->get_manager()) << std::endl;
-                    #endif
-                    if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end() && this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
-                        // merge
-                        app* new_root = this->ldvar2eqroot[arg1];
-                        app* replaced_root = this->ldvar2eqroot[arg2];
-                        if(new_root == replaced_root) {
-                            continue;
-                        }
-                        std::map<app*, app*> tmp_ldvar2eqroot = this->ldvar2eqroot;
-                        for(auto item : this->ldvar2eqroot) {
-                            if(item.second == replaced_root) {
-                                tmp_ldvar2eqroot[item.first] = new_root;
-                            }
-                        }
-                        this->ldvar2eqroot = tmp_ldvar2eqroot;
-                        // for eqclass node construction
-                        loc_eq_constraints.insert(lc);
-                    } else if(this->ldvar2eqroot.find(arg1) != this->ldvar2eqroot.end()) {
-                        this->ldvar2eqroot[arg2] = this->ldvar2eqroot[arg1];
-                        // for eqclass node construction
-                        loc_eq_constraints.insert(lc);
-                    } else if(this->ldvar2eqroot.find(arg2) != this->ldvar2eqroot.end()) {
-                        this->ldvar2eqroot[arg1] = this->ldvar2eqroot[arg2];
-                        // for eqclass node construction
-                        loc_eq_constraints.insert(lc);
-                    } else {
-                        app* new_root = arg1;
-                        this->ldvar2eqroot[arg1] = new_root;
-                        this->ldvar2eqroot[arg2] = new_root;
-                        // for eqclass node construction
-                        loc_eq_constraints.insert(lc);
-                    }
-                }
-            } else if(lc->is_app_of(basic_family_id, OP_DISTINCT)) {
-                app* arg1 = to_app(lc->get_arg(0));
-                app* arg2 = to_app(lc->get_arg(1));
-                if((this->th->is_locvar(arg1) || this->th->is_nil(arg1)) && (this->th->is_locvar(arg2) || this->th->is_nil(arg2))) {
-                    if(this->ldvar2neqvars.find(arg1) != this->ldvar2neqvars.end()) {
-                        this->ldvar2neqvars[arg1].insert(arg2);
-                        // for neq relation node construction
-                        loc_neq_constraints.insert(lc);
-                    } else {
-                        std::set<app*> new_neq_set;
-                        new_neq_set.insert(arg2);
-                        this->ldvar2neqvars[arg1] = new_neq_set;
-                        // for neq relation node construction
-                        loc_neq_constraints.insert(lc);
-                    }
-                    if(this->ldvar2neqvars.find(arg2) != this->ldvar2neqvars.end()) {
-                        this->ldvar2neqvars[arg2].insert(arg1);
-                        // for neq relation node construction
-                        loc_neq_constraints.insert(lc);
-                    } else {
-                        std::set<app*> new_neq_set;
-                        new_neq_set.insert(arg1);
-                        this->ldvar2neqvars[arg2] = new_neq_set;
-                        // for neq relation node construction
-                        loc_neq_constraints.insert(lc);
-                    }
-                }
-              
             } else if(lc->is_app_of(basic_family_id, OP_NOT)) {
                 app* inner = to_app(lc->get_arg(0));
                 SASSERT(inner->is_app_of(basic_family_id, OP_EQ));
@@ -7590,7 +7270,6 @@ namespace smt {
     }
 
     app* slhv_syntax_maker::mk_subh(expr* lhs, expr* rhs) {
-
         #ifdef SLHV_PRINT
         std::cout << "mk subh" << std::endl;
         #endif
@@ -7605,12 +7284,10 @@ namespace smt {
         return result;
     }
 
-
     app* slhv_syntax_maker::mk_disjh(expr* ht1, expr* ht2) {
         #ifdef SLHV_PRINT
         std::cout << "mk disjh" << std::endl;
         #endif
-
         sort_ref_vector sorts_args(this->th->get_manager());
         sorts_args.push_back(ht1->get_sort());
         sorts_args.push_back(ht2->get_sort());
@@ -7883,8 +7560,6 @@ namespace smt {
         for(int i = 0; i < pt_datafield_num; i ++) {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
-
-
         
         app* addr_pt_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
 
@@ -7980,7 +7655,6 @@ namespace smt {
         for(int i = 0; i < pt_datafield_num; i ++) {
             record_fresh_datavars.push_back(this->mk_fresh_datavar());
         }
-
         app* rhs_record = this->mk_record(data_record, record_fresh_locvars, record_fresh_datavars);
         app* rhs_points_to = this->mk_points_to_new(addr, rhs_record);
         app* eq_lhs = fresh_whole_h;
@@ -8137,9 +7811,7 @@ namespace smt {
         // }
         pt_record* data_record = nullptr;
         for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {          
-
             // std::cout << "rc name: " << rc->get_pt_record_name() << std::endl;
-
             if(!rc->get_pt_record_name().compare("Pt_R_1")) {
                 data_record = rc;
                 break;
@@ -8488,11 +8160,9 @@ namespace smt {
 
 
     app* slhv_syntax_maker::mk_points_to_new(app* addr_loc, app* record_loc) {
-
         #ifdef SLHV_PRINT
         std::cout << "mk points to new: " << mk_ismt2_pp(addr_loc, this->th->get_manager()) << ", " << mk_ismt2_pp(record_loc, this->th->get_manager()) << std::endl;
         #endif
-
         pt_record* data_record = nullptr;
         for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {
             if(!rc->get_pt_record_name().compare("Pt_R_1")) {
@@ -8504,7 +8174,6 @@ namespace smt {
             return nullptr;
         }
         func_decl* data_pt_r_decl = this->slhv_decl_plug->pt_record_decls[data_record->get_pt_record_name()];
-
         std::vector<app*> args = {addr_loc, record_loc};
         expr_ref_vector args_vec(this->th->get_manager());
         for(app* arg : args) {
@@ -8585,11 +8254,9 @@ namespace smt {
 
 
     app* slhv_syntax_maker::mk_data_record(app* data_content) {
-
         #ifdef SLHV_PRINT
         std::cout << "mk data record for: " << mk_ismt2_pp(data_content, this->th->get_manager()) << std::endl;
         #endif
-
         pt_record* data_record = nullptr;
         for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
             if(!r->get_pt_record_name().compare("Pt_R_1")) {
@@ -8607,11 +8274,9 @@ namespace smt {
 
     app* slhv_syntax_maker::mk_loc_record(app* loc_content) {
 
-
         #ifdef SLHV_PRINT
         std::cout << "mk loc record for: " << mk_ismt2_pp(loc_content, this->th->get_manager()) << std::endl;
         #endif
-
         pt_record* loc_record = nullptr;
         for(pt_record* r : this->slhv_decl_plug->get_all_pt_records()) {
             if(!r->get_pt_record_name().compare("Pt_R_0")) {
@@ -8762,8 +8427,6 @@ namespace smt {
                     enode* data_enode = this->ctx.get_enode(oapp->get_arg(1))->get_root();
                     pt_proc->add_dependency(model_value_dependency(addr_enode));
                     pt_proc->add_dependency(model_value_dependency(data_enode));
-
-
                     SASSERT(this->enode2proc.find(curr_enode) == this->enode2proc.end());
                     this->enode2proc[curr_enode] = pt_proc;
                     return pt_proc;
