@@ -570,6 +570,8 @@ namespace smt {
             if(e == nullptr) {
                 // std::cout << "NULL PTR encoded" << std::endl;
             }
+            // std::cout << "encoded formula:" << std::endl;
+            // std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
             final_solver->assert_expr(e);
         }
         std::cout << "lia assertion size: " << encoded_formulas.size() << std::endl;
@@ -1862,10 +1864,13 @@ namespace smt {
                 // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
-                SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
-                this->get_context().internalize(to_app(slhv_plugin->global_emp), false);
+                SASSERT(this->global_emp == slhv_plugin->global_emp);
+                this->get_context().internalize(this->global_emp, false);
             }
         } else {
+            #ifdef SLHV_PRINT
+            std::cout << "emp exists, internalize it" << std::endl; 
+            #endif
             this->get_context().internalize(this->global_emp, false);
         }
         if(this->global_nil == nullptr) {
@@ -1879,10 +1884,13 @@ namespace smt {
                 this->curr_locvars.insert(gn);
                 this->global_nil = slhv_plugin->global_nil;
             } else {
-                SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
-                this->get_context().internalize(to_app(slhv_plugin->global_nil), false);
+                SASSERT(this->global_nil == slhv_plugin->global_nil);
+                this->get_context().internalize(this->global_nil, false);
             }
         } else {
+            #ifdef SLHV_PRINT
+            std::cout << "nil exists, internalize it" << std::endl; 
+            #endif
             this->get_context().internalize(this->global_nil, false);
         }
         for(app* pt : this->curr_pts) {
@@ -1899,7 +1907,7 @@ namespace smt {
 
     void theory_slhv::collect_and_analyze_assertions_disj(std::vector<app*> outside_assertions) {
         #ifdef DISJ_DEBUG
-        std::cout << "slhv collect and analyze assignments" << std::endl;
+        std::cout << "slhv collect and analyze assignments disj" << std::endl;
         #endif
         for(auto e : outside_assertions) {
             #ifdef DISJ_DEBUG
@@ -1929,8 +1937,8 @@ namespace smt {
                 // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
-                SASSERT(this->global_emp == to_app(slhv_plugin->global_emp));
-                this->get_context().internalize(to_app(slhv_plugin->global_emp), false);
+                SASSERT(this->global_emp == slhv_plugin->global_emp);
+                this->get_context().internalize(this->global_emp, false);
             }
         } else {
             this->get_context().internalize(this->global_emp, false);
@@ -1943,8 +1951,8 @@ namespace smt {
                 this->locvars_disj.insert(gn);
                 this->global_nil = slhv_plugin->global_nil;
             } else {
-                SASSERT(this->global_nil == to_app(slhv_plugin->global_nil));
-                this->get_context().internalize(to_app(slhv_plugin->global_nil), false);
+                SASSERT(this->global_nil == slhv_plugin->global_nil);
+                this->get_context().internalize(this->global_nil, false);
             }
         } else {
             this->get_context().internalize(this->global_nil, false);
@@ -1956,6 +1964,9 @@ namespace smt {
             this->atomic_hterms_disj.push_back(hv);
         }
         this->atomic_hterms_disj.push_back(this->global_emp);
+        #ifdef DISJ_DEBUG
+        std::cout << "slhv collect and analyze assignments disj over" << std::endl;
+        #endif
     }
 
     std::tuple<std::set<app* >, std::set<app *>, std::set<app *>>
@@ -2077,6 +2088,9 @@ namespace smt {
     // DISJ TODO
     void theory_slhv::collect_heap_subassertions_disj(std::vector<app*> outside_assertions) {
         // collect all constrainst imposed on heap, loc and data
+        #ifdef SLHV_PRINT
+        std::cout << "collect_heap_subassertions_disj begin" << std::endl;
+        #endif
         for(auto e : outside_assertions) {
             if(e->is_app_of(basic_family_id, OP_EQ)) {
                 app* apped_arg1 = to_app(e->get_arg(0));
@@ -2097,10 +2111,17 @@ namespace smt {
                 }
             }
         }
+
+        #ifdef SLHV_PRINT
+        std::cout << "collect_heap_subassertions_disj end" << std::endl;
+        #endif
     }
 
 
     void theory_slhv::collect_heap_musthold_heap_assertions_disj(std::vector<app*> outside_assertions) {
+        #ifdef SLHV_PRINT
+        std::cout << "collect_heap_musthold_heap_assertions_disj begin" << std::endl; 
+        #endif
         // collect all heap constraint that must be hold in the assertions
         for(auto e : outside_assertions) {
             if(e->is_app_of(basic_family_id, OP_EQ)) {
@@ -2116,20 +2137,36 @@ namespace smt {
                 // pass
             }
         }
+        #ifdef SLHV_PRINT
+        std::cout << "collect_heap_musthold_heap_assertions_disj end" << std::endl; 
+        #endif
     }
 
     void theory_slhv::collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions){
+        #ifdef SLHV_PRINT
+        std::cout << "collect_loc_data_inf_graph_assertions_disj begin" << std::endl; 
+        #endif
         for(auto e : inf_assertions) {
             if(to_app(e)->is_app_of(basic_family_id, OP_NOT)) {
                 expr* negated = to_app(e)->get_arg(0);
-                expr* negated_arg0 = to_app(negated)->get_arg(0);
-                if(is_heapterm(to_app(negated_arg0))) {
-                   // pass
-                } else if(is_locterm(to_app(negated_arg0))) {
-                    this->inf_graph_loc_assertions.insert(to_app(e));
+                #ifdef SLHV_PRINT
+                std::cout << "negated inner: " << mk_ismt2_pp(negated, this->get_manager()) << std::endl;
+                #endif
+                if(to_app(negated)->get_num_args() == 0) {
+                    // pass
                 } else {
-                    this->inf_graph_data_assertions.insert(to_app(e));
-                    // this should not happen
+                    if(to_app(negated)->get_num_args() != 2) {
+                        std::cout << "ERROR: NNF not done or buggy" << std::endl;
+                    }
+                    expr* negated_arg0 = to_app(negated)->get_arg(0);
+                    if(is_heapterm(to_app(negated_arg0))) {
+                       // pass
+                    } else if(is_locterm(to_app(negated_arg0))) {
+                        this->inf_graph_loc_assertions.insert(to_app(e));
+                    } else {
+                        this->inf_graph_data_assertions.insert(to_app(e));
+                        // this should not happen
+                    }
                 }
             } else {
                 if(to_app(e)->is_app_of(basic_family_id, OP_DISTINCT) || 
@@ -2148,6 +2185,9 @@ namespace smt {
                 }
             }
         }
+        #ifdef SLHV_PRINT
+        std::cout << "collect_loc_data_inf_graph_assertions_disj end" << std::endl; 
+        #endif
     }
 
     void theory_slhv::reset_outside_configs() {
@@ -4247,7 +4287,6 @@ namespace smt {
                 int pt_index = this->ht2index_map[pt];
                 int ptp_index = this->ht2index_map[ptp];
                 std::vector<app*> pt_atom = pt->get_atoms();
-                pt->print_ht();
                 app* pt_addr = to_app(pt_atom[0]->get_arg(0));
                 app* pt_rcd = to_app(pt_atom[0]->get_arg(1));
                 SASSERT(this->th->is_recordterm(pt_rcd));
