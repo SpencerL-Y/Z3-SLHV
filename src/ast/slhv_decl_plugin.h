@@ -372,7 +372,9 @@ public:
     app* mk_data_record(app* data) {
         arith_util aut(m_manager);
         func_decl* Pt_R_1_decl = slhv_plug->pt_record_decls["Pt_R_1"];
+        #ifdef SLHV_PRINT
         std::cout << "mk_data_record: " << Pt_R_1_decl->get_name() << " " << Pt_R_1_decl->get_arity() << " " << Pt_R_1_decl->get_range()->get_name() << std::endl;
+        #endif
         expr_ref_vector args_vec(m_manager);
         args_vec.push_back(data);
         m_manager.inc_ref(data);

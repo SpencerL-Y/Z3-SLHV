@@ -1860,7 +1860,6 @@ namespace smt {
                 SASSERT(slhv_plugin->global_emp != nullptr);
                 app* ge = slhv_plugin->global_emp;
                 this->get_context().internalize(ge, false);
-                std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
                 // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
@@ -1880,7 +1879,6 @@ namespace smt {
             if(!this->curr_locvars_contain_nil()) {
                 app* gn = slhv_plugin->global_nil;
                 this->get_context().internalize(gn, false);
-                std::cout << "internalize " << mk_pp(gn, this->m) << std::endl;
                 this->curr_locvars.insert(gn);
                 this->global_nil = slhv_plugin->global_nil;
             } else {
@@ -1933,7 +1931,6 @@ namespace smt {
                 SASSERT(slhv_plugin->global_emp != nullptr);
                 app* ge = slhv_plugin->global_emp;
                 this->get_context().internalize(ge, false);
-                std::cout << "internalize " << mk_pp(ge, this->m) << std::endl;
                 // this->curr_hvars.insert(ge);
                 this->global_emp = ge;
             } else {
@@ -1947,7 +1944,6 @@ namespace smt {
             if(!this->locvars_contain_nil_disj()) {
                 app* gn = slhv_plugin->global_nil;
                 this->get_context().internalize(gn, false);
-                std::cout << "internalize " << mk_pp(gn, this->m) << std::endl;
                 this->locvars_disj.insert(gn);
                 this->global_nil = slhv_plugin->global_nil;
             } else {
