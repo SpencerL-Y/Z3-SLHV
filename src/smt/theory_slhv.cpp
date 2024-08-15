@@ -487,7 +487,8 @@ namespace smt {
         std::vector<app*> refined_assertions;
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
-            expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_double_uplus);
+            expr* elimnated_ite_assertion = this->eliminate_ite_for_assertion_disj(eliminated_double_uplus);
+            expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(elimnated_ite_assertion);
             
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
@@ -1215,6 +1216,78 @@ namespace smt {
             return assertion;
         }
         return assertion;
+    }
+
+
+    expr* theory_slhv::eliminate_ite_for_assertion_disj(expr* assertion) {
+        app* apped_assertion = to_app(assertion);
+        if(apped_assertion->is_app_of(basic_family_id, OP_EQ)) {
+            return this->eliminate_ite_for_atomic_eq_disj(apped_assertion);
+        } else if(apped_assertion->is_app_of(basic_family_id, OP_NOT)) {
+            app* negated_inner = to_app(apped_assertion->get_arg(0));
+            expr* processed_inner = this->eliminate_ite_for_assertion_disj(negated_inner);
+            return this->syntax_maker->mk_not(processed_inner);
+        } else if(apped_assertion->is_app_of(basic_family_id, OP_AND)) {
+            expr_ref_vector processed_args(this->get_manager());
+            for(int i = 0; i < apped_assertion->get_num_args(); i ++) {
+                expr* proc_arg = this->eliminate_ite_for_assertion_disj(apped_assertion->get_arg(i));
+                processed_args.push_back(proc_arg);
+            }
+            return this->syntax_maker->mk_and(processed_args.size(), processed_args.data());
+        } else if(apped_assertion->is_app_of(basic_family_id, OP_OR)) {
+
+            expr_ref_vector processed_args(this->get_manager());
+            for(int i = 0; i < apped_assertion->get_num_args(); i ++) {
+                expr* proc_arg = this->eliminate_ite_for_assertion_disj(apped_assertion->get_arg(i));
+                processed_args.push_back(proc_arg);
+            }
+            return this->syntax_maker->mk_or(processed_args.size(), processed_args.data());
+        } else {
+            return apped_assertion;
+        }
+    }
+
+    expr* theory_slhv::eliminate_ite_for_atomic_eq_disj(expr* atomic) {
+        app* apped_atomic = to_app(atomic);
+        if(apped_atomic->is_app_of(basic_family_id, OP_EQ)) {
+            app* lhs = to_app(apped_atomic->get_arg(0));
+            app* rhs = to_app(apped_atomic->get_arg(1));
+            if(lhs->is_app_of(basic_family_id, OP_ITE) && rhs->is_app_of(basic_family_id, OP_ITE)) {
+                std::cout << "ERROR: eq lhs and rhs are both ite" << std::endl;
+                return nullptr;
+            }
+            if(lhs->is_app_of(basic_family_id, OP_ITE)) {
+                app* ite_cond = to_app(lhs->get_arg(0));
+                app* ite_first_branch = to_app(lhs->get_arg(1));
+                app* ite_second_branch = to_app(lhs->get_arg(2));
+                app* hold_branch = this->syntax_maker->mk_and(
+                    ite_cond, 
+                    this->syntax_maker->mk_eq(ite_first_branch, rhs)
+                );
+                app* nothold_branch = this->syntax_maker->mk_and(
+                    this->syntax_maker->mk_not(ite_cond),
+                    this->syntax_maker->mk_eq(ite_second_branch, rhs)
+                );
+                return this->syntax_maker->mk_or(hold_branch, nothold_branch);
+            } else if(rhs->is_app_of(basic_family_id, OP_ITE)) {
+                app* ite_cond = to_app(rhs->get_arg(0));
+                app* ite_first_branch = to_app(rhs->get_arg(1));
+                app* ite_second_branch = to_app(rhs->get_arg(2));
+                app* hold_branch = this->syntax_maker->mk_and(
+                    ite_cond,
+                    this->syntax_maker->mk_eq(lhs, ite_first_branch)
+                );
+                app* nothold_branch = this->syntax_maker->mk_and(
+                    this->syntax_maker->mk_not(ite_cond),
+                    this->syntax_maker->mk_eq(lhs, ite_second_branch)
+                );
+                return this->syntax_maker->mk_or(hold_branch, nothold_branch);
+            } else {
+                return apped_atomic;
+            }
+        } else {
+            return apped_atomic;
+        }
     }
 
 
