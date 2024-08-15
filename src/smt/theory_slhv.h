@@ -74,6 +74,8 @@ namespace smt
         void collect_heap_musthold_heap_assertions_disj(std::vector<app*> outside_assertions);
         void collect_loc_data_inf_graph_assertions_disj(std::set<app*> inf_assertions);
         expr* eliminate_uplus_in_uplus_for_assertion_disj(expr* assertion);
+        expr* eliminate_ite_for_assertion_disj(expr* assertion);
+        expr* eliminate_ite_for_atomic_eq_disj(expr* atomic);
         expr* convert_to_nnf_recursive(expr* assertion);
         expr* convert_points_to_addr_disj(expr* assertion);
         expr* convert_points_to_addr_var_for_atomics_disj(expr* atomic);
