@@ -561,7 +561,9 @@ namespace smt {
             return false;
         }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
-
+        for(expr* e : encoded_formulas) {
+            this->get_manager().inc_ref(e);
+        }
 
         params_ref final_solver_param = params_ref();
         solver* final_solver = mk_smt_solver(this->m, final_solver_param, symbol("QF_LIA"));
@@ -691,6 +693,9 @@ namespace smt {
                 }
             }
             final_solver->dec_ref();
+            for(expr* e : encoded_formulas) {
+                this->get_manager().dec_ref(e);
+            }
             this->mem_mng->dealloc_all();
             return true;
         } else if(final_result == l_false) { 
@@ -698,6 +703,9 @@ namespace smt {
             this->set_conflict_slhv();
 
             final_solver->dec_ref();
+            for(expr* e : encoded_formulas) {
+                this->get_manager().dec_ref(e);
+            }
             this->mem_mng->dealloc_all();
             return false;
         } else {    

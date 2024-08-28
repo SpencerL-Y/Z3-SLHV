@@ -158,9 +158,6 @@ namespace {
         }
 
         void assert_expr_core(expr * t) override {
-    #ifdef SLHV_DEBUG
-    std::cout << "smt solver assert_expr_core" << std::endl;
-    #endif
             m_context.assert_expr(t);
         }
         void set_phase(expr* e) override { m_context.set_phase(e); }
