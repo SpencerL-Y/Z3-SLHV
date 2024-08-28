@@ -1340,7 +1340,9 @@ namespace smt {
         app* apped_expr = to_app(assertion);
         if(apped_expr->is_app_of(basic_family_id, OP_NOT) ||
            apped_expr->is_app_of(basic_family_id, OP_EQ) ||
-           apped_expr->is_app_of(basic_family_id, OP_DISTINCT)) {
+           apped_expr->is_app_of(basic_family_id, OP_DISTINCT) || 
+           apped_expr->is_app_of(this->get_family_id(), OP_SUBH) ||
+           apped_expr->is_app_of(this->get_family_id(), OP_DISJH)) {
             return this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
         } else {
             func_decl* apped_expr_decl = apped_expr->get_decl();
@@ -1445,7 +1447,7 @@ namespace smt {
                     return new_result;
                 }
             }  else {
-                    return apped_atomic;
+                return apped_atomic;
             }
         } else if(apped_atomic->is_app_of(basic_family_id, OP_DISTINCT)) {
             app* first_arg = to_app(apped_atomic->get_arg(0));
@@ -1473,8 +1475,54 @@ namespace smt {
             } else {
                 return apped_atomic;
             }
-        } else {
+        } else if(apped_atomic->is_app_of(this->get_family_id(), OP_SUBH)) {
+            // std::cout << "HERERERERE" << std::endl;
+            // std::cout << mk_ismt2_pp(apped_atomic, this->get_manager()) << std::endl;
+            app* first_arg = to_app(apped_atomic->get_arg(0));
+            app* second_arg = to_app(apped_atomic->get_arg(1));std::vector<app*> aux_equalities;
+            // iterate over all terms and replace complex points to
+
+            app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
+            app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
+            if(aux_equalities.size() > 0) {
+                app* new_result = this->syntax_maker->mk_subh(
+                   new_first_arg, new_second_arg
+                );
+                expr_ref_vector result_conj_args(this->m);
+                result_conj_args.push_back(new_result);
+                for(auto arg : aux_equalities) {
+                    result_conj_args.push_back(arg);
+                }
+                app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                return new_non_atomic;
+            } else {
+                return apped_atomic;
+            }
+        } else if(apped_atomic->is_app_of(this->get_family_id(), OP_DISJH)) {
+            app* first_arg = to_app(apped_atomic->get_arg(0));
+            app* second_arg = to_app(apped_atomic->get_arg(1));std::vector<app*> aux_equalities;
+            // iterate over all terms and replace complex points to
+
+            app* new_first_arg = to_app(this->convert_points_to_addr_var_for_term_disj(first_arg, aux_equalities));
+            app* new_second_arg = to_app(this->convert_points_to_addr_var_for_term_disj(second_arg, aux_equalities));
+            if(aux_equalities.size() > 0) {
+                app* new_result = this->syntax_maker->mk_disjh(
+                   new_first_arg, new_second_arg
+                );
+                expr_ref_vector result_conj_args(this->m);
+                result_conj_args.push_back(new_result);
+                for(auto arg : aux_equalities) {
+                    result_conj_args.push_back(arg);
+                }
+                app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
+                return new_non_atomic;
+            } else {
+                return apped_atomic;
+            }
+        }
+        else {
             std::cout << "ERROR: convert points to should not come here" << std::endl;
+            return nullptr;
         }
     }   
 
@@ -1510,7 +1558,8 @@ namespace smt {
             app* new_result =  this->get_manager().mk_app(term_decl, new_args.data());
             this->get_context().internalize(new_result, false);
             return new_result;
-        } else {
+        } 
+        else {
             return term;
         }
     }
