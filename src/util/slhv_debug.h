@@ -1,6 +1,6 @@
 #pragma once
 
-// #define SLHV_DEBUG
+#define SLHV_DEBUG
 
 
 // debug macro
@@ -24,5 +24,6 @@
 // for disjh and subh support
 // #define SLHV_HTR_DEBUG
 
+#define SLHV_ARRAY_DEBUG
 
 // frontend macro
