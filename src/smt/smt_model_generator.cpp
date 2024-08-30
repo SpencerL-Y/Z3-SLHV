@@ -376,9 +376,6 @@ namespace smt {
                     }
                     proc->get_dependencies(dependencies);
                     for (model_value_dependency const& d : dependencies) {
-                        #ifdef SLHV_DEBUG
-                        std::cout << "dependency: " << mk_pp(d.get_enode()->get_expr(), m) << std::endl;
-                        #endif
                         if (d.is_fresh_value()) {
                             #ifdef SLHV_DEBUG
                             std::cout << "dependency is fresh value" << std::endl;

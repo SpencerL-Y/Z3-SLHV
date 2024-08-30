@@ -3252,9 +3252,6 @@ namespace smt {
     }
 
     void context::internalize_assertions() {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize assertions" << std::endl;
-        #endif
         if (get_cancel_flag()) return;
         if (m_internalizing_assertions) return;
         flet<bool> _internalizing(m_internalizing_assertions, true);

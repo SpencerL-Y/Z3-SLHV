@@ -231,10 +231,6 @@ namespace smt {
        \remark pr is 0 if proofs are disabled.
     */
     void context::internalize_assertion(expr * n, proof * pr, unsigned generation) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize assertion: " << 
-        mk_ismt2_pp(n, this->m, 2) << std::endl;
-        #endif
         TRACE("internalize_assertion", tout << mk_pp(n, m) << "\n";); 
         TRACE("internalize_assertion_ll", tout << mk_ll_pp(n, m) << "\n";); 
         TRACE("generation", tout << "generation: " << m_generation << "\n";);
@@ -245,9 +241,6 @@ namespace smt {
         SASSERT(m.is_bool(n));
         if (is_gate(m, n)) {
 
-        #ifdef SLHV_DEBUG
-        std::cout << "is_gate: " << to_app(n)->get_decl_kind() << std::endl;
-        #endif
             switch(to_app(n)->get_decl_kind()) {
             case OP_AND: {
                 for (expr * arg : *to_app(n)) {
@@ -414,9 +407,6 @@ namespace smt {
        \brief Internalize the given formula into the logical context.
     */
     void context::internalize_formula(expr * n, bool gate_ctx) {
-        #ifdef SLHV_DEBUG
-        std::cout << "internalize_formula: " << mk_ismt2_pp(n, m, 2) << std::endl;
-        #endif
 
         TRACE("internalize_bug", tout << "internalize formula: #" << n->get_id() << ", gate_ctx: " << gate_ctx << "\n" << mk_pp(n, m) << "\n";);
         SASSERT(m.is_bool(n));

@@ -3,7 +3,7 @@
 // #define SLHV_DEBUG
 
 
-// // debug macro
+// debug macro
 // #define SLHV_PRINT
 // // #define DED_INFO
 // #define MODEL_GEN_INFO
@@ -15,14 +15,15 @@
 // // for new encoding 
 // #define DISJ_DEBUG
 
-// // for inf graph debug
-// // #define INF_GRAPH_DEBUG
+// for inf graph debug
+// #define INF_GRAPH_DEBUG
 
-// // for readwrite support
-// // #define SLHV_RW_DEBUG
+// for readwrite support
+// #define SLHV_RW_DEBUG
 
-// // for disjh and subh support
+// for disjh and subh support
 // #define SLHV_HTR_DEBUG
 
+// #define SLHV_ARRAY_DEBUG
 
 // frontend macro

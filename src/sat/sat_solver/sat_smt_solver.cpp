@@ -308,9 +308,6 @@ public:
     }
 
     void assert_expr_core(expr * t) override {
-    #ifdef SLHV_DEBUG
-    std::cout << "sat smt solver assert_expr_core" << std::endl;
-    #endif
         m_fmls.push_back(t);
     }
 

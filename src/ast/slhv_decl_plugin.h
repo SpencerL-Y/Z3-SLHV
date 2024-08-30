@@ -9,10 +9,12 @@
 
 #define INTHEAP_SORT_STR "IntHeap"
 #define INTLOC_SORT_STR "IntLoc"
+#define SLHV_ARRAY_SORT_STR "Array"
 // SLHV
 enum slhv_sort_kind {
     INTHEAP_SORT,
-    INTLOC_SORT
+    INTLOC_SORT,
+    SLHV_ARRAY_SORT
 };
 
 enum slhv_op_kind {
@@ -175,6 +177,8 @@ class slhv_decl_plugin : public decl_plugin {
     }
 
     sort * mk_sort(decl_kind k, unsigned num_parameters, parameter const * parameters) override;
+    sort * mk_array_sort(decl_kind k, unsigned num_parameters, parameter const * parameters);
+
 
     void get_sort_names(svector<builtin_name> & sort_names, symbol const & logic) override;
 

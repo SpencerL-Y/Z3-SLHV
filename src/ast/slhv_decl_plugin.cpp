@@ -108,12 +108,79 @@ sort* slhv_decl_plugin::mk_sort(decl_kind k, unsigned num_parameters, parameter 
     } else if(k == INTLOC_SORT) {
         return m_manager->mk_sort(symbol(INTLOC_SORT_STR),
         sort_info(m_family_id, INTLOC_SORT));
-    } 
+    } else if(k == SLHV_ARRAY_SORT) {
+        // slhv array sort making
+        return this->mk_array_sort(k, num_parameters, parameters);
+    }
     else {
         m_manager->raise_exception("invalid sort in slhv");
         return nullptr;
     }
     
+}
+
+sort* slhv_decl_plugin::mk_array_sort(decl_kind k, unsigned num_parameters, parameter const* parameters) {
+    SASSERT(k == SLHV_ARRAY_SORT);
+    if (num_parameters < 2) {
+        m_manager->raise_exception("invalid array sort definition, invalid number of parameters");
+        return nullptr;
+    }
+    
+    for (unsigned i = 0; i < num_parameters; i++) {
+        if (!parameters[i].is_ast() || !is_sort(parameters[i].get_ast())) {
+            m_manager->raise_exception("invalid array sort definition, parameter is not a sort");
+            return nullptr;
+        }
+    }
+    sort * range = to_sort(parameters[num_parameters - 1].get_ast());
+    TRACE("array_decl_plugin_bug", tout << mk_pp(range, *m_manager) << "\n";);
+    if (!range->is_infinite() && !range->is_very_big() && (1 == range->get_num_elements().size())) {
+        return m_manager->mk_sort(symbol(SLHV_ARRAY_SORT_STR), sort_info(m_family_id, SLHV_ARRAY_SORT, 1, 
+                                                             num_parameters, parameters));
+    }
+    bool is_infinite = false;
+    bool is_very_big = false;
+    for (unsigned i = 0; i < num_parameters; i++) {
+        sort * s = to_sort(parameters[i].get_ast());
+        if (s->is_infinite()) {
+            is_infinite = true;
+        }
+        if (s->is_very_big()) {
+            is_very_big = true;
+        }
+    }
+    if (is_infinite) {
+        return m_manager->mk_sort(symbol(SLHV_ARRAY_SORT_STR), sort_info(m_family_id, SLHV_ARRAY_SORT, num_parameters, parameters));
+    }
+    else if (is_very_big) {
+        return m_manager->mk_sort(symbol(SLHV_ARRAY_SORT_STR), sort_info(m_family_id, SLHV_ARRAY_SORT, sort_size::mk_very_big(),
+                                                             num_parameters, parameters));
+    }
+    else {
+        rational domain_sz(1);
+        rational num_elements;
+        for (unsigned i = 0; i < num_parameters - 1; i++) {
+            domain_sz *= rational(to_sort(parameters[i].get_ast())->get_num_elements().size(),rational::ui64());
+        }
+        if (domain_sz <= rational(128)) {
+            num_elements = rational(range->get_num_elements().size(),rational::ui64());
+            num_elements = power(num_elements, static_cast<int>(domain_sz.get_int64()));
+        }
+
+        if (domain_sz > rational(128) || !num_elements.is_uint64()) {
+            // too many elements...
+            return m_manager->mk_sort(symbol(SLHV_ARRAY_SORT_STR), 
+                                      sort_info(m_family_id, 
+                                                SLHV_ARRAY_SORT, 
+                                                sort_size::mk_very_big(), 
+                                                num_parameters, 
+                                                parameters));
+        }
+        else {
+            return m_manager->mk_sort(symbol(SLHV_ARRAY_SORT_STR), sort_info(m_family_id, SLHV_ARRAY_SORT, num_elements.get_uint64(), 
+                                                                 num_parameters, parameters));
+        }
+    }
 }
 
 void slhv_decl_plugin::get_sort_names(svector<builtin_name> & sort_names, symbol const & logic) {
@@ -122,7 +189,8 @@ void slhv_decl_plugin::get_sort_names(svector<builtin_name> & sort_names, symbol
     #endif
     // add self-defined sort names here
     sort_names.push_back(builtin_name(INTHEAP_SORT_STR, INTHEAP_SORT));
-    sort_names.push_back(builtin_name(INTLOC_SORT_STR, INTLOC_SORT));
+    sort_names.push_back(builtin_name(INTLOC_SORT_STR, INTLOC_SORT)); 
+    sort_names.push_back(builtin_name(SLHV_ARRAY_SORT_STR, SLHV_ARRAY_SORT));
 }
 
 void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol const & logic) {
