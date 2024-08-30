@@ -463,7 +463,7 @@ namespace smt {
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
-        #ifdef SLHV_HTR_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
         for(expr* e : assertions) {
@@ -496,7 +496,7 @@ namespace smt {
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
             inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
         }
-        #ifdef SLHV_HTR_DEBUG
+        #ifdef SLHV_PRINT
         std::cout << "================= current refined assignment ==============" << std::endl;
         for(expr* e : refined_assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
@@ -634,7 +634,10 @@ namespace smt {
                     }
 
                 } else {
-                    SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
+                    if(! (key_val_p.second->get_sort()->get_name() == "Int")) {
+                        std::cout << key_val_p.second->get_sort()->get_name() << std::endl;
+                        SASSERT(false);
+                    }
                     auto param = to_app(key_val_p.second)->get_parameter(0);
                     std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
                     std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
@@ -3944,8 +3947,20 @@ namespace smt {
         } else if(apped_formula->is_app_of(basic_family_id, OP_EQ)) {
             app* inner_lhs = to_app(apped_formula->get_arg(0));
             app* inner_rhs = to_app(apped_formula->get_arg(1));
-            app* translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
-            app* translated_inner_rhs = this->translate_locterm_to_liaterm(inner_rhs);
+            bool lhs_is_term = (inner_lhs->get_num_args() == 0);
+            bool rhs_is_term = (inner_rhs->get_num_args() == 0);
+            app* translated_inner_lhs = nullptr;
+            if(lhs_is_term) {
+                translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
+            } else {
+                translated_inner_lhs = to_app(this->translate_locdata_formula(inner_lhs));
+            }
+            app* translated_inner_rhs = nullptr;
+            if(rhs_is_term) {
+                translated_inner_rhs = this->translate_locterm_to_liaterm(inner_rhs);
+            } else {
+                translated_inner_rhs = to_app(this->translate_locdata_formula(inner_rhs));  
+            }
             expr* result = this->syntax_maker->mk_eq(translated_inner_lhs, translated_inner_rhs);
             
             return result;
@@ -5076,6 +5091,10 @@ namespace smt {
                 if(this->th->is_heapterm(to_app(inner->get_arg(0)))) {
                     std::cout << "ERROR: heq negation !!!!!" << mk_ismt2_pp(assertion, this->th->get_manager()) << std::endl;
                     return nullptr;
+                } else {
+                    app* negated_eq_first_arg = to_app(inner->get_arg(0));
+                    SASSERT(this->th->is_locterm(negated_eq_first_arg) || this->th->is_dataterm(negated_eq_first_arg));
+                    return this->translate_locdata_formula(assertion);
                 }
             }
             return this->translate_locdata_formula(assertion);
