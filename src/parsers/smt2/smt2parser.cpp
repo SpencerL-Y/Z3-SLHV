@@ -2583,9 +2583,7 @@ namespace smt2 {
             next();
             unsigned spos = sort_stack().size();
             unsigned num_params = parse_sorts("Parsing function declaration. Expecting sort list '('");
-            std::cout << "num params: " << num_params << std::endl;
             parse_sort("Invalid function declaration");
-            std::cout << "parse sort over" << std::endl;
             func_decl_ref f(m());
             f = m().mk_func_decl(id, num_params, sort_stack().data() + spos, sort_stack().back());
             sort_stack().shrink(spos);

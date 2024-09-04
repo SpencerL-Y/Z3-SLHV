@@ -1,5 +1,16 @@
-
+(set-info :smt-lib-version 2.6)
 (set-logic SLHV)
+(declare-hvar emp IntHeap)
+(declare-locvar nil IntLoc)
+(declare-datatype pt_record_0 ((Pt_R_0 (loc IntLoc))))
+(declare-datatype pt_record_1 ((Pt_R_1 (data Int))))(set-info :source |
+Benchmarks from Leonardo de Moura <demoura@csl.sri.com>
+
+This benchmark was automatically translated into SMT-LIB format from
+CVC format using CVC Lite
+|)
+(set-info :category "industrial")
+(set-info :status unsat)
 (declare-fun x_0 () Int)
 (declare-fun x_1 () (Array Int Int))
 (declare-fun x_2 () Int)

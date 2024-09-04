@@ -453,6 +453,32 @@ namespace smt {
         }
     }
 
+
+    bool theory_slhv::is_array_formula(app* l) {
+        if(l->get_num_args() == 0) {
+            if(this->is_array(l)) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            if(this->is_array_operation(l)) {
+                return true;
+            }
+            bool result = false;
+            for(int i = 0; i < l->get_num_args(); i ++) {
+                bool curr_result = this->is_array_formula(to_app(l->get_arg(i)));
+                result = result || curr_result;
+                if(result) {
+                    return true;
+                }
+            }
+            return result;
+        }
+    }
+
+
+
     bool theory_slhv::final_check() {
         // return final_check_using_CDCL();
         return final_check_using_DISJ();
@@ -463,6 +489,7 @@ namespace smt {
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
+        
         #ifdef SLHV_PRINT
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
@@ -1126,6 +1153,23 @@ namespace smt {
         this->check_status = slhv_unsat;
         this->mem_mng->dealloc_all();
         return false;
+    }
+
+    // array methods
+
+    bool theory_slhv::assertions_contain_array(ptr_vector<expr> assertions) {
+        for(expr* e : assertions) {
+            if(this->is_array_formula(to_app(e))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    std::vector<expr*> theory_slhv::convert_array_formula_to_slhv_formula(ptr_vector<expr> assertions) {
+        for(expr* e : assertions) {
+            
+        }
     }
 
 

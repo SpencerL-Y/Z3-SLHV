@@ -27,6 +27,8 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_loc2int_symbol("loc2int"),
     m_int2loc_symbol("int2loc"),
     m_locconst_symbol("Loc"),
+    m_array_select("select"),
+    m_array_store("store"),
     global_emp(nullptr),
     global_nil(nullptr),
     record_type_num(0),
@@ -207,6 +209,8 @@ void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol con
     op_names.push_back(builtin_name("readdata", OP_READDATA));
     op_names.push_back(builtin_name("writeloc", OP_WRITELOC));
     op_names.push_back(builtin_name("writedata", OP_WRITEDATA));
+    op_names.push_back(builtin_name("select", OP_SLHV_SELECT));
+    op_names.push_back(builtin_name("store", OP_SLHV_STORE));
 }
 
 func_decl* slhv_decl_plugin::mk_uplus(unsigned arity, sort * const * domain) {
@@ -401,6 +405,37 @@ func_decl* slhv_decl_plugin::mk_int2loc(unsigned arity, sort* const* domain) {
 }
 
 
+// array method
+func_decl* slhv_decl_plugin::mk_slhv_select(unsigned arity, sort* const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("select takes exactly 2 arguments");
+        return nullptr;
+    }
+    sort* array_sort = domain[0];
+    
+    sort* index_sort = domain[1];
+    sort* content_sort = to_sort(array_sort->get_parameter(array_sort->get_num_parameters()-1).get_ast());
+    func_decl* result_decl = m_manager->mk_func_decl(m_array_select, arity, domain, content_sort, func_decl_info(m_family_id, OP_SLHV_SELECT));
+    return result_decl;
+}
+
+// array method
+func_decl* slhv_decl_plugin::mk_slhv_store(unsigned arity, sort* const* domain) {
+    if(arity != 3) {
+        m_manager->raise_exception("array store takes exactly 3 arguments");
+        return nullptr;
+    }
+    sort* array_sort = domain[0];
+    sort* index_sort = domain[1];
+    sort* content_sort = domain[2];
+
+    sort* array_content_sort = to_sort(array_sort->get_parameter(array_sort->get_num_parameters()-1).get_ast());
+    sort* result_array_sort = array_sort;
+    func_decl* result_decl = m_manager->mk_func_decl(m_array_store, arity, domain, result_array_sort, func_decl_info(m_family_id, OP_SLHV_STORE));
+    return result_decl;
+}
+
+
 
 func_decl* slhv_decl_plugin::mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
@@ -423,6 +458,17 @@ func_decl* slhv_decl_plugin::mk_const_locvar(symbol name, sort* range, unsigned 
     return result_decl;
 
 }
+
+func_decl* slhv_decl_plugin::mk_const_array_var(symbol name, sort* range, unsigned arity, sort* const* domain) {
+    SASSERT(arity == 0);
+    func_decl_info info(m_family_id, OP_SLHV_ARRAY_CONST);
+    func_decl* result_decl = m_manager->mk_const_decl(name, range, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk_hvar_const result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
+    #endif
+    return result_decl;
+}
+
 func_decl* slhv_decl_plugin::mk_const_emp(sort* range, unsigned arity, sort* const* domain) {
     SASSERT(arity == 0);
 
@@ -494,6 +540,10 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
         return this->mk_loc2int(arity, domain);
     case OP_INT2LOC:
         return this->mk_int2loc(arity, domain);
+    case OP_SLHV_SELECT:
+        return this->mk_slhv_select(arity, domain);
+    case OP_SLHV_STORE:
+        return this->mk_slhv_store(arity, domain);
     case OP_EMP:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin op_emp" << std::endl;
@@ -515,6 +565,8 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_hvar_const" << std::endl;
     #endif
         return this->mk_const_hvar(this->curr_hvar_name, range, arity, domain);
+    case OP_SLHV_ARRAY_CONST:
+        return this->mk_const_array_var(this->curr_array_var_name, range, arity, domain);
     default:
     #ifdef SLHV_DEBUG
     std::cout << "mk_func_decl in slhv plugin default!!" << std::endl; 

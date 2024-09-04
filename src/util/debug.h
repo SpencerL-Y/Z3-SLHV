@@ -41,7 +41,6 @@ void set_default_debug_action(debug_action a);
 
 // #define SLHV_DEBUG
 #ifdef Z3DEBUG
-
 #define DEBUG_CODE(CODE) { CODE } ((void) 0)
 #else
 #define DEBUG_CODE(CODE) ((void) 0)
