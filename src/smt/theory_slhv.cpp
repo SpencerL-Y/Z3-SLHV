@@ -490,8 +490,13 @@ namespace smt {
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
 
-        this->convert_array_formulas_to_slhv_formulas(assertions);
+        std::vector<expr*> converted_assertions =  this->convert_array_formulas_to_slhv_formulas(assertions);
         
+        assertions.clear();
+        for(expr* e : converted_assertions) {
+            assertions.push_back(e);
+        }
+
         #ifdef SLHV_PRINT
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
@@ -1169,13 +1174,19 @@ namespace smt {
     }
     
     std::vector<expr*> theory_slhv::convert_array_formulas_to_slhv_formulas(ptr_vector<expr> assertions) {
+        std::vector<expr*> result;
         std::map<app*, app*> array_var2heap_var;
         std::map<app*, app*> array_term2_slhv_term;
         std::vector<app*> aux_formulas;
         for(expr* e : assertions) {
             std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
             expr* converted_e = this->convert_array_formula_to_slhv_formula(e, aux_formulas, array_var2heap_var, array_term2_slhv_term);
+            result.push_back(converted_e);
         }
+        for(expr* e : aux_formulas) {
+            result.push_back(e);
+        }
+        return result;
     }
 
 
@@ -1185,27 +1196,27 @@ namespace smt {
         if(apped_formula->is_app_of(basic_family_id, OP_AND)) {
             expr_ref_vector processed_args(this->get_manager());
             for(int i = 0; i < apped_formula->get_num_args(); i ++) {
-                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula( apped_formula->get_arg(i), aux));
+                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula( apped_formula->get_arg(i), aux, array_var2heap_var, term2term));
                 processed_args.push_back(converted_arg);
             }
             return this->syntax_maker->mk_and(processed_args.size(), processed_args.data());
         } else if(apped_formula->is_app_of(basic_family_id, OP_OR)) {
             expr_ref_vector processed_args(this->get_manager());
             for(int i = 0; i < apped_formula->get_num_args(); i ++) {
-                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula(apped_formula->get_arg(i), aux));
+                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula(apped_formula->get_arg(i), aux, array_var2heap_var, term2term));
                 processed_args.push_back(converted_arg);
             }
             return this->syntax_maker->mk_or(processed_args.size(), processed_args.data());
         } else if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
             app* negated_inner = to_app(apped_formula->get_arg(0));
-            app* converted_inner = to_app(this->convert_array_formula_to_slhv_formula(negated_inner, aux));
+            app* converted_inner = to_app(this->convert_array_formula_to_slhv_formula(negated_inner, aux, array_var2heap_var, term2term));
             return this->syntax_maker->mk_not(converted_inner);
         } else if(apped_formula->is_app_of(arith_family_id, OP_GT) || 
                   apped_formula->is_app_of(basic_family_id, OP_EQ) || 
                   apped_formula->is_app_of(arith_family_id, OP_GE) ||
                   apped_formula->is_app_of(arith_family_id, OP_LE) ||
                   apped_formula->is_app_of(arith_family_id, OP_LT)) {
-            return this->convert_atomic_array_formula_to_slhv(apped_formula, aux);
+            return this->convert_atomic_array_formula_to_slhv(apped_formula, aux, array_var2heap_var, term2term);
         } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
             std::cout << "ERROR: does not support distinct convertion to slhv now" << std::endl;
         } else {
@@ -1231,8 +1242,8 @@ namespace smt {
             app* first_arg = to_app(atomic->get_arg(0));
             app* second_arg = to_app(atomic->get_arg(1));
             
-            app* converted_first_arg = this->convert_array_term_to_slhv(first_arg, aux);
-            app* converted_second_arg  = this->convert_array_term_to_slhv(second_arg, aux);
+            app* converted_first_arg = this->convert_array_term_to_slhv(first_arg, aux, array_var2heap_var, term2term);
+            app* converted_second_arg  = this->convert_array_term_to_slhv(second_arg, aux, array_var2heap_var, term2term);
             expr_ref_vector new_args(this->get_manager());
             new_args.push_back(converted_first_arg);    
             new_args.push_back(converted_second_arg);    
@@ -1268,9 +1279,13 @@ namespace smt {
                 hterm_args.push_back(auxillary_heap);
                 app* fresh_data_record = this->syntax_maker->mk_data_record(content_fresh_var);
                 app* fresh_pt = this->syntax_maker->mk_points_to_new(converted_content, fresh_data_record);
+
+                std::vector<app*> heap_desc_content;
+                heap_desc_content.push_back(auxillary_heap);
+                heap_desc_content.push_back(fresh_pt);
                 app* heap_equation = this->syntax_maker->mk_eq(
                     converted_heap,
-                    this->syntax_maker->mk_uplus_app(auxillary_heap, fresh_pt)
+                    this->syntax_maker->mk_uplus_app(heap_desc_content.size(), heap_desc_content)
                 );
                 aux.push_back(heap_equation);
                 term2term[term] = content_fresh_var;
@@ -1283,19 +1298,46 @@ namespace smt {
                 app* converted_store_content = nullptr;
                 for(int i = 0; i < term->get_num_args(); i ++) {
                     app* old_arg = to_app(term->get_arg(i));
-                    app* converted_arg = this->convert_array_term_to_slhv(old_arg);
-                    
+                    app* converted_arg = this->convert_array_term_to_slhv(old_arg, aux, array_var2heap_var, term2term);
+
                     if(i == 0) {
-
+                        converted_original_heap = converted_arg;
                     } else if(i == 1) {
-
+                        converted_addr = converted_arg;
                     } else if(i == 2) {
-
+                        converted_store_content = converted_arg;
                     } else {
                         std::cout << "ERROR: convert array term, error" << std::endl;
                         return nullptr;
                     }
                 }
+                app* exist_heap = this->syntax_maker->mk_fresh_hvar();
+                app* exist_data = this->syntax_maker->mk_fresh_datavar();
+                app* exist_data_record = this->syntax_maker->mk_data_record(exist_data);
+                app* stored_data_record = this->syntax_maker->mk_data_record(converted_store_content);
+                app* original_points_to = this->syntax_maker->mk_points_to_new(converted_addr, exist_data_record);
+                app* stored_points_to = this->syntax_maker->mk_points_to_new(converted_addr, stored_data_record);
+                app* new_heap = this->syntax_maker->mk_fresh_hvar();
+                std::vector<app*> old_uplus_content;
+                old_uplus_content.push_back(exist_heap);
+                old_uplus_content.push_back(original_points_to);
+                app* old_uplus = this->syntax_maker->mk_uplus_app(old_uplus_content.size(), old_uplus_content);
+                std::vector<app*> new_uplus_content;
+                new_uplus_content.push_back(exist_heap);
+                new_uplus_content.push_back(stored_points_to);
+                app* new_uplus = this->syntax_maker->mk_uplus_app(new_uplus_content.size(), new_uplus_content);
+                app* old_heap_desc = this->syntax_maker->mk_eq(
+                    converted_original_heap, 
+                    old_uplus
+                );
+                app* new_heap_desc = this->syntax_maker->mk_eq(
+                    new_heap,
+                    new_uplus
+                );
+                term2term[term] = new_heap;
+                aux.push_back(old_heap_desc);
+                aux.push_back(new_heap_desc);
+                return new_heap;
             } else {
                 std::cout << "ERROR: should not be here" << std::endl;
             }

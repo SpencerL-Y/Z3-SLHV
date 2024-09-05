@@ -92,17 +92,18 @@ namespace smt
         expr* convert_array_formula_to_slhv_formula(
             expr* formula, 
             std::vector<app*>& aux, 
-            std::map<std::string, std::string>& array_var2heap_var,
-            std::map<std::string, std::string>& term2term);
+            std::map<app*, app*>& array_var2heap_var,
+            std::map<app*, app*>& term2term);
         expr* convert_atomic_array_formula_to_slhv(
             app* atomic, 
             std::vector<app*>& aux, 
-            std::map<std::string, std::string>& array_var2heap_var, 
-            std::map<std::string, std::string>& term2term);
+            std::map<app*, app*>& array_var2heap_var, 
+            std::map<app*, app*>& term2term);
         app* convert_array_term_to_slhv(
             app* term, 
             std::vector<app*>& aux, 
-            std::map<std::string, std::string>& array_var2heap_var, std::map<std::string, std::string>& term2term);
+            std::map<app*, app*>& array_var2heap_var, 
+            std::map<app*, app*>& term2term);
         // =========================================================
 
 
