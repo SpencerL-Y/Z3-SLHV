@@ -88,7 +88,21 @@ namespace smt
         
         // array
         bool assertions_contain_array(ptr_vector<expr> assertions);
-        std::vector<expr*> convert_array_formula_to_slhv_formula(ptr_vector<expr>  array_assertions);
+        std::vector<expr*> convert_array_formulas_to_slhv_formulas(ptr_vector<expr>  array_assertions);
+        expr* convert_array_formula_to_slhv_formula(
+            expr* formula, 
+            std::vector<app*>& aux, 
+            std::map<std::string, std::string>& array_var2heap_var,
+            std::map<std::string, std::string>& term2term);
+        expr* convert_atomic_array_formula_to_slhv(
+            app* atomic, 
+            std::vector<app*>& aux, 
+            std::map<std::string, std::string>& array_var2heap_var, 
+            std::map<std::string, std::string>& term2term);
+        app* convert_array_term_to_slhv(
+            app* term, 
+            std::vector<app*>& aux, 
+            std::map<std::string, std::string>& array_var2heap_var, std::map<std::string, std::string>& term2term);
         // =========================================================
 
 
@@ -257,6 +271,12 @@ namespace smt
             } else {
                 return false;
             }
+        }
+        bool is_array_var(app const* n) const {
+            if(n->get_num_args() == 0 && n->get_sort()->get_name() == SLHV_ARRAY_SORT_STR) {
+                return true;
+            }
+            return false;
         }
         bool is_emp(app const* n) const {
             return n->is_app_of(get_id(), OP_EMP);
