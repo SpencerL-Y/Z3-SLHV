@@ -89,7 +89,7 @@ namespace smt {
         #ifdef SLHV_PRINT
             std::cout << "slhv internalize term" << std::endl;
         #endif
-        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term) && !is_readdata(term) && !is_readloc(term) && !is_writedata(term) && !is_writeloc(term) && !is_loc2int(term) && !is_int2loc(term)) {
+        if(!is_uplus(term) && !is_points_to(term) && !is_locvar(term) && !is_hvar(term) && !is_nil(term) && !is_emp(term) && !is_locadd(term) && !is_readdata(term) && !is_readloc(term) && !is_writedata(term) && !is_writeloc(term) && !is_loc2int(term) && !is_int2loc(term) && !is_array_operation(term)) {
             std::cout << "unsupported term op: " << term->get_name() << std::endl;
             return false;
         }
@@ -453,6 +453,32 @@ namespace smt {
         }
     }
 
+
+    bool theory_slhv::is_array_formula(app* l) {
+        if(l->get_num_args() == 0) {
+            if(this->is_array(l)) {
+                return true;
+            } else {
+                return false;
+            }
+        } else {
+            if(this->is_array_operation(l)) {
+                return true;
+            }
+            bool result = false;
+            for(int i = 0; i < l->get_num_args(); i ++) {
+                bool curr_result = this->is_array_formula(to_app(l->get_arg(i)));
+                result = result || curr_result;
+                if(result) {
+                    return true;
+                }
+            }
+            return result;
+        }
+    }
+
+
+
     bool theory_slhv::final_check() {
         // return final_check_using_CDCL();
         return final_check_using_DISJ();
@@ -463,6 +489,24 @@ namespace smt {
         this->reset_outside_configs();
         ptr_vector<expr> assertions;
         this->ctx.get_assertions(assertions);
+
+        bool contain_array_element = false;
+        for(expr* e : assertions) {
+            app* apped_e = to_app(e);
+            if(this->contain_array_elements(apped_e)) {
+                contain_array_element = true;
+                break;
+            }
+        }
+        if(contain_array_element) {
+            std::vector<expr*> converted_assertions =  this->convert_array_formulas_to_slhv_formulas(assertions);
+        
+            assertions.clear();
+            for(expr* e : converted_assertions) {
+                assertions.push_back(e);
+            }
+        }
+        
         #ifdef SLHV_PRINT
         std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
         std::cout << "================= current outside assertions ==============" << std::endl;
@@ -1126,6 +1170,263 @@ namespace smt {
         this->check_status = slhv_unsat;
         this->mem_mng->dealloc_all();
         return false;
+    }
+
+    // array methods
+
+    bool theory_slhv::assertions_contain_array(ptr_vector<expr> assertions) {
+        for(expr* e : assertions) {
+            if(this->is_array_formula(to_app(e))) {
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    std::vector<expr*> theory_slhv::convert_array_formulas_to_slhv_formulas(ptr_vector<expr> assertions) {
+        std::vector<expr*> result;
+        std::map<app*, app*> array_var2heap_var;
+        std::map<app*, app*> array_term2_slhv_term;
+        std::map<app*, app*> array_term2init_loc;
+        std::vector<app*> aux_formulas;
+        #ifdef SLHV_DEBUG
+        for(expr* e : assertions) {
+            std::cout << "FORMULA: " << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+        }
+        #endif
+        for(expr* e : assertions) {
+            expr* converted_e = this->convert_array_formula_to_slhv_formula(e, aux_formulas, array_var2heap_var, array_term2_slhv_term, array_term2init_loc);
+            result.push_back(converted_e);
+        }
+        for(expr* e : aux_formulas) {
+            result.push_back(e);
+        }
+        return result;
+    }
+
+
+    expr* theory_slhv::convert_array_formula_to_slhv_formula(expr* formula, std::vector<app*>& aux, std::map<app*, app*>& array_var2heap_var, std::map<app*, app*>& term2term, std::map<app*, app*>& array_term2init_loc) {
+        app* apped_formula = to_app(formula);
+        if(apped_formula->is_app_of(basic_family_id, OP_AND)) {
+            expr_ref_vector processed_args(this->get_manager());
+            for(int i = 0; i < apped_formula->get_num_args(); i ++) {
+                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula( apped_formula->get_arg(i), aux, array_var2heap_var, term2term, array_term2init_loc));
+                processed_args.push_back(converted_arg);
+            }
+            return this->syntax_maker->mk_and(processed_args.size(), processed_args.data());
+        } else if(apped_formula->is_app_of(basic_family_id, OP_OR)) {
+            expr_ref_vector processed_args(this->get_manager());
+            for(int i = 0; i < apped_formula->get_num_args(); i ++) {
+                app* converted_arg = to_app(this->convert_array_formula_to_slhv_formula(apped_formula->get_arg(i), aux, array_var2heap_var, term2term, array_term2init_loc));
+                processed_args.push_back(converted_arg);
+            }
+            return this->syntax_maker->mk_or(processed_args.size(), processed_args.data());
+        } else if(apped_formula->is_app_of(basic_family_id, OP_NOT)) {
+            app* negated_inner = to_app(apped_formula->get_arg(0));
+            app* converted_inner = to_app(this->convert_array_formula_to_slhv_formula(negated_inner, aux, array_var2heap_var, term2term, array_term2init_loc));
+            return this->syntax_maker->mk_not(converted_inner);
+        } else if(apped_formula->is_app_of(arith_family_id, OP_GT) || 
+                  apped_formula->is_app_of(basic_family_id, OP_EQ) || 
+                  apped_formula->is_app_of(arith_family_id, OP_GE) ||
+                  apped_formula->is_app_of(arith_family_id, OP_LE) ||
+                  apped_formula->is_app_of(arith_family_id, OP_LT)) {
+            return this->convert_atomic_array_formula_to_slhv(apped_formula, aux, array_var2heap_var, term2term, array_term2init_loc);
+        } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
+            std::cout << "ERROR: does not support distinct convertion to slhv now" << std::endl;
+        } else {
+            std::cout << "ERROR: convert array formula to slhv formula error" << std::endl;
+            std::cout << mk_ismt2_pp(apped_formula, this->get_manager()) << std::endl;
+            return nullptr;
+        }
+    }
+
+    expr* theory_slhv::convert_atomic_array_formula_to_slhv(app* atomic, std::vector<app*>& aux, std::map<app*, app*>& array_var2heap_var, std::map<app*, app*>& term2term, std::map<app*, app*>& array_term2init_loc) {
+        #ifdef SLHV_DEBUG
+        std::cout << "atomic convert: " << std::endl;
+        std::cout << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
+        #endif
+        if(atomic->get_num_args() == 0) {
+            // boolean variable
+            return atomic;
+        } else {
+            if(atomic->get_num_args() != 2) {
+                std::cout << "ERROR: convert atomic array formula: " << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
+                return nullptr;
+            }
+            func_decl* atomic_decl = atomic->get_decl();
+            app* first_arg = to_app(atomic->get_arg(0));
+            app* second_arg = to_app(atomic->get_arg(1));
+            
+            app* converted_first_arg = this->convert_array_term_to_slhv(first_arg, aux, array_var2heap_var, term2term, array_term2init_loc);
+            #ifdef SLHV_DEBUG
+            std::cout << "converted result: " << mk_ismt2_pp(converted_first_arg, this->get_manager()) << std::endl;
+            #endif
+            app* converted_second_arg  = this->convert_array_term_to_slhv(second_arg, aux, array_var2heap_var, term2term, array_term2init_loc);
+            #ifdef SLHV_DEBUG
+            std::cout << "converted result: " << mk_ismt2_pp(converted_second_arg, this->get_manager()) << std::endl;
+            #endif
+            expr_ref_vector new_args(this->get_manager());
+            new_args.push_back(converted_first_arg);    
+            new_args.push_back(converted_second_arg);  
+            app* new_result = nullptr;
+            if(atomic->is_app_of(basic_family_id, OP_EQ) ) {
+                new_result = this->syntax_maker->mk_eq(converted_first_arg, converted_second_arg);
+                this->get_manager().inc_ref(new_result);
+            } else {
+                new_result =  this->get_manager().mk_app(atomic_decl, 2, new_args.data());
+            }
+            return new_result;
+        }
+    }
+
+    app* theory_slhv::convert_array_term_to_slhv(app* term, std::vector<app*>& aux, std::map<app*, app*>& array_var2heap_var, std::map<app*, app*>& term2term, std::map<app*, app*>& array_term2init_loc) {
+        #ifdef SLHV_DEBUG
+        std::cout << "convert array term: " << std::endl;
+        std::cout << mk_ismt2_pp(term, this->get_manager()) << std::endl;
+        #endif
+        if(is_array_operation(term)) {
+            if(term2term.find(term) != term2term.end()) {
+                return term2term[term];
+            }
+            if(term->is_app_of(this->get_family_id(), OP_SLHV_SELECT)) {
+                // (select a b)
+
+                app* converted_heap = nullptr;
+                app* converted_offset = nullptr;
+                for(int i = 0; i < term->get_num_args(); i ++) {
+                    app* old_arg = to_app(term->get_arg(i));
+                    app* converted_arg = this->convert_array_term_to_slhv(old_arg, aux, array_var2heap_var, term2term, array_term2init_loc);
+                    #ifdef SLHV_DEBUG
+                    std::cout << "converted result: " << mk_ismt2_pp(converted_arg, this->get_manager()) << std::endl;
+                    std::cout << mk_ismt2_pp(converted_arg, this->get_manager()) << std::endl;
+                    #endif
+                    if(i == 0) {
+                        converted_heap = converted_arg;
+                    } else if(i == 1) {
+                        converted_offset = converted_arg;
+                    }
+                }
+
+                app* original_array_term = to_app(term->get_arg(0));
+                SASSERT(array_term2init_loc.find(original_array_term) != array_term2init_loc.end());
+                app* base_loc = array_term2init_loc[original_array_term];
+                app* converted_addr = this->syntax_maker->mk_locadd(base_loc, converted_offset);
+
+                
+                SASSERT(converted_heap != nullptr && converted_content != nullptr);
+                app* auxillary_heap = this->syntax_maker->mk_fresh_hvar();
+                app* content_fresh_var = this->syntax_maker->mk_fresh_datavar();
+                std::vector<app*> hterm_args;
+                hterm_args.push_back(auxillary_heap);
+                app* fresh_data_record = this->syntax_maker->mk_data_record(content_fresh_var);
+                app* fresh_pt = this->syntax_maker->mk_points_to_new(converted_addr, fresh_data_record);
+
+                std::vector<app*> heap_desc_content;
+                heap_desc_content.push_back(auxillary_heap);
+                heap_desc_content.push_back(fresh_pt);
+                app* heap_equation = this->syntax_maker->mk_eq(
+                    converted_heap,
+                    this->syntax_maker->mk_uplus_app(heap_desc_content.size(), heap_desc_content)
+                );
+                aux.push_back(heap_equation);
+                term2term[term] = content_fresh_var;
+
+                app* result = content_fresh_var;
+                return result;
+            } else if(term->is_app_of(this->get_family_id(), OP_SLHV_STORE)) {
+                app* converted_original_heap = nullptr;
+                app* converted_offset = nullptr;
+                app* converted_store_content = nullptr;
+                for(int i = 0; i < term->get_num_args(); i ++) {
+                    app* old_arg = to_app(term->get_arg(i));
+                    app* converted_arg = this->convert_array_term_to_slhv(old_arg, aux, array_var2heap_var, term2term, array_term2init_loc);
+
+                    #ifdef SLHV_DEBUG
+                    std::cout << "converted result: " << mk_ismt2_pp(converted_arg, this->get_manager()) << std::endl;
+                    #endif
+                    if(i == 0) {
+                        converted_original_heap = converted_arg;
+                    } else if(i == 1) {
+                        converted_offset = converted_arg;
+                    } else if(i == 2) {
+                        converted_store_content = converted_arg;
+                    } else {
+                        std::cout << "ERROR: convert array term, error" << std::endl;
+                        return nullptr;
+                    }
+                }
+                app* old_array_term = to_app(term->get_arg(0));
+                SASSERT(array_term2init_loc.find(old_array_term) != array_term2init_loc.end());
+                array_term2init_loc[term] = array_term2init_loc[old_array_term];
+                app* base_loc = array_term2init_loc[term];
+
+                app* exist_heap = this->syntax_maker->mk_fresh_hvar();
+                app* exist_data = this->syntax_maker->mk_fresh_datavar();
+                app* exist_data_record = this->syntax_maker->mk_data_record(exist_data);
+                app* stored_data_record = this->syntax_maker->mk_data_record(converted_store_content);
+                app* converted_addr = this->syntax_maker->mk_locadd(base_loc, converted_offset);
+                app* original_points_to = this->syntax_maker->mk_points_to_new(converted_addr, exist_data_record);
+                app* stored_points_to = this->syntax_maker->mk_points_to_new(converted_addr, stored_data_record);
+                app* new_heap = this->syntax_maker->mk_fresh_hvar();
+                std::vector<app*> old_uplus_content;
+                old_uplus_content.push_back(exist_heap);
+                old_uplus_content.push_back(original_points_to);
+                app* old_uplus = this->syntax_maker->mk_uplus_app(old_uplus_content.size(), old_uplus_content);
+                std::vector<app*> new_uplus_content;
+                new_uplus_content.push_back(exist_heap);
+                new_uplus_content.push_back(stored_points_to);
+                app* new_uplus = this->syntax_maker->mk_uplus_app(new_uplus_content.size(), new_uplus_content);
+                app* old_heap_desc = this->syntax_maker->mk_eq(
+                    converted_original_heap, 
+                    old_uplus
+                );
+                app* new_heap_desc = this->syntax_maker->mk_eq(
+                    new_heap,
+                    new_uplus
+                );
+                term2term[term] = new_heap;
+                aux.push_back(old_heap_desc);
+                aux.push_back(new_heap_desc);
+                return new_heap;
+            } else {
+                std::cout << "ERROR: should not be here" << std::endl;
+            }
+        } else {
+            if(term->get_num_args() > 0) {
+                func_decl* term_decl = term->get_decl();
+                expr_ref_vector new_args(this->get_manager());
+                for(int i = 0; i < term->get_num_args(); i ++) {
+                    app* old_arg = to_app(term->get_arg(i));
+                    app* new_arg = this->convert_array_term_to_slhv(old_arg, aux, array_var2heap_var, term2term, array_term2init_loc);
+                    #ifdef SLHV_DEBUG
+                    std::cout << "converted result: " << mk_ismt2_pp(new_arg, this->get_manager()) << std::endl;
+                    #endif
+                    new_args.push_back(new_arg);
+                }
+                app* new_term = nullptr;
+                if(term->is_app_of(basic_family_id, OP_ITE)) {
+                    new_term = this->get_manager().mk_ite(new_args.get(0), new_args.get(1), new_args.get(2));
+                } else {
+                    new_term = this->get_manager().mk_app(term_decl, new_args.data());
+                }
+                return new_term;
+            } else {
+                if(!this->is_array(term)) {
+                    return term;
+                } else {
+                    if(array_var2heap_var.find(term) != array_var2heap_var.end()) {
+                        return array_var2heap_var[term];
+                    } else {
+                        app* fresh_heap_var = this->syntax_maker->mk_fresh_hvar();
+                        app* fresh_init_locvar = this->syntax_maker->mk_fresh_locvar();
+                        array_var2heap_var[term] = fresh_heap_var;
+                        term2term[term] = fresh_heap_var;
+                        array_term2init_loc[term] = fresh_init_locvar;
+                        return fresh_heap_var;
+                    }
+                }
+            }
+        }
     }
 
 
@@ -2166,6 +2467,24 @@ namespace smt {
             bool result = false;
             for(int i = 0; i < n->get_num_args(); i ++) {
                 result = result || this->contain_disjunction(to_app(n->get_arg(i)));
+                if(result) {
+                    return result;
+                }
+            }
+            return result;
+        }
+    }
+
+
+    bool theory_slhv::contain_array_elements(app const* n) {
+        if(this->is_array(n)) {
+            return true;
+        } else if(this->is_array_operation(n) ) {
+            return true;
+        } else {
+            bool result = false;
+            for(int i = 0; i < n->get_num_args(); i ++) {
+                result = result || this->contain_array_elements(to_app(n->get_arg(i)));
                 if(result) {
                     return result;
                 }
@@ -3947,8 +4266,10 @@ namespace smt {
         } else if(apped_formula->is_app_of(basic_family_id, OP_EQ)) {
             app* inner_lhs = to_app(apped_formula->get_arg(0));
             app* inner_rhs = to_app(apped_formula->get_arg(1));
-            bool lhs_is_term = (inner_lhs->get_num_args() == 0);
-            bool rhs_is_term = (inner_rhs->get_num_args() == 0);
+            bool lhs_is_term = (this->th->is_locterm(inner_lhs) || 
+                                this->th->is_dataterm(inner_lhs));
+            bool rhs_is_term = (this->th->is_locterm(inner_rhs) || 
+                                this->th->is_dataterm(inner_rhs));
             app* translated_inner_lhs = nullptr;
             if(lhs_is_term) {
                 translated_inner_lhs = this->translate_locterm_to_liaterm(inner_lhs);
@@ -7484,6 +7805,23 @@ namespace smt {
     }
 
 
+    app* slhv_syntax_maker::mk_locadd(expr* loc, expr* offset) {
+        #ifdef SLHV_PRINT
+        std::cout << "mk locadd" << std::endl;
+        #endif
+        sort_ref_vector sorts_args(this->th->get_manager());
+        SASSERT(this->th->is_locterm(loc) && this->th->is_dataterm(offset));
+        sorts_args.push_back(loc->get_sort());
+        sorts_args.push_back(offset->get_sort());
+        expr_ref_vector args(this->th->get_manager());
+        args.push_back(loc);
+        args.push_back(offset);
+        func_decl* locadd_decl = this->slhv_decl_plug->mk_locadd(sorts_args.size(), sorts_args.data());
+        app* result = this->th->get_manager().mk_app(locadd_decl, args.data());
+        return result;
+    }
+
+
 
     app* slhv_syntax_maker::mk_read_formula(app* from_hvar, app* read_addr, app* read_data) {
         SASSERT(this->th->is_hvar(from_hvar));
@@ -8764,7 +9102,20 @@ namespace smt {
                 #endif
                 return alloc(expr_wrapper_proc, oapp);
             }
-        } else {
+        } else if(this->is_array_operation(oapp) || this->is_array(oapp)) {
+            #ifdef MODEL_GEN_INFO
+            std::cout << "is array related term" << std::endl;
+            std::cout << mk_ismt2_pp(oapp, this->get_manager()) << std::endl;
+            #endif
+            if(this->is_array(oapp) || this->is_slhv_select(oapp) || this->is_slhv_store(oapp)) {
+                app* val_expr = data_factory->mk_num_value(rational(0), true);
+                return alloc(expr_wrapper_proc, val_expr);
+            } else {
+                std::cout << "ERROR: unknown array related term" << std::endl;
+            }
+            return nullptr;
+        } 
+        else {
             SASSERT(false);
         }
         return nullptr;

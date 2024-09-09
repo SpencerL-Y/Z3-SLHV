@@ -86,6 +86,27 @@ namespace smt
         expr* adjust_heap_equation_hvar_position(expr* assertion);
         hterm_extracted_content* extract_all_hterms_disj();
         
+        // array
+        bool assertions_contain_array(ptr_vector<expr> assertions);
+        std::vector<expr*> convert_array_formulas_to_slhv_formulas(ptr_vector<expr>  array_assertions);
+        expr* convert_array_formula_to_slhv_formula(
+            expr* formula, 
+            std::vector<app*>& aux, 
+            std::map<app*, app*>& array_var2heap_var,
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
+        expr* convert_atomic_array_formula_to_slhv(
+            app* atomic, 
+            std::vector<app*>& aux, 
+            std::map<app*, app*>& array_var2heap_var, 
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
+        app* convert_array_term_to_slhv(
+            app* term, 
+            std::vector<app*>& aux, 
+            std::map<app*, app*>& array_var2heap_var, 
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
         // =========================================================
 
 
@@ -170,6 +191,7 @@ namespace smt
 
         // syntax checker
         bool contain_disjunction(app const * n);
+        bool contain_array_elements(app const* n);
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
@@ -241,6 +263,25 @@ namespace smt
             }
             return false;
         }
+        bool is_slhv_select(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SLHV_SELECT)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_slhv_store(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SLHV_STORE)) {
+                return true;
+            } 
+            return false;
+        }
+
+        bool is_array_operation(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SLHV_SELECT) || n->is_app_of(get_id(), OP_SLHV_STORE)) {
+                return true;
+            }
+            return false;
+        }
         bool is_datavar(app const* n) const {
             // TODO: maybe buggy here
             if(n->get_num_args() == 0 && n->get_sort() == this->m.mk_sort(arith_family_id, INT_SORT)) {
@@ -248,6 +289,12 @@ namespace smt
             } else {
                 return false;
             }
+        }
+        bool is_array_var(app const* n) const {
+            if(n->get_num_args() == 0 && n->get_sort()->get_name() == SLHV_ARRAY_SORT_STR) {
+                return true;
+            }
+            return false;
         }
         bool is_emp(app const* n) const {
             return n->is_app_of(get_id(), OP_EMP);
@@ -272,10 +319,16 @@ namespace smt
             }
             return false;
         }
+        bool is_array(app const* n) const {
+            return (n->get_sort()->get_name() == SLHV_ARRAY_SORT_STR);
+        }
+
 
         bool is_arith_formula(app* l);
         bool is_boolean_formula(app* l);
         bool is_not_heap_or_loc_formula(app* l);
+        bool is_array_formula(app* l);
+
         pt_record* analyze_pt_record_type(app* record_app);
 
         private:
@@ -1391,6 +1444,7 @@ namespace smt
         app* mk_points_to(app* addr_loc, app* data_loc);
         app* mk_subh(expr* lhs, expr* rhs);
         app* mk_disjh(expr* ht1, expr* ht2);
+        app* mk_locadd(expr* loc, expr* offset);
 
         // logic with record:
 

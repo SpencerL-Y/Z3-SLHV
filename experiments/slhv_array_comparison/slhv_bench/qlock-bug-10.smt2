@@ -1,6 +1,9 @@
 (set-info :smt-lib-version 2.6)
 (set-logic SLHV)
-(set-info :source |
+(declare-hvar emp IntHeap)
+(declare-locvar nil IntLoc)
+(declare-datatype pt_record_0 ((Pt_R_0 (loc IntLoc))))
+(declare-datatype pt_record_1 ((Pt_R_1 (data Int))))(set-info :source |
 Benchmarks from Leonardo de Moura <demoura@csl.sri.com>
 
 This benchmark was automatically translated into SMT-LIB format from

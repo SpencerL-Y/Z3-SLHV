@@ -33,7 +33,11 @@ enum slhv_op_kind {
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
     OP_EMP,
-    OP_NIL
+    OP_NIL,
+    // array operations
+    OP_SLHV_SELECT,
+    OP_SLHV_STORE,
+    OP_SLHV_ARRAY_CONST
 };
 
 class pt_record {
@@ -82,8 +86,13 @@ class slhv_decl_plugin : public decl_plugin {
     symbol m_loc2int_symbol;
     symbol m_int2loc_symbol;
     symbol m_locconst_symbol;
+    // for array syntax
+    symbol m_array_select;
+    symbol m_array_store;
     symbol curr_locvar_name;
     symbol curr_hvar_name;
+    // for array syntax
+    symbol curr_array_var_name;
 
     public:
 
@@ -192,6 +201,10 @@ class slhv_decl_plugin : public decl_plugin {
         this->curr_hvar_name = hvar_name;
     }
 
+    void set_curr_array_var(symbol array_var_name) {
+        this->curr_array_var_name = array_var_name;
+    }
+
     func_decl* mk_uplus(unsigned arity, sort * const * domain);
 
     func_decl* mk_disj_union(unsigned arity, sort* const* domain);
@@ -215,10 +228,19 @@ class slhv_decl_plugin : public decl_plugin {
     func_decl* mk_loc2int(unsigned arity, sort* const* domain);
 
     func_decl* mk_int2loc(unsigned arity, sort* const* domain);
+    
+    // array method
+    func_decl* mk_slhv_select(unsigned arity, sort* const* domain);
+
+    // array method
+    func_decl* mk_slhv_store(unsigned arity, sort* const* domain);
 
     func_decl* mk_const_hvar(symbol name, sort* range, unsigned arity, sort* const* domain);
 
     func_decl* mk_const_locvar(symbol name, sort* range, unsigned arity, sort* const* domain);
+
+    // array method
+    func_decl* mk_const_array_var(symbol name, sort* range, unsigned arity, sort* const* domain);
 
     func_decl* mk_const_emp(sort* range, unsigned arity, sort* const* domain);
 
