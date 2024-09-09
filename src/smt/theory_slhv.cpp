@@ -8935,6 +8935,11 @@ namespace smt {
         #endif
         arith_util a(this->m);
         app* oapp = to_app(o);
+        // PATCH: for ite model generation
+        if(oapp->is_app_of(basic_family_id, OP_ITE)) {
+            app* val_expr = data_factory->mk_num_value(rational(0), true);
+            return alloc(expr_wrapper_proc, val_expr);
+        }
         if(this->is_heapterm(oapp)) {
             if(this->is_points_to(oapp)) {
                 #ifdef MODEL_GEN_INFO
