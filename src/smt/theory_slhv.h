@@ -93,17 +93,20 @@ namespace smt
             expr* formula, 
             std::vector<app*>& aux, 
             std::map<app*, app*>& array_var2heap_var,
-            std::map<app*, app*>& term2term);
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
         expr* convert_atomic_array_formula_to_slhv(
             app* atomic, 
             std::vector<app*>& aux, 
             std::map<app*, app*>& array_var2heap_var, 
-            std::map<app*, app*>& term2term);
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
         app* convert_array_term_to_slhv(
             app* term, 
             std::vector<app*>& aux, 
             std::map<app*, app*>& array_var2heap_var, 
-            std::map<app*, app*>& term2term);
+            std::map<app*, app*>& term2term, 
+            std::map<app*, app*>& array_term2init_loc);
         // =========================================================
 
 
@@ -188,6 +191,7 @@ namespace smt
 
         // syntax checker
         bool contain_disjunction(app const * n);
+        bool contain_array_elements(app const* n);
         bool is_uplus(app const* n) const {
             return n->is_app_of(get_id(), OP_HEAP_DISJUNION);
         }
@@ -259,6 +263,19 @@ namespace smt
             }
             return false;
         }
+        bool is_slhv_select(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SLHV_SELECT)) {
+                return true;
+            }
+            return false;
+        }
+        bool is_slhv_store(app const* n) const {
+            if(n->is_app_of(get_id(), OP_SLHV_STORE)) {
+                return true;
+            } 
+            return false;
+        }
+
         bool is_array_operation(app const* n) const {
             if(n->is_app_of(get_id(), OP_SLHV_SELECT) || n->is_app_of(get_id(), OP_SLHV_STORE)) {
                 return true;
@@ -1427,6 +1444,7 @@ namespace smt
         app* mk_points_to(app* addr_loc, app* data_loc);
         app* mk_subh(expr* lhs, expr* rhs);
         app* mk_disjh(expr* ht1, expr* ht2);
+        app* mk_locadd(expr* loc, expr* offset);
 
         // logic with record:
 

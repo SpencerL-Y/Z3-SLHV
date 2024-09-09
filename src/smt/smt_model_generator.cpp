@@ -134,7 +134,11 @@ namespace smt {
                     }
                 }
                 SASSERT(proc);
-                procs.push_back(proc);
+                if(proc != nullptr) {
+                    procs.push_back(proc);
+                } else {
+                    std::cout << "ERROR: proc is nullptr" << std::endl;
+                }
                 #ifdef SLHV_DEBUG
                 std::cout << "insert root2proc: " << mk_ismt2_pp(r->get_expr(), this->get_manager()) << std::endl;
                 #endif
