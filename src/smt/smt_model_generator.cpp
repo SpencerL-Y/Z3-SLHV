@@ -397,6 +397,7 @@ namespace smt {
                             TRACE("mg_top_sort", tout << "#" << n->get_owner_id() << " (" << mk_pp(n->get_expr(), m) << "): " 
                                   << mk_pp(child->get_expr(), m) << " " << mk_pp(child->get_root()->get_expr(), m) << "\n";);
                             child = child->get_root();
+                            
                             dependency_values.push_back(m_root2value[child]);
                         }
                     }

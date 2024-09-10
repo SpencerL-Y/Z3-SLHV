@@ -582,7 +582,9 @@ app* slhv_decl_plugin::mk_locint(unsigned addr) {
     parameter param(addr);
     sort* loc_sort = this->mk_sort(INTLOC_SORT, 0, nullptr);
     func_decl* loc_const_f = m_manager->mk_const_decl(m_locconst_symbol, loc_sort, func_decl_info(m_family_id, OP_LOCVAR_CONST, 1, &param));
-    return m_manager->mk_const(loc_const_f);
+    app* result = m_manager->mk_const(loc_const_f);
+    this->m_manager->inc_ref(result);
+    return result;
 }
 
 
@@ -594,6 +596,7 @@ app* slhv_decl_plugin::mk_uplus_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* uplus_decl = this->mk_uplus(num_arg, domain);
     app* result = m_manager->mk_app(uplus_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -606,6 +609,7 @@ app* slhv_decl_plugin::mk_points_to_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* pt_decl = this->mk_points_to(num_arg, domain);
     app* result = m_manager->mk_app(pt_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -621,6 +625,7 @@ app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* locadd_decl = this->mk_locadd(num_arg, domain);
     app* result = m_manager->mk_app(locadd_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -631,6 +636,7 @@ app* slhv_decl_plugin::mk_subh_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* subh_decl = this->mk_subh(num_arg, domain);
     app* result = m_manager->mk_app(subh_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -641,6 +647,7 @@ app* slhv_decl_plugin::mk_disjh_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* subh_decl = this->mk_disjh(num_arg, domain);
     app* result = m_manager->mk_app(subh_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -655,6 +662,7 @@ app* slhv_decl_plugin::mk_readloc_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* readloc_decl = this->mk_readloc(num_arg, domain);
     app* result = m_manager->mk_app(readloc_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -666,6 +674,7 @@ app* slhv_decl_plugin::mk_readdata_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* readdata_decl = this->mk_readdata(num_arg, domain);
     app* result = m_manager->mk_app(readdata_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -677,6 +686,7 @@ app* slhv_decl_plugin::mk_writeloc_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* writeloc_decl = this->mk_writeloc(num_arg, domain);
     app* result = m_manager->mk_app(writeloc_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -688,6 +698,7 @@ app* slhv_decl_plugin::mk_writedata_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* writedata_decl = this->mk_writedata(num_arg, domain);
     app* result = m_manager->mk_app(writedata_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -699,6 +710,8 @@ app* slhv_decl_plugin::mk_loc2int_value(int num_arg,expr_ref_vector items) {
     }
     func_decl* loc2int_decl = this->mk_loc2int(num_arg, domain);
     app* result = m_manager->mk_app(loc2int_decl, items.data());
+    
+    this->m_manager->inc_ref(result);
     return result;
 }
 
@@ -710,11 +723,14 @@ app* slhv_decl_plugin::mk_int2loc_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* int2loc_decl = this->mk_int2loc(num_arg, domain);
     app* result = m_manager->mk_app(int2loc_decl, items.data());
+    this->m_manager->inc_ref(result);
     return result;
 }
 
 app* slhv_decl_plugin::mk_emp_value() {
-    return this->global_emp;
+    app* result = this->global_emp;
+    this->m_manager->inc_ref(result);
+    return result;
 }
 
 bool slhv_decl_plugin::is_loc_value(app* e) {
