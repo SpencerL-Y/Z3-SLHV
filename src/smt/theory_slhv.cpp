@@ -539,13 +539,16 @@ namespace smt {
             expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
             inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
+            #ifdef SLHV_PRINT
+            std::cout << "final converting result: " << mk_ismt2_pp(points_to_adjusted_assertion, this->get_manager()) << std::endl;
+            #endif
         }
         #ifdef SLHV_PRINT
-        std::cout << "================= current refined assignment ==============" << std::endl;
+        std::cout << "================= current refined assertions ==============" << std::endl;
         for(expr* e : refined_assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-        std::cout << "===================== current refined assignment end ==================" << std::endl;  
+        std::cout << "===================== current refined assertions end ==================" << std::endl;  
         #endif
         this->refined_asssertions_disj = refined_assertions;
         // set slhv syntax plugin
@@ -1655,9 +1658,15 @@ namespace smt {
            apped_expr->is_app_of(basic_family_id, OP_DISTINCT) || 
            apped_expr->is_app_of(this->get_family_id(), OP_SUBH) ||
            apped_expr->is_app_of(this->get_family_id(), OP_DISJH)) {
-            return this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
+            expr* result = this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
+            #ifdef SLHV_PRINT
+            std::cout << "converted points to addr var atomic over:" << std::endl;
+            std::cout << mk_ismt2_pp(result, this->get_manager()) << std::endl;
+            #endif
+            return result;
         } else {
             func_decl* apped_expr_decl = apped_expr->get_decl();
+            std::cout << "HEREREER " <<  apped_expr_decl->get_name() << std::endl;
             std::vector<expr*> old_args;
             expr_ref_vector new_args(this->get_manager());
             for(int i = 0; i < apped_expr->get_num_args(); i ++) {
@@ -1666,7 +1675,12 @@ namespace smt {
             for(expr* arg : old_args) {
                 new_args.push_back(this->convert_points_to_addr_disj(arg));
             }
-            return this->m.mk_app(apped_expr_decl, new_args.data());
+            app* result = this->m.mk_app(apped_expr_decl, new_args.data());
+            #ifdef SLHV_PRINT
+            std::cout << "converted points to addr var compound over:" << std::endl;
+            std::cout << mk_ismt2_pp(result, this->get_manager()) << std::endl;
+            #endif
+            return result;
         }
     }
 
