@@ -300,10 +300,6 @@ namespace smt {
             mark_as_relevant(n);
         }
         else {
-
-        #ifdef SLHV_DEBUG
-        std::cout << "assert default" << std::endl;
-        #endif
             assert_default(n, pr);
         }
     }

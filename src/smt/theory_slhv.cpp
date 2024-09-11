@@ -536,16 +536,20 @@ namespace smt {
             
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
+            std::cout << "negation elimnated: " << mk_ismt2_pp(negation_eliminated_assertion, this->get_manager()) << std::endl;
             expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
             inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
+            #ifdef SLHV_PRINT
+            std::cout << "final converting result: " << mk_ismt2_pp(points_to_adjusted_assertion, this->get_manager()) << std::endl;
+            #endif
         }
         #ifdef SLHV_PRINT
-        std::cout << "================= current refined assignment ==============" << std::endl;
+        std::cout << "================= current refined assertions ==============" << std::endl;
         for(expr* e : refined_assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
         }
-        std::cout << "===================== current refined assignment end ==================" << std::endl;  
+        std::cout << "===================== current refined assertions end ==================" << std::endl;  
         #endif
         this->refined_asssertions_disj = refined_assertions;
         // set slhv syntax plugin
@@ -1407,7 +1411,7 @@ namespace smt {
                 if(term->is_app_of(basic_family_id, OP_ITE)) {
                     new_term = this->get_manager().mk_ite(new_args.get(0), new_args.get(1), new_args.get(2));
                 } else {
-                    new_term = this->get_manager().mk_app(term_decl, new_args.data());
+                    new_term = this->get_manager().mk_app(term_decl, new_args.size(), new_args.data());
                 }
                 return new_term;
             } else {
@@ -1654,19 +1658,27 @@ namespace smt {
            apped_expr->is_app_of(basic_family_id, OP_EQ) ||
            apped_expr->is_app_of(basic_family_id, OP_DISTINCT) || 
            apped_expr->is_app_of(this->get_family_id(), OP_SUBH) ||
-           apped_expr->is_app_of(this->get_family_id(), OP_DISJH)) {
-            return this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
+           apped_expr->is_app_of(this->get_family_id(), OP_DISJH) ||
+           apped_expr->get_num_args() == 0) {
+            expr* result = this->convert_points_to_addr_var_for_atomics_disj(apped_expr);
+            #ifdef SLHV_PRINT
+            std::cout << "converted points to addr var atomic over:" << std::endl;
+            std::cout << mk_ismt2_pp(result, this->get_manager()) << std::endl;
+            #endif
+            return result;
         } else {
             func_decl* apped_expr_decl = apped_expr->get_decl();
-            std::vector<expr*> old_args;
             expr_ref_vector new_args(this->get_manager());
             for(int i = 0; i < apped_expr->get_num_args(); i ++) {
-                old_args.push_back(apped_expr->get_arg(i));
+                expr* converted_arg = this->convert_points_to_addr_disj(apped_expr->get_arg(i));
+                new_args.push_back(converted_arg);
             }
-            for(expr* arg : old_args) {
-                new_args.push_back(this->convert_points_to_addr_disj(arg));
-            }
-            return this->m.mk_app(apped_expr_decl, new_args.data());
+            app* result = this->m.mk_app(apped_expr_decl, new_args.size(), new_args.data());
+            #ifdef SLHV_PRINT
+            std::cout << "converted points to addr var compound over:" << std::endl;
+            std::cout << mk_ismt2_pp(result, this->get_manager()) << std::endl;
+            #endif
+            return result;
         }
     }
 
@@ -1729,6 +1741,8 @@ namespace smt {
                     } else {
                         return apped_atomic;
                     }
+                } else {
+                    return apped_atomic;
                 }
             } else {
                 // do nothing
@@ -1754,6 +1768,7 @@ namespace smt {
                    app* new_non_atomic = this->syntax_maker->mk_and(result_conj_args.size(), result_conj_args.data());
                    return new_non_atomic;
                 } else {
+                    return apped_atomic;
                     app* new_result = 
                        this->syntax_maker->mk_eq(new_first_arg, new_second_arg);
                     return new_result;
@@ -1833,8 +1848,7 @@ namespace smt {
             }
         }
         else {
-            std::cout << "ERROR: convert points to should not come here" << std::endl;
-            return nullptr;
+            return apped_atomic;
         }
     }   
 
@@ -1852,7 +1866,7 @@ namespace smt {
                 expr_ref_vector new_args(this->get_manager());
                 new_args.push_back(fresh_locvar);
                 new_args.push_back(pt_rec);
-                app* new_result = this->get_manager().mk_app(pt_decl, new_args.data());
+                app* new_result = this->get_manager().mk_app(pt_decl, new_args.size(), new_args.data());
                 this->get_context().internalize(new_result, false);
                 aux.push_back(locvar_eq);
                 return new_result;
@@ -1867,7 +1881,7 @@ namespace smt {
             for(app* oa : old_args) {
                 new_args.push_back(this->convert_points_to_addr_var_for_term_disj(oa, aux));
             }
-            app* new_result =  this->get_manager().mk_app(term_decl, new_args.data());
+            app* new_result =  this->get_manager().mk_app(term_decl, new_args.size(), new_args.data());
             this->get_context().internalize(new_result, false);
             return new_result;
         } 
@@ -2054,7 +2068,7 @@ namespace smt {
             for(int i = 0; i < apped_expr->get_num_args(); i ++) {
                 args.push_back(this->adjust_heap_equation_hvar_position(to_app(apped_expr->get_arg(i))));
             }
-            return this->get_manager().mk_app(apped_expr->get_decl(), args.data());
+            return this->get_manager().mk_app(apped_expr->get_decl(), args.size(), args.data());
         }
     }
 
@@ -7785,7 +7799,7 @@ namespace smt {
         args.push_back(lhs);
         args.push_back(rhs);
         func_decl* subh_decl = this->slhv_decl_plug->mk_subh(sort_args.size(), sort_args.data());
-        app* result = this->th->get_manager().mk_app(subh_decl, args.data());
+        app* result = this->th->get_manager().mk_app(subh_decl, args.size(), args.data());
         return result;
     }
 
@@ -7800,7 +7814,7 @@ namespace smt {
         args.push_back(ht1);
         args.push_back(ht2);
         func_decl* disjh_decl = this->slhv_decl_plug->mk_disjh(sorts_args.size(), sorts_args.data());
-        app* result = this->th->get_manager().mk_app(disjh_decl, args.data());
+        app* result = this->th->get_manager().mk_app(disjh_decl, args.size(), args.data());
         return result;
     }
 
@@ -7817,7 +7831,7 @@ namespace smt {
         args.push_back(loc);
         args.push_back(offset);
         func_decl* locadd_decl = this->slhv_decl_plug->mk_locadd(sorts_args.size(), sorts_args.data());
-        app* result = this->th->get_manager().mk_app(locadd_decl, args.data());
+        app* result = this->th->get_manager().mk_app(locadd_decl, args.size(), args.data());
         return result;
     }
 
@@ -8653,7 +8667,7 @@ namespace smt {
         }
         // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
         func_decl* uplus_decl = this->slhv_decl_plug->mk_func_decl(OP_HEAP_DISJUNION, 0, nullptr, num_arg, sorts_vec.data(), e_ref_sort);
-        app* result = this->th->get_manager().mk_app(uplus_decl, args_vec.data());
+        app* result = this->th->get_manager().mk_app(uplus_decl, args_vec.size(), args_vec.data());
         this->th->get_context().internalize(result, false);
         return result;
     }
@@ -8675,7 +8689,7 @@ namespace smt {
         sort* e_ref_sort = this->slhv_decl_plug->mk_sort(INTHEAP_SORT, 0, nullptr);
         // sort* e_ref_sort = this->th->get_manager().mk_sort(symbol(INTHEAP_SORT_STR), sort_info(this->th->get_id(), INTHEAP_SORT));
         func_decl* pt_decl = this->slhv_decl_plug->mk_func_decl(OP_POINTS_TO, 0, nullptr, 2, sorts_vec.data(), e_ref_sort);
-        app* result = this->th->get_manager().mk_app(pt_decl, args_vec.data());
+        app* result = this->th->get_manager().mk_app(pt_decl, args_vec.size(), args_vec.data());
         this->th->get_context().internalize(result, false);
         return result;
     }
@@ -8933,13 +8947,14 @@ namespace smt {
         #ifdef MODEL_GEN_INFO
         std::cout << "mk_value for " << mk_ismt2_pp(o, this->m) << std::endl;
         #endif
+
         arith_util a(this->m);
         app* oapp = to_app(o);
         // PATCH: for ite model generation
-        if(oapp->is_app_of(basic_family_id, OP_ITE)) {
+        // if(oapp->is_app_of(basic_family_id, OP_ITE)) {
             app* val_expr = data_factory->mk_num_value(rational(0), true);
             return alloc(expr_wrapper_proc, val_expr);
-        }
+        // }
         if(this->is_heapterm(oapp)) {
             if(this->is_points_to(oapp)) {
                 #ifdef MODEL_GEN_INFO
