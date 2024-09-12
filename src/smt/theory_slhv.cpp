@@ -544,7 +544,7 @@ namespace smt {
             std::cout << "final converting result: " << mk_ismt2_pp(points_to_adjusted_assertion, this->get_manager()) << std::endl;
             #endif
         }
-        #ifdef SLHV_PRINT
+        #ifdef ASSERTION_DEBUG
         std::cout << "================= current refined assertions ==============" << std::endl;
         for(expr* e : refined_assertions) {
             std::cout << mk_ismt2_pp(e, this->m) << std::endl;
@@ -575,7 +575,7 @@ namespace smt {
         this->inf_graph_eq_pairs_hterms_disj = extracted_ht_result->must_hold_eq_pair_hterms;
         this->inf_graph_subh_pair_hterms_disj = extracted_ht_result->must_hold_sub_pair_hterms;
         this->inf_graph_disjh_pair_hterms_disj = extracted_ht_result->must_hold_disj_pair_hterms;
-        #ifdef DISJ_DEBUG
+        #ifdef HTERM_DEBUG
         std::cout << "all heap constraints: " << std::endl;
         for(app* hc : refined_heap_subassertions) {
             std::cout << mk_ismt2_pp(hc, this->m) << std::endl;
