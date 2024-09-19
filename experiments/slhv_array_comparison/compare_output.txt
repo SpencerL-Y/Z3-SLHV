@@ -1,0 +1,120 @@
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+qlock-bug2-20.smt2
+time: 1.141963243484497
+qlock-mutex-5.smt2
+time: 0.030111312866210938
+qlock-bug-15.smt2
+time: 0.2005929946899414
+pointer-invalid-5.smt2
+time: 0.023952007293701172
+stack-invalid-6.smt2
+time: 0.012971162796020508
+pointer-safe-20.smt2
+time: 0.05072760581970215
+pointer-safe-5.smt2
+time: 0.01979970932006836
+qlock-bug2-10.smt2
+time: 0.051354169845581055
+queue-th2-6.smt2
+time: 0.013573408126831055
+pointer-invalid-15.smt2
+time: 0.03438711166381836
+qlock-bug-20.smt2
+time: 0.5595066547393799
+qlock-mutex-15.smt2
+time: 1.4633769989013672
+stack-th1-6.smt2
+time: 0.01908254623413086
+pointer-invalid-20.smt2
+time: 0.04319310188293457
+qlock-mutex-10.smt2
+time: 0.260847806930542
+pointer-safe-15.smt2
+time: 0.037165164947509766
+pointer-safe-10.smt2
+time: 0.01943373680114746
+qlock-mutex-20.smt2
+time: 6.54382848739624
+qlock-bug-10.smt2
+time: 0.07483386993408203
+queue-th1-6.smt2
+time: 0.01320195198059082
+pointer-invalid-10.smt2
+time: 0.018057584762573242
+stack-th2-6.smt2
+time: 0.011059999465942383
+qlock-bug-5.smt2
+time: 0.01954960823059082
+qlock-bug2-15.smt2
+time: 0.07866358757019043

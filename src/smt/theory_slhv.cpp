@@ -536,7 +536,7 @@ namespace smt {
             
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
-            std::cout << "negation elimnated: " << mk_ismt2_pp(negation_eliminated_assertion, this->get_manager()) << std::endl;
+            
             expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
             inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
@@ -1237,7 +1237,10 @@ namespace smt {
             return this->convert_atomic_array_formula_to_slhv(apped_formula, aux, array_var2heap_var, term2term, array_term2init_loc);
         } else if(apped_formula->is_app_of(basic_family_id, OP_DISTINCT)) {
             std::cout << "ERROR: does not support distinct convertion to slhv now" << std::endl;
-        } else {
+        } else if(this->is_boolean_formula(apped_formula)) {
+            return apped_formula;
+        } 
+        else {
             std::cout << "ERROR: convert array formula to slhv formula error" << std::endl;
             std::cout << mk_ismt2_pp(apped_formula, this->get_manager()) << std::endl;
             return nullptr;
@@ -1986,8 +1989,65 @@ namespace smt {
     app* theory_slhv::eliminate_negated_subh(app* subh_app) {
         // TODO: not sure whether data record is enough for negation
         if(this->is_subh(subh_app)) {
+
             app* first_ht = to_app(subh_app->get_arg(0));
             app* second_ht = to_app(subh_app->get_arg(1));
+
+            // special case optimization
+            if(this->is_emp(first_ht)) {
+                return this->get_manager().mk_true();
+            } 
+            if(this->is_emp(second_ht)) {
+                if(this->is_points_to(first_ht)) {
+                    return this->get_manager().mk_false();
+                }
+                app* emp_eq = this->syntax_maker->mk_eq(
+                    first_ht,
+                    second_ht
+                );
+                return emp_eq;
+            }
+            if(this->is_points_to(second_ht)) {
+                app* diff_fresh_data = this->syntax_maker->mk_fresh_datavar();
+                app* diff_record = this->syntax_maker->mk_data_record(diff_fresh_data);
+                app* original_addr = to_app(second_ht->get_arg(0));
+                app* original_content = to_app(to_app(second_ht->get_arg(1))->get_arg(0));
+                bool is_loc = false;
+                if(this->is_locterm(original_content)) {
+                    std::cout << "ERROR: does not support optimization loc content" << std::endl;
+                    return nullptr;
+                } 
+
+                app* diff_fresh_pt = this->syntax_maker->mk_points_to_new(original_addr, diff_record);
+                app* different_value_expr = this->syntax_maker->mk_and(
+                    this->syntax_maker->mk_subh(diff_fresh_pt, first_ht),
+                    this->syntax_maker->mk_not(this->syntax_maker->mk_eq(diff_fresh_data, original_content)) 
+                );
+                app* disjh_expr = this->syntax_maker->mk_disjh(second_ht, first_ht);
+                return this->syntax_maker->mk_or(different_value_expr, disjh_expr);
+            }
+            if(this->is_points_to(first_ht)) {
+                
+                app* diff_fresh_data = this->syntax_maker->mk_fresh_datavar();
+                app* diff_record = this->syntax_maker->mk_data_record(diff_fresh_data);
+                app* original_addr = to_app(first_ht->get_arg(0));
+                app* original_content = to_app(to_app(first_ht->get_arg(1))->get_arg(0));
+                bool is_loc = false;
+                if(this->is_locterm(original_content)) {
+                    std::cout << "ERROR: does not support optimization loc content" << std::endl;
+                    return nullptr;
+                } 
+
+                app* diff_fresh_pt = this->syntax_maker->mk_points_to_new(original_addr, diff_record);
+                app* different_value_expr = this->syntax_maker->mk_and(
+                    this->syntax_maker->mk_subh(diff_fresh_pt, second_ht),
+                    this->syntax_maker->mk_not(this->syntax_maker->mk_eq(diff_fresh_data, original_content)) 
+                );
+                app* disjh_expr = this->syntax_maker->mk_disjh(second_ht, first_ht);
+                return this->syntax_maker->mk_or(different_value_expr, disjh_expr);
+            }
+
+
             app* x = this->syntax_maker->mk_fresh_locvar();
             app* d = this->syntax_maker->mk_fresh_datavar();
             app* d1 = this->syntax_maker->mk_fresh_datavar();
@@ -2021,6 +2081,7 @@ namespace smt {
 
     app* theory_slhv::eliminate_negated_disjh(app* disjh_app){
         if(this->is_disjh(disjh_app)) {
+            // TODO: add special case optimization
             app* first_ht = to_app(disjh_app->get_arg(0));
             app* second_ht = to_app(disjh_app->get_arg(1));
             app* x = this->syntax_maker->mk_fresh_locvar();
@@ -8341,10 +8402,7 @@ namespace smt {
     }
 
     std::vector<std::vector<app*>> slhv_syntax_maker::mk_hterm_disequality_new(app* lhs, app* rhs) {
-        // if(this->slhv_decl_plug->pt_record_map.size() != 2) {
-        //     std::cout << "ERROR: not standard pt records types" << std::endl;
-        //     SASSERT(false);
-        // }
+
         pt_record* data_record = nullptr;
         for(pt_record* rc : this->slhv_decl_plug->get_all_pt_records()) {          
             // std::cout << "rc name: " << rc->get_pt_record_name() << std::endl;
@@ -8362,6 +8420,57 @@ namespace smt {
 
         int pt_locfield_num = data_record->get_loc_num();
         int pt_datafield_num = data_record->get_data_num();
+        if(this->th->is_emp(lhs) || this->th->is_emp(rhs)) {
+            if(this->th->is_emp(lhs) && !this->th->is_emp(rhs)) {
+                SASSERT(pt_locfield_num == 0 && pt_datafield_num == 1);
+                app* fresh_addr_var = this->th->syntax_maker->mk_fresh_locvar();
+                std::vector<app*> fresh_loc_vars;
+                std::vector<app*> fresh_data_vars;
+                for(int i = 0; i < pt_locfield_num; i ++) {
+                    fresh_loc_vars.push_back(this->th->syntax_maker->mk_fresh_locvar());
+                }
+                for(int i = 0; i < pt_datafield_num; i ++) {
+                    fresh_data_vars.push_back(this->th->syntax_maker->mk_fresh_datavar());
+                }
+                app* fresh_record = this->th->syntax_maker->mk_record(data_record, fresh_loc_vars, fresh_data_vars);
+                app* fresh_pt = this->th->syntax_maker->mk_points_to_new(fresh_addr_var, fresh_record);
+                app* reduced_result = this->th->syntax_maker->mk_subh(fresh_pt, rhs);
+                std::vector<app*> conjunct;
+                conjunct.push_back(reduced_result);
+                final_result.push_back(conjunct);
+                return final_result;
+            } else if(!this->th->is_emp(lhs) && this->th->is_emp(rhs)) {
+                SASSERT(pt_locfield_num == 0 && pt_datafield_num == 1);
+                app* fresh_addr_var = this->th->syntax_maker->mk_fresh_locvar();
+                std::vector<app*> fresh_loc_vars;
+                std::vector<app*> fresh_data_vars;
+                for(int i = 0; i < pt_locfield_num; i ++) {
+                    fresh_loc_vars.push_back(this->th->syntax_maker->mk_fresh_locvar());
+                }
+                for(int i = 0; i < pt_datafield_num; i ++) {
+                    fresh_data_vars.push_back(this->th->syntax_maker->mk_fresh_datavar());
+                }
+                app* fresh_record = this->th->syntax_maker->mk_record(data_record, fresh_loc_vars, fresh_data_vars);
+                app* fresh_pt = this->th->syntax_maker->mk_points_to_new(fresh_addr_var, fresh_record);
+                app* reduced_result = this->th->syntax_maker->mk_subh(fresh_pt, lhs);
+                std::vector<app*> conjunct;
+                conjunct.push_back(reduced_result);
+                final_result.push_back(conjunct);
+                return final_result;
+            } else if(this->th->is_emp(lhs) && this->th->is_emp(rhs)) {
+                std::vector<app*> conjunct;
+                conjunct.push_back(this->th->get_manager().mk_true());
+                final_result.push_back(conjunct);
+                return final_result;
+            } else {
+                std::cout << "ERROR: should not come here, mk_hterm disequality new error" << std::endl;
+            }
+        }
+
+        // if(this->slhv_decl_plug->pt_record_map.size() != 2) {
+        //     std::cout << "ERROR: not standard pt records types" << std::endl;
+        //     SASSERT(false);
+        // }
         #ifdef SLHV_PRINT
         std::cout << "mk hterm disequality new" << std::endl;
         std::cout << "first disjunct" << std::endl;

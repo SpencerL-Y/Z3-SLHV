@@ -4183,6 +4183,49 @@ namespace z3 {
         return expr(ctx, r);
     }
 
+    inline expr heap_read_loc(expr orig_h, expr addr) {
+        check_context(orig_h, addr);
+        context& ctx = orig_h.ctx();
+        Z3_ast r = Z3_mk_readloc(ctx, orig_h, addr);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr heap_read_data(expr orig_h, expr addr) {
+        check_context(orig_h, addr);
+        context& ctx = orig_h.ctx();
+        Z3_ast r = Z3_mk_readdata(ctx, orig_h, addr);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr heap_write_data(expr orig_h, expr addr, expr content) {
+        check_context(orig_h, addr);
+        check_context(orig_h, content);
+        context& ctx = orig_h.ctx();
+        Z3_ast r = Z3_mk_writedata(ctx, orig_h, addr, content);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr heap_write_loc(expr orig_h, expr addr, expr content) {
+        check_context(orig_h, addr);
+        check_context(orig_h, content);
+        context& ctx = orig_h.ctx();
+        Z3_ast r = Z3_mk_writeloc(ctx, orig_h, addr, content);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+    inline expr heap_delete(expr orig_h, expr addr) {
+        check_context(orig_h, addr);
+        context& ctx = orig_h.ctx();
+        Z3_ast r = Z3_mk_heap_delete(ctx, orig_h, addr);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+
+
     inline expr locadd(expr first, expr second) {
         check_context(first, second);
         context& ctx = first.ctx();

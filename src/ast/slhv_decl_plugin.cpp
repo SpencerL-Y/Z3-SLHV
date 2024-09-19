@@ -24,6 +24,7 @@ slhv_decl_plugin::slhv_decl_plugin() :
     m_readdata_symbol("readdata"),
     m_writeloc_symbol("writeloc"),
     m_writedata_symbol("writedata"),
+    m_heap_delete_symbol("heap_del"),
     m_loc2int_symbol("loc2int"),
     m_int2loc_symbol("int2loc"),
     m_locconst_symbol("Loc"),
@@ -315,7 +316,7 @@ func_decl* slhv_decl_plugin::mk_disjh(unsigned arity, sort* const* domain) {
 
 
 
-func_decl* slhv_decl_plugin::mk_readloc(unsigned arity, sort*const* domain) {
+func_decl* slhv_decl_plugin::mk_readloc(unsigned arity, sort* const* domain) {
     if(arity != 2) {
         m_manager->raise_exception("readloc takes exacly two arguments");
         return nullptr;
@@ -330,7 +331,7 @@ func_decl* slhv_decl_plugin::mk_readloc(unsigned arity, sort*const* domain) {
 
 
 
-func_decl* slhv_decl_plugin::mk_readdata(unsigned arity, sort*const* domain) {
+func_decl* slhv_decl_plugin::mk_readdata(unsigned arity, sort* const* domain) {
     if(arity != 2) {
         m_manager->raise_exception("readdata takes exacly two arguments");
         return nullptr;
@@ -343,7 +344,7 @@ func_decl* slhv_decl_plugin::mk_readdata(unsigned arity, sort*const* domain) {
     return result_decl;
 }
 
-func_decl* slhv_decl_plugin::mk_writeloc(unsigned arity, sort*const* domain) {
+func_decl* slhv_decl_plugin::mk_writeloc(unsigned arity, sort* const* domain) {
     if(arity != 3) {
         m_manager->raise_exception("writeloc takes exactly three arguments");
         return nullptr;
@@ -360,7 +361,7 @@ func_decl* slhv_decl_plugin::mk_writeloc(unsigned arity, sort*const* domain) {
     return result_decl;
 }
 
-func_decl* slhv_decl_plugin::mk_writedata(unsigned arity, sort*const* domain) {
+func_decl* slhv_decl_plugin::mk_writedata(unsigned arity, sort* const* domain) {
     if(arity != 3) {
         m_manager->raise_exception("writedata takes exactly three arguments");
         return nullptr;
@@ -376,7 +377,20 @@ func_decl* slhv_decl_plugin::mk_writedata(unsigned arity, sort*const* domain) {
     return result_decl;
 }
 
-func_decl* slhv_decl_plugin::mk_loc2int(unsigned arity, sort*const* domain) {
+func_decl* slhv_decl_plugin::mk_heap_delete(unsigned arity, sort* const* domain) {
+    if(arity != 2) {
+        m_manager->raise_exception("heap_delete takes exactly two arguments");
+        return nullptr;
+    }
+    sort* orig_heap_sort = domain[0];
+    sort* delete_addr_sort = domain[1];
+
+    sort* final_sort = this->mk_sort(slhv_sort_kind::INTHEAP_SORT, 0, nullptr);
+    func_decl* result_decl = m_manager->mk_func_decl(m_heap_delete_symbol, arity, domain, final_sort, func_decl_info(m_family_id, OP_HEAP_DELETE));
+    return result_decl;
+}
+
+func_decl* slhv_decl_plugin::mk_loc2int(unsigned arity, sort* const* domain) {
     if(arity != 1) {
         m_manager->raise_exception("loc2int takes exactly one arguments");
         return nullptr;
@@ -536,6 +550,8 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
         return this->mk_writeloc(arity, domain);
     case OP_WRITEDATA:
         return this->mk_writedata(arity, domain);
+    case OP_HEAP_DELETE:
+        return this->mk_heap_delete(arity, domain);
     case OP_LOC2INT:
         return this->mk_loc2int(arity, domain);
     case OP_INT2LOC:
