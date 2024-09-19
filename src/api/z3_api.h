@@ -1323,6 +1323,7 @@ typedef enum {
     Z3_OP_READDATA,
     Z3_OP_WRITELOC,
     Z3_OP_WRITEDATA,
+    Z3_OP_HEAP_DELETE,
     Z3_OP_LOC2INT,
     Z3_OP_INT2LOC,
     Z3_OP_SUBH,
@@ -7490,7 +7491,7 @@ extern "C" {
 
 
     /**
-       \brief Create the data record
+       \brief Create heap subsumption
 
        \sa Z3_mk_subh
 
@@ -7499,13 +7500,61 @@ extern "C" {
     Z3_ast Z3_API Z3_mk_subh(Z3_context c, Z3_ast large_h, Z3_ast sub_h);
 
     /**
-       \brief Create the data record
+       \brief Create heap disjunction
 
        \sa Z3_mk_disjh
 
        def_API('Z3_mk_disjh', AST, (_in(CONTEXT), _in(AST), _in(AST)))
     */
     Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h);
+
+    /**
+       \brief Create read term
+
+       \sa Z3_mk_readloc
+
+       def_API('Z3_mk_readloc', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_readloc(Z3_context c, Z3_ast orig_h, Z3_ast second_h);
+
+
+    /**
+       \brief Create read term
+
+       \sa Z3_mk_readdata
+
+       def_API('Z3_mk_readdata', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_readdata(Z3_context c, Z3_ast orig_h, Z3_ast second_h);
+
+    /**
+       \brief Create write term
+
+       \sa Z3_mk_writeloc
+
+       def_API('Z3_mk_writeloc', AST, (_in(CONTEXT), _in(AST), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_writeloc(Z3_context c, Z3_ast orig_h, Z3_ast addr, Z3_ast content);
+
+
+    /**
+       \brief Create write term
+
+       \sa Z3_mk_writedata
+
+       def_API('Z3_mk_writedata', AST, (_in(CONTEXT), _in(AST), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_writedata(Z3_context c, Z3_ast orig_h, Z3_ast addr, Z3_ast content);
+
+    /**
+       \brief Create heap delete
+
+       \sa Z3_mk_heap_delete
+
+       def_API('Z3_mk_heap_delete', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_heap_delete(Z3_context c, Z3_ast orig_h, Z3_ast addr);
+
     /**
        \brief Create the data record
 

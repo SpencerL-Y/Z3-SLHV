@@ -251,6 +251,12 @@ namespace smt
             }
             return false;
         }
+        bool is_heap_delete(app const* n) const {
+            if(n->is_app_of(get_id(), OP_HEAP_DELETE)) {
+                return true;
+            }
+            return false;
+        }
         bool is_loc2int(app const* n) const {
             if(n->is_app_of(get_id(), OP_LOC2INT)) {
                 return true;

@@ -25,6 +25,7 @@ enum slhv_op_kind {
     OP_READDATA,
     OP_WRITELOC,
     OP_WRITEDATA,
+    OP_HEAP_DELETE,
     OP_LOC2INT,
     OP_INT2LOC,
     OP_SUBH,
@@ -83,6 +84,7 @@ class slhv_decl_plugin : public decl_plugin {
     symbol m_writeloc_symbol;
     symbol m_readdata_symbol;
     symbol m_writedata_symbol;
+    symbol m_heap_delete_symbol;
     symbol m_loc2int_symbol;
     symbol m_int2loc_symbol;
     symbol m_locconst_symbol;
@@ -225,6 +227,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     func_decl* mk_writedata(unsigned arity, sort* const* domain);
 
+    func_decl* mk_heap_delete(unsigned arity, sort* const* domain);
+
     func_decl* mk_loc2int(unsigned arity, sort* const* domain);
 
     func_decl* mk_int2loc(unsigned arity, sort* const* domain);
@@ -322,6 +326,21 @@ public:
     }
     bool is_nil(expr* n) const {
         return is_app_of(n, m_fid, OP_NIL);
+    }
+    bool is_readloc(expr* n) const {
+        return is_app_of(n, m_fid, OP_READLOC);
+    }
+    bool is_readdata(expr* n) const {
+        return is_app_of(n, m_fid, OP_READDATA);
+    }
+    bool is_writeloc(expr* n) const {
+        return is_app_of(n, m_fid, OP_WRITELOC);
+    }
+    bool is_writedata(expr* n) const {
+        return is_app_of(n, m_fid, OP_WRITEDATA);
+    }
+    bool is_heapdelete(expr* n) const {
+        return is_app_of(n, m_fid, OP_HEAP_DELETE);
     }
 };
 
@@ -480,6 +499,76 @@ public:
         func_decl* disjh_decl = slhv_plug->mk_func_decl(OP_DISJH, 0, nullptr, 2, sorts_vec.data(), range_sort);
         app* disj_result = m_manager.mk_app(disjh_decl, args_vec);
         return disj_result;
+    }
+
+    app* mk_readloc(app* orig_h, app* addr) {
+        sort* range_sort = this->mk_intloc_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(orig_h);
+        args_vec.push_back(addr);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(orig_h->get_sort());
+        sorts_vec.push_back(addr->get_sort());
+        func_decl* readloc_decl = slhv_plug->mk_func_decl(OP_READLOC, 0, nullptr, 2, sorts_vec.data(), range_sort);
+        app* read_loc_result = m_manager.mk_app(readloc_decl, args_vec);
+        return read_loc_result;
+    }
+
+    app* mk_readdata(app* orig_h, app* addr) {
+        sort* range_sort = this->m_manager.mk_sort(arith_family_id, INT_SORT);
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(orig_h);
+        args_vec.push_back(addr);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(orig_h->get_sort());
+        sorts_vec.push_back(addr->get_sort());
+        func_decl* readdata_decl = slhv_plug->mk_func_decl(OP_READDATA, 0, nullptr, 2, sorts_vec.data(), range_sort);
+        app* read_data_result = m_manager.mk_app(readdata_decl, args_vec);
+        return read_data_result;
+    }
+
+    app* mk_writeloc(app* orig_h, app* addr, app* content) {
+        sort* range_sort = this->mk_intheap_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(orig_h);
+        args_vec.push_back(addr);
+        args_vec.push_back(content);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(orig_h->get_sort());
+        sorts_vec.push_back(addr->get_sort());
+        sorts_vec.push_back(content->get_sort());
+        func_decl* writeloc_decl = slhv_plug->mk_func_decl(OP_WRITELOC, 0, nullptr, 3, sorts_vec.data(), range_sort);
+        app* write_loc_result = m_manager.mk_app(writeloc_decl, args_vec);
+        return write_loc_result;
+    }
+
+    app* mk_writedata(app* orig_h, app* addr, app* content) {
+        sort* range_sort = this->mk_intheap_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(orig_h);
+        args_vec.push_back(addr);
+        args_vec.push_back(content);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(orig_h->get_sort());
+        sorts_vec.push_back(addr->get_sort());
+        sorts_vec.push_back(content->get_sort());
+        func_decl* writedata_decl = slhv_plug->mk_func_decl(OP_WRITEDATA, 0, nullptr, 3, sorts_vec.data(), range_sort);
+        app* write_data_result = m_manager.mk_app(writedata_decl, args_vec);
+        return write_data_result;
+
+    }
+
+    app* mk_heap_delete(app* orig_h, app* addr) {
+        sort* range_sort = this->mk_intheap_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(orig_h);
+        args_vec.push_back(addr);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(orig_h->get_sort());
+        sorts_vec.push_back(addr->get_sort());
+        func_decl* heap_del_decl = slhv_plug->mk_func_decl(OP_HEAP_DELETE, 0, nullptr, 3, sorts_vec.data(), range_sort);
+        app* heap_del_result = m_manager.mk_app(heap_del_decl, args_vec);
+        return heap_del_result;
     }
 
     app* mk_locadd(app* start_addr, app* added) {

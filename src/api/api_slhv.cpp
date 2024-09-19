@@ -115,7 +115,7 @@ Z3_ast Z3_API Z3_mk_subh(Z3_context c, Z3_ast sub_h, Z3_ast large_h) {
     app* app_sub_h = to_app(sub_h);
     app* app_large_h = to_app(large_h);
     if(mk_c(c)->slhvutil().is_intHeap(app_large_h) && mk_c(c)->slhvutil().is_intHeap(app_sub_h)) {
-        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_subh(to_app(sub_h), to_app(large_h)));
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_subh(app_sub_h, app_large_h));
         RETURN_Z3(result);
     } else {
         SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
@@ -131,12 +131,93 @@ Z3_ast Z3_API Z3_mk_disjh(Z3_context c, Z3_ast first_h, Z3_ast second_h) {
     app* app_first_h = to_app(first_h);
     app* app_second_h = to_app(second_h);
     if(mk_c(c)->slhvutil().is_intHeap(app_first_h) && mk_c(c)->slhvutil().is_intHeap(app_second_h)) {
-        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_disjh(to_app(first_h), to_app(second_h)));
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_disjh(app_first_h, app_second_h));
         RETURN_Z3(result);
     } else {
         SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
         RETURN_Z3(nullptr);
     }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_readloc(Z3_context c, Z3_ast orig_h, Z3_ast addr) {
+    Z3_TRY;
+    LOG_Z3_mk_readloc(c, orig_h, addr);
+    RESET_ERROR_CODE();
+    app* app_orig_h = to_app(orig_h);
+    app* app_addr = to_app(addr);
+    if(mk_c(c)->slhvutil().is_intHeap(app_orig_h) && mk_c(c)->slhvutil().is_intLoc(app_addr)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_readloc(app_orig_h, app_addr));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_readdata(Z3_context c, Z3_ast orig_h, Z3_ast addr) {
+    Z3_TRY;
+    LOG_Z3_mk_readdata(c, orig_h, addr);
+    app* app_orig_h = to_app(orig_h);
+    app* app_addr = to_app(addr);
+    if(mk_c(c)->slhvutil().is_intHeap(app_orig_h) && mk_c(c)->slhvutil().is_intLoc(app_addr)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_readdata(app_orig_h, app_addr));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_writeloc(Z3_context c, Z3_ast orig_h, Z3_ast addr, Z3_ast content) {
+
+    Z3_TRY;
+    LOG_Z3_mk_writeloc(c, orig_h, addr, content);
+    app* app_orig_h = to_app(orig_h);
+    app* app_addr = to_app(addr);
+    app* app_content = to_app(content);
+    if(mk_c(c)->slhvutil().is_intHeap(app_orig_h) && mk_c(c)->slhvutil().is_intLoc(app_addr) && mk_c(c)->slhvutil().is_intLoc(app_content)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_writeloc(app_orig_h, app_addr, app_content));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_writedata(Z3_context c, Z3_ast orig_h, Z3_ast addr, Z3_ast content) {
+
+    Z3_TRY;
+    LOG_Z3_mk_writedata(c, orig_h, addr, content);
+    app* app_orig_h = to_app(orig_h);
+    app* app_addr = to_app(addr);
+    app* app_content = to_app(content);
+    if(mk_c(c)->slhvutil().is_intHeap(app_orig_h) && mk_c(c)->slhvutil().is_intLoc(app_addr) && mk_c(c)->autil().is_int(app_content)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_writedata(app_orig_h, app_addr, app_content));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
+Z3_ast Z3_API Z3_mk_heap_delete(Z3_context c, Z3_ast orig_h, Z3_ast del_addr) {
+    Z3_TRY;
+    LOG_Z3_mk_heap_delete(c, orig_h, del_addr);
+    app* app_orig_h = to_app(orig_h);
+    app* app_del_addr = to_app(del_addr);
+    if(mk_c(c)->slhvutil().is_intHeap(app_orig_h) && mk_c(c)->slhvutil().is_intLoc(app_del_addr)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_heap_delete(app_orig_h, app_del_addr));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+
     Z3_CATCH_RETURN(nullptr);
 }
 

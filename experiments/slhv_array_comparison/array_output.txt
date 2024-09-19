@@ -1,0 +1,98 @@
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+unsat
+tactic: mk default tactic
+mk inc sat solver
+sat
+tactic: mk default tactic
+mk inc sat solver
+sat
+pointer-invalid-5.smt2
+time: 0.018044710159301758
+stack-invalid-6.smt2
+time: 0.01309347152709961
+pointer-safe-20.smt2
+time: 0.057776689529418945
+pointer-safe-5.smt2
+time: 0.01490330696105957
+queue-th2-6.smt2
+time: 0.011474609375
+pointer-invalid-15.smt2
+time: 0.03872799873352051
+stack-th1-6.smt2
+time: 0.011349201202392578
+pointer-invalid-20.smt2
+time: 0.04287433624267578
+pointer-safe-15.smt2
+time: 0.029329538345336914
+pointer-safe-10.smt2
+time: 0.019301652908325195
+queue-th1-6.smt2
+time: 0.011167526245117188
+pointer-invalid-10.smt2
+time: 0.017700910568237305
+stack-th2-6.smt2
+time: 0.010909318923950195
