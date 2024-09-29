@@ -7564,6 +7564,15 @@ extern "C" {
     */
     Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second);
 
+    /**
+       \brief Create the data record
+
+       \sa Z3_mk_loc2int
+
+       def_API('Z3_mk_loc2int', AST, (_in(CONTEXT), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_loc2int(Z3_context c, Z3_ast inner_loc);
+
    /**
        \brief Create the data record
 

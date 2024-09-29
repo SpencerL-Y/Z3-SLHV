@@ -566,7 +566,7 @@ public:
         sort_ref_vector sorts_vec(m_manager);
         sorts_vec.push_back(orig_h->get_sort());
         sorts_vec.push_back(addr->get_sort());
-        func_decl* heap_del_decl = slhv_plug->mk_func_decl(OP_HEAP_DELETE, 0, nullptr, 3, sorts_vec.data(), range_sort);
+        func_decl* heap_del_decl = slhv_plug->mk_func_decl(OP_HEAP_DELETE, 0, nullptr, 2, sorts_vec.data(), range_sort);
         app* heap_del_result = m_manager.mk_app(heap_del_decl, args_vec);
         return heap_del_result;
     }
@@ -583,6 +583,17 @@ public:
         func_decl* locadd_decl = slhv_plug->mk_func_decl(OP_LOCADD, 0, nullptr, 2, sorts_vec.data(), range_sort);
         app* locadd_result = m_manager.mk_app(locadd_decl, args_vec);
         return locadd_result;
+    }
+
+    app* mk_loc2int(app* inner_loc) {
+        sort* range_sort = this->mk_intloc_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(inner_loc);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(inner_loc->get_sort());
+        func_decl* loc2int_decl = slhv_plug->mk_func_decl(OP_LOC2INT, 0, nullptr, 1, sorts_vec.data(), range_sort);
+        app* loc2int_result = m_manager.mk_app(loc2int_decl, args_vec);
+        return loc2int_result;
     }
 
 
