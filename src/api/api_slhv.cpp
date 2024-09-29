@@ -237,6 +237,22 @@ Z3_ast Z3_API Z3_mk_locadd(Z3_context c, Z3_ast first, Z3_ast second) {
     Z3_CATCH_RETURN(nullptr);
 }
 
+
+Z3_ast Z3_API Z3_mk_loc2int(Z3_context c, Z3_ast inner_loc) {
+    Z3_TRY;
+    LOG_Z3_mk_loc2int(c, inner_loc);
+    RESET_ERROR_CODE();
+    app* inner_apped_loc = to_app(inner_loc);
+    if(mk_c(c)->slhvutil().is_intLoc(inner_apped_loc)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_loc2int(inner_apped_loc));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
 Z3_ast Z3_API Z3_mk_hvar(Z3_context c, Z3_string name) {
     Z3_TRY;
     LOG_Z3_mk_hvar(c, name);

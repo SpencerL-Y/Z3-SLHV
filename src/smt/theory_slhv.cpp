@@ -533,9 +533,12 @@ namespace smt {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
             expr* elimnated_ite_assertion = this->eliminate_ite_for_assertion_disj(eliminated_double_uplus);
             expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(elimnated_ite_assertion);
+            #ifdef SLHV_PRINT
+            std::cout << "NNF converted formula: " << mk_ismt2_pp(converted_to_nnf_assertion, this->get_manager()) << std::endl;
+            #endif
             
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
-            // expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
+            expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
             
             expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
@@ -4316,7 +4319,12 @@ namespace smt {
             app* second = this->translate_locterm_to_liaterm(arg2);
             app* result = a.mk_add(first, second);
             return result;
-        } else {
+        } else if(this->th->is_loc2int(locterm)) {
+            app* inner_arg = to_app(locterm->get_arg(0));
+            app* result = this->translate_locterm_to_liaterm(locterm);
+            return result;
+        } 
+        else {
             return locterm;
         }
     }
