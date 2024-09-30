@@ -4233,6 +4233,13 @@ namespace z3 {
         ctx.check_error();
         return expr(ctx, r);
     }
+
+    inline expr loc2int(expr inner_loc) {
+        context& ctx = inner_loc.ctx();
+        Z3_ast r = Z3_mk_loc2int(ctx, inner_loc);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
     
 
     inline expr_vector context::parse_string(char const* s) {
