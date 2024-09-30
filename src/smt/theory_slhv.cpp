@@ -531,8 +531,8 @@ namespace smt {
         std::vector<app*> refined_assertions;
         for(expr* e : assertions) {
             expr* eliminated_double_uplus = this->eliminate_uplus_in_uplus_for_assertion_disj(e);
-            expr* elimnated_ite_assertion = this->eliminate_ite_for_assertion_disj(eliminated_double_uplus);
-            expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(elimnated_ite_assertion);
+            expr* eliminated_ite_assertion = this->eliminate_ite_for_assertion_disj(eliminated_double_uplus);
+            expr* converted_to_nnf_assertion = this->convert_to_nnf_recursive(eliminated_ite_assertion);
             #ifdef SLHV_PRINT
             std::cout << "NNF converted formula: " << mk_ismt2_pp(converted_to_nnf_assertion, this->get_manager()) << std::endl;
             #endif
@@ -540,7 +540,7 @@ namespace smt {
             expr* negation_eliminated_assertion = this->eliminate_heap_negation_for_assertion_disj(converted_to_nnf_assertion);
             expr* hteq_adjusted_assertion = this->adjust_heap_equation_hvar_position(negation_eliminated_assertion);
             
-            expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(negation_eliminated_assertion);
+            expr* points_to_adjusted_assertion = this->convert_points_to_addr_disj(hteq_adjusted_assertion);
             refined_assertions.push_back(to_app(points_to_adjusted_assertion));
             inf_graph->add_refined_assignment_node(points_to_adjusted_assertion, e);
             #ifdef SLHV_PRINT
@@ -1579,28 +1579,36 @@ namespace smt {
                 return nullptr;
             }
             if(lhs->is_app_of(basic_family_id, OP_ITE)) {
+        #ifdef SLHV_PRINT
+        std::cout << "WTF: " << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
+        #endif
                 app* ite_cond = to_app(lhs->get_arg(0));
+                app* ite_eliminated_cond = to_app(this->eliminate_ite_for_assertion_disj(ite_cond));
                 app* ite_first_branch = to_app(lhs->get_arg(1));
                 app* ite_second_branch = to_app(lhs->get_arg(2));
                 app* hold_branch = this->syntax_maker->mk_and(
-                    ite_cond, 
+                    ite_eliminated_cond, 
                     this->syntax_maker->mk_eq(ite_first_branch, rhs)
                 );
                 app* nothold_branch = this->syntax_maker->mk_and(
-                    this->syntax_maker->mk_not(ite_cond),
+                    this->syntax_maker->mk_not(ite_eliminated_cond),
                     this->syntax_maker->mk_eq(ite_second_branch, rhs)
                 );
                 return this->syntax_maker->mk_or(hold_branch, nothold_branch);
             } else if(rhs->is_app_of(basic_family_id, OP_ITE)) {
+        #ifdef SLHV_PRINT
+        std::cout << "WTF: " << mk_ismt2_pp(atomic, this->get_manager()) << std::endl;
+        #endif
                 app* ite_cond = to_app(rhs->get_arg(0));
+                app* ite_eliminated_cond = to_app(this->eliminate_ite_for_assertion_disj(ite_cond));
                 app* ite_first_branch = to_app(rhs->get_arg(1));
                 app* ite_second_branch = to_app(rhs->get_arg(2));
                 app* hold_branch = this->syntax_maker->mk_and(
-                    ite_cond,
+                    ite_eliminated_cond,
                     this->syntax_maker->mk_eq(lhs, ite_first_branch)
                 );
                 app* nothold_branch = this->syntax_maker->mk_and(
-                    this->syntax_maker->mk_not(ite_cond),
+                    this->syntax_maker->mk_not(ite_eliminated_cond),
                     this->syntax_maker->mk_eq(lhs, ite_second_branch)
                 );
                 return this->syntax_maker->mk_or(hold_branch, nothold_branch);
