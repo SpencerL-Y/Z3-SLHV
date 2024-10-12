@@ -19,7 +19,7 @@ python3 ./shared_recompile_install.py
 ### configure and compile static library
 - configure makefile and then compile Z3 into ```z3_slhv_lib``` as ```libz3.a```
 ```
-python3 ./mk_static_makefile.py
+python3 ./mk_static_cmake.py
 python3 ./static_recompile_install.py
 ```
 
