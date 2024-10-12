@@ -6,21 +6,24 @@ Z3-SLHV is implemented as a theory plugin on [Z3](https://github.com/Z3Prover/z3
 ## Configure to enable SELO
 Z3-SLHV is used as a back-end solver to support the bounded model checker [SELO](anonymous.4open.science/r/SELO).
 It can be installed by following configurations.
-- create folder to receive the shared library compiled
+- create folder to receive the  library compiled
 ```
 mkdir z3_slhv_lib
 ```
-- configure CMake using the script
+### configure and compile shared library
+- configure Ninja and then compile Z3 into ```z3_slhv_lib``` as ```libz3.so```
 ```
-python3 ./mk_shared_cmake.py
+python3 ./mk_shared_ninja.py
+python3 ./shared_recompile_install.py
 ```
-- compile Z3 and install to ./z3_slhv_lib
+### configure and compile static library
+- configure makefile and then compile Z3 into ```z3_slhv_lib``` as ```libz3.a```
 ```
-python3 ./recompile_install.py
+python3 ./mk_static_makefile.py
+python3 ./static_recompile_install.py
 ```
 
-If CMake files are created and remain unchanged in later compilation, one only needs to call the recompling script.
-
+If configurations are not changed, one can only use recompile script to update.
 ## TBD
 - Enrich README.md
 - Update the license accordingly.
