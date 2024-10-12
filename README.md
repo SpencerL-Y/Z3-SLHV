@@ -13,7 +13,7 @@ mkdir z3_slhv_lib
 ### configure and compile shared library
 - configure Ninja and then compile Z3 into ```z3_slhv_lib``` as ```libz3.so```
 ```
-python3 ./mk_shared_ninja.py
+python3 ./mk_shared_cmake.py
 python3 ./shared_recompile_install.py
 ```
 ### configure and compile static library
