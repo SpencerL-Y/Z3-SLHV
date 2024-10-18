@@ -15,7 +15,8 @@
 // SLHV
 slhv_decl_plugin::slhv_decl_plugin() :
     m_disj_union_sym("uplus"),
-    m_list_segment_sym("lseg"),
+    m_blk_sym("hblk"),
+    m_list_segment_sym("hlseg"),
     m_points_to_sym("pt"),
     m_locadd_symbol("locadd"),
     m_subh_symbol("subh"),
@@ -202,7 +203,8 @@ void slhv_decl_plugin::get_op_names(svector<builtin_name> & op_names, symbol con
     #endif
     op_names.push_back(builtin_name("uplus", OP_HEAP_DISJUNION));
     op_names.push_back(builtin_name("pt", OP_POINTS_TO));
-    op_names.push_back(builtin_name("lseg", OP_LIST_SEGMENT));
+    op_names.push_back(builtin_name("hblk", OP_HBLK));
+    op_names.push_back(builtin_name("hlseg", OP_LIST_SEGMENT));
     op_names.push_back(builtin_name("locadd", OP_LOCADD));
     op_names.push_back(builtin_name("subh", OP_SUBH));
     op_names.push_back(builtin_name("disjh", OP_DISJH));
@@ -310,6 +312,26 @@ func_decl* slhv_decl_plugin::mk_disjh(unsigned arity, sort* const* domain) {
     func_decl* result_decl = m_manager->mk_func_decl(m_disjh_symbol, arity, domain, final_sort, info);
     #ifdef SLHV_DEBUG
     std::cout << "mk_subh result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl; 
+    #endif
+    return result_decl;
+}
+
+
+func_decl* slhv_decl_plugin::mk_blk(unsigned arity, sort* const* domain) {
+    if(arity != 3) {
+        m_manager->raise_exception("blk takes exactly three arguments");
+        return nullptr;
+    }
+
+    sort* ht_sort = domain[0];
+    sort* l_end_sort = domain[1];
+    sort* r_end_sort = domain[2];
+
+    sort* final_sort = m_manager->mk_bool_sort();
+    func_decl_info info(m_family_id, OP_HBLK);
+    func_decl* result_decl = m_manager->mk_func_decl(m_blk_sym, arity, domain, final_sort, info);
+    #ifdef SLHV_DEBUG
+    std::cout << "mk blk result: " << result_decl->get_name() << " family id: " << m_family_id << std::endl;
     #endif
     return result_decl;
 }
@@ -538,6 +560,8 @@ func_decl * slhv_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters,
     std::cout << "mk_func_decl in slhv plugin op_locadd" << std::endl; 
     #endif
         return this->mk_locadd(arity, domain);
+    case OP_HBLK:
+        return this->mk_blk(arity, domain);
     case OP_SUBH:
         return this->mk_subh(arity, domain);
     case OP_DISJH:
@@ -641,6 +665,21 @@ app* slhv_decl_plugin::mk_locadd_value(int num_arg, expr_ref_vector items) {
     }
     func_decl* locadd_decl = this->mk_locadd(num_arg, domain);
     app* result = m_manager->mk_app(locadd_decl, items.data());
+    this->m_manager->inc_ref(result);
+    return result;
+}
+
+app* slhv_decl_plugin::mk_blk_value(int num_arg, expr_ref_vector items) {
+    #ifdef SLHV_DEBUG
+    std::cout << "mk blk value" << std::endl;
+    #endif
+    sort* bool_sort = this->m_manager->mk_bool_sort();
+    sort* domain[num_arg];
+    for(int i = 0; i < num_arg; i ++) {
+        domain[i] = items.get(i)->get_sort();
+    }
+    func_decl* blk_decl = this->mk_blk(num_arg, domain);
+    app* result = m_manager->mk_app(blk_decl, items.data());
     this->m_manager->inc_ref(result);
     return result;
 }

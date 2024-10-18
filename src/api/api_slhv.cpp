@@ -253,6 +253,22 @@ Z3_ast Z3_API Z3_mk_loc2int(Z3_context c, Z3_ast inner_loc) {
     Z3_CATCH_RETURN(nullptr);
 }
 
+Z3_ast Z3_API Z3_mk_hblk(Z3_context c, Z3_ast ht, Z3_ast l_end, Z3_ast r_end) {
+    Z3_TRY;
+    LOG_Z3_mk_hblk(c, ht, l_end, r_end);
+    app* apped_ht = to_app(ht);
+    app* apped_l_end = to_app(l_end);
+    app* apped_r_end = to_app(r_end);
+    if(mk_c(c)->slhvutil().is_intHeap(apped_ht) && mk_c(c)->slhvutil().is_intLoc(apped_l_end) && mk_c(c)->slhvutil().is_intLoc(apped_r_end)) {
+        Z3_ast result = of_ast(mk_c(c)->slhvutil().mk_blk(apped_ht, apped_l_end, apped_r_end));
+        RETURN_Z3(result);
+    } else {
+        SET_ERROR_CODE(Z3_SORT_ERROR, nullptr);
+        RETURN_Z3(nullptr);
+    }
+    Z3_CATCH_RETURN(nullptr);
+}
+
 Z3_ast Z3_API Z3_mk_hvar(Z3_context c, Z3_string name) {
     Z3_TRY;
     LOG_Z3_mk_hvar(c, name);

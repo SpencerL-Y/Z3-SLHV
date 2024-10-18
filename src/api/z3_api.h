@@ -1328,12 +1328,12 @@ typedef enum {
     Z3_OP_INT2LOC,
     Z3_OP_SUBH,
     Z3_OP_DISJH,
+    Z3_OP_HBLK,
     Z3_OP_LIST_SEGMENT,
     Z3_OP_HVAR_CONST,
     Z3_OP_LOCVAR_CONST,
     Z3_OP_EMP,
     Z3_OP_NIL,
-
     Z3_OP_UNINTERPRETED
 } Z3_decl_kind;
 
@@ -7574,6 +7574,15 @@ extern "C" {
     Z3_ast Z3_API Z3_mk_loc2int(Z3_context c, Z3_ast inner_loc);
 
    /**
+       \brief Create the hblk predicate
+
+       \sa Z3_mk_hblk
+
+       def_API('Z3_mk_hblk', AST, (_in(CONTEXT), _in(AST), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_hblk(Z3_context c, Z3_ast ht, Z3_ast l_end, Z3_ast r_end);
+
+   /**
        \brief Create the data record
 
        \sa Z3_mk_hvar
@@ -7590,7 +7599,6 @@ extern "C" {
        def_API('Z3_mk_locvar', AST, (_in(CONTEXT), _in(STRING)))
     */
     Z3_ast Z3_API Z3_mk_locvar(Z3_context c, Z3_string name);
-
 
 
 

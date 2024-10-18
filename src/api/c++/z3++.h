@@ -4241,7 +4241,14 @@ namespace z3 {
         return expr(ctx, r);
     }
     
-
+    inline expr hblk(expr ht, expr l_end, expr r_end) {
+        check_context(ht, l_end);
+        check_context(ht, r_end);
+        Z3_ast r = Z3_mk_hblk(ctx, ht, l_end, r_end);
+        ctx.check_error();
+        return expr(ctx, r);
+    }
+    
     inline expr_vector context::parse_string(char const* s) {
         Z3_ast_vector r = Z3_parse_smtlib2_string(*this, s, 0, 0, 0, 0, 0, 0);
         check_error();

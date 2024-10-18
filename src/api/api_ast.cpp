@@ -1443,6 +1443,7 @@ extern "C" {
                 case OP_INT2LOC:         return Z3_OP_INT2LOC;  
                 case OP_SUBH:            return Z3_OP_SUBH;
                 case OP_DISJH:           return Z3_OP_DISJH;
+                case OP_HBLK:            return Z3_OP_HBLK;
                 case OP_LIST_SEGMENT:    return Z3_OP_LIST_SEGMENT;      
                 case OP_HVAR_CONST:      return Z3_OP_HVAR_CONST;  
                 case OP_LOCVAR_CONST:    return Z3_OP_LOCVAR_CONST;      

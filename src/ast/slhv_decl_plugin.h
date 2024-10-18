@@ -30,6 +30,7 @@ enum slhv_op_kind {
     OP_INT2LOC,
     OP_SUBH,
     OP_DISJH,
+    OP_HBLK,
     OP_LIST_SEGMENT,
     OP_HVAR_CONST,
     OP_LOCVAR_CONST,
@@ -76,6 +77,7 @@ class pt_record {
 class slhv_decl_plugin : public decl_plugin {
     symbol m_disj_union_sym;
     symbol m_points_to_sym;
+    symbol m_blk_sym;
     symbol m_list_segment_sym;
     symbol m_locadd_symbol;
     symbol m_subh_symbol;
@@ -219,6 +221,8 @@ class slhv_decl_plugin : public decl_plugin {
 
     func_decl* mk_disjh(unsigned arity, sort* const* domain);
 
+    func_decl* mk_blk(unsigned arity, sort* const* domain);
+
     func_decl* mk_readloc(unsigned arity, sort* const* domain);
 
     func_decl* mk_readdata(unsigned arity, sort* const* domain);
@@ -262,6 +266,8 @@ class slhv_decl_plugin : public decl_plugin {
     app* mk_points_to_value(int num_arg, expr_ref_vector items);
 
     app* mk_locadd_value(int num_arg, expr_ref_vector items);
+
+    app* mk_blk_value(int num_arg, expr_ref_vector items);
 
     app* mk_subh_value(int num_arg, expr_ref_vector items);
 
@@ -320,6 +326,9 @@ public:
     }
     bool is_locadd(expr* n) const {
         return is_app_of(n, m_fid, OP_LOCADD);
+    }
+    bool is_blk(expr* n) const {
+        return is_app_of(n, m_fid, OP_HBLK);
     }
     bool is_emp(expr* n) const {
         return is_app_of(n, m_fid, OP_EMP);
@@ -594,6 +603,21 @@ public:
         func_decl* loc2int_decl = slhv_plug->mk_func_decl(OP_LOC2INT, 0, nullptr, 1, sorts_vec.data(), range_sort);
         app* loc2int_result = m_manager.mk_app(loc2int_decl, args_vec);
         return loc2int_result;
+    }
+
+    app* mk_blk(app* ht, app* left_end, app* right_end) {
+        sort* range_sort = this->m_manager.mk_bool_sort();
+        expr_ref_vector args_vec(m_manager);
+        args_vec.push_back(ht);
+        args_vec.push_back(left_end);
+        args_vec.push_back(right_end);
+        sort_ref_vector sorts_vec(m_manager);
+        sorts_vec.push_back(ht->get_sort());
+        sorts_vec.push_back(left_end->get_sort());
+        sorts_vec.push_back(right_end->get_sort());
+        func_decl* blk_decl = slhv_plug->mk_func_decl(OP_HBLK, 0, nullptr, 3, sorts_vec.data(), range_sort);
+        app* blk_result = m_manager.mk_app(blk_decl, args_vec);
+        return blk_result;
     }
 
 
