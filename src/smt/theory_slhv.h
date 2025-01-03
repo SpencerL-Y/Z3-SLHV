@@ -341,11 +341,13 @@ namespace smt
         // final check interfaces:
         bool final_check();  
         bool final_check_using_CDCL();
-        bool final_check_using_DISJ();
+        int final_check_using_DISJ(expr_ref_vector assertions);
 
         bool internalize_term_core(app * term);
         void reset_inside_configs();
         void reset_outside_configs();
+
+        void reset_outside_configs_disj();
 
         // checking logic
 
@@ -419,12 +421,25 @@ namespace smt
         std::set<expr*> extract_unsat_core_booleans(expr* e);
         std::set<expr*> recover_unsat_core(formula_encoder* fec, expr_ref_vector unsat_core);
 
+        /**
+           \brief This method is invoked when a truth value is 
+           assigned to the given boolean variable.
+        */
+        void assign_eh(bool_var v, bool is_true) override;
+
+
+         /**
+           \brief This method is invoked when a new backtracking point
+           is created.
+        */
+        void push_scope_eh() override;
+
 
         void set_conflict_slhv();
 
         // set UNSAT core for outside CDCL framework
+        void set_conflict_slhv_simp(std::vector<expr*> unsat_core_forms);
         void set_conflict_slhv(std::vector<expr*> outside_unsat_core);
-
         void set_conflict_slhv(inference_graph* inf_graph);
 
 
@@ -485,12 +500,7 @@ namespace smt
         // */
         // virtual void apply_sort_cnstr(enode * n, sort * s) {
         // }
-        // /**
-        //    \brief This method is invoked when a truth value is 
-        //    assigned to the given boolean variable.
-        // */
-        // virtual void assign_eh(bool_var v, bool is_true) {
-        // }
+        
         // /**
         //    \brief use the theory to determine phase of the variable.
         // */
@@ -512,11 +522,6 @@ namespace smt
         //  */
         // virtual void relevant_eh(app * n) {
         // }
-        //  /**
-        //    \brief This method is invoked when a new backtracking point
-        //    is created.
-        // */
-        // virtual void push_scope_eh();
 
         // /**
         //    \brief This method is invoked during backtracking.

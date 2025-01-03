@@ -4244,6 +4244,7 @@ namespace z3 {
     inline expr hblk(expr ht, expr l_end, expr r_end) {
         check_context(ht, l_end);
         check_context(ht, r_end);
+        context& ctx = ht.ctx();
         Z3_ast r = Z3_mk_hblk(ctx, ht, l_end, r_end);
         ctx.check_error();
         return expr(ctx, r);

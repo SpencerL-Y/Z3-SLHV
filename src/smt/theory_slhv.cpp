@@ -175,11 +175,7 @@ namespace smt {
     }
 
     void theory_slhv::propagate() {
-        #ifdef SLHV_PRINT
-        std::cout << "slhv propagate" << std::endl;
-        #endif
     }
-
     
     std::set<expr*> theory_slhv::extract_unsat_core_booleans(expr* e) {
         std::set<expr*> result;
@@ -264,17 +260,19 @@ namespace smt {
         return result;
     }
 
-    void theory_slhv::set_conflict_slhv() {
+    void theory_slhv::set_conflict_slhv_simp(std::vector<expr*> unsat_core_forms) {
         literal_vector unsat_core;
-        for(expr* e : this->curr_outside_assignments) {
+        for(expr* e : unsat_core_forms) {
             literal expr_lit = this->ctx.get_literal(e);
             unsat_core.push_back(expr_lit);
         }
-        #ifdef SLHV_PRINT
+        // TODO: fix unsat core
+        
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
             std::cout  << l << std::endl;
         }
+        #ifdef SLHV_PRINT
         std::cout << "conflict unsat core exprs ====== " << std::endl;
         for(expr* e : this->curr_outside_assignments) {
             std::cout << mk_pp(e, this->m) << std::endl;
@@ -283,7 +281,7 @@ namespace smt {
         ctx.set_conflict(
             ctx.mk_justification(
             ext_theory_conflict_justification(
-                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr, 0, nullptr
+                get_id(), ctx, unsat_core.size(), unsat_core.data(), 0, nullptr
             ))
         );
     }
@@ -340,7 +338,7 @@ namespace smt {
                 ))
             );
         } else {
-            this->set_conflict_slhv();
+            this->set_conflict_slhv_empty();
         }
     }
     
@@ -478,17 +476,43 @@ namespace smt {
     }
 
 
-
-    bool theory_slhv::final_check() {
-        // return final_check_using_CDCL();
-        return final_check_using_DISJ();
+    void theory_slhv::assign_eh(bool_var v, bool is_true){
+        std::cout << "&&&& slhv assign_eh" << std::endl;
+        expr_ref_vector assignments(m);
+        ctx.get_assignments(assignments);
+        std::cout << "current assignments: " << std::endl;
+        for(expr* e : assignments) {
+            std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+        }
+        std::cout << "&&&& slhv assign_eh end" << std::endl;
     }
 
-    bool theory_slhv::final_check_using_DISJ() {
-            
-        this->reset_outside_configs();
+    void theory_slhv::push_scope_eh() {
+        std::cout << "&&&& slhv push_scope_eh" << std::endl;
+
+        expr_ref_vector assignments(m);
+        ctx.get_assignments(assignments);
+        std::cout << "current assignments: " << std::endl;
+        for(expr* e : assignments) {
+            std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+        }
+        std::cout << "&&&& slhv push_scope_eh end" << std::endl;
+    }
+
+
+    bool theory_slhv::final_check() {
+        return final_check_using_CDCL();
+        // return final_check_using_DISJ();
+    }
+
+    int theory_slhv::final_check_using_DISJ(expr_ref_vector in_assertions) {
         ptr_vector<expr> assertions;
-        this->ctx.get_assertions(assertions);
+        for(auto e : in_assertions) {
+            assertions.push_back(e);
+        }
+        this->reset_outside_configs_disj();
+        // ptr_vector<expr> assertions;
+        // this->ctx.get_assertions(assertions);
 
         bool contain_array_element = false;
         for(expr* e : assertions) {
@@ -606,17 +630,21 @@ namespace smt {
         fec->print_statistics();
         // if(true){
         if(fec->get_unsat_found()) {
-            this->set_conflict_slhv();
+            // this->set_conflict_slhv();
+            // TODO unsatcore
 
             this->mem_mng->dealloc_all();
-            return false;
+            // use -1 meaning LIA unsat core
+            return -1;
         }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
         for(expr* e : encoded_formulas) {
             this->get_manager().inc_ref(e);
         }
 
+        // params_ref final_solver_param = params_ref();
         params_ref final_solver_param = params_ref();
+        final_solver_param.set_bool("unsat_core", true);
         solver* final_solver = mk_smt_solver(this->m, final_solver_param, symbol("QF_LIA"));
         final_solver->inc_ref();
 
@@ -751,17 +779,24 @@ namespace smt {
                 this->get_manager().dec_ref(e);
             }
             this->mem_mng->dealloc_all();
-            return true;
+            return 1;
         } else if(final_result == l_false) { 
-        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-            this->set_conflict_slhv();
+            expr_ref_vector unsat_core(this->get_manager());
+            final_solver->get_unsat_core(unsat_core);
+            std::cout << "Final solver unsat core: " << std::endl;
+            for(expr* e : unsat_core) {
+                std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
+            }
+            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
+            // this->set_conflict_slhv();
 
             final_solver->dec_ref();
             for(expr* e : encoded_formulas) {
                 this->get_manager().dec_ref(e);
             }
             this->mem_mng->dealloc_all();
-            return false;
+            
+            return 0;
         } else {    
             std::cout << " translated UNKNOWN " << std::endl;
             SASSERT(false);
@@ -769,414 +804,27 @@ namespace smt {
             *a = 10;
         }
 
-        return false;
+        return 0;
     }
 
     bool theory_slhv::final_check_using_CDCL() {
         
-        this->reset_outside_configs();
         // obtain outside assignments
         expr_ref_vector assignments(m);
         ctx.get_assignments(assignments);
-
-        // inference graph intiailization
-        std::set<expr*> initial_assignments;
-        for(expr* e : assignments) {
-            initial_assignments.insert(e);
-        }
-        inference_graph* inf_graph = alloc(inference_graph, this, initial_assignments);
-        this->infer_graph = inf_graph;
-        this->mem_mng->set_inf_graph(this->infer_graph);
-
-        // print outside assignments
-        #ifdef SOLVING_INFO
-        std::cout << "XXXXXXXXXXXXXXXXXXXX slhv final_check() XXXXXXXXXXXXXXXXXXXX" << std::endl;
-        std::cout << "================= current outside assignment ==============" << std::endl;
-        for(expr* e : assignments) {
-            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
-        }
-        std::cout << "===================== current outside assignment end ==================" << std::endl;  
-        #endif
-        
-        // eliminate outside assignments that are of the form (not (or ....))
-        expr_ref_vector refined_assignments(this->m);
-        for(expr* e : assignments) {
-            std::vector<expr*> refined_e = this->eliminate_not_or_assignments(e);
-            if(refined_e.size() == 1) {
-                expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(refined_e[0]);
-                refined_assignments.push_back(no_uplus_uplus_e);
-                // inference graph update
-                this->infer_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
-            } else {
-                for(expr* re : refined_e) {
-                    // this->ctx.internalize(re, false);
-                    bool same_e = false;
-                    for(expr* exists_e : refined_assignments) {
-                        if(exists_e != re) {
-                            same_e = true;
-                            break;
-                        }
-                    }
-                    if(!same_e) {
-                        expr* no_uplus_uplus_e = this->eliminate_uplus_in_uplus_for_assignments(re);
-                        refined_assignments.push_back(no_uplus_uplus_e);
-                        // inference graph update
-                        this->infer_graph->add_refined_assignment_node(no_uplus_uplus_e, e);
-                    }
-                }
-            }
-        }
-        // eliminate outside assignments that are of the form (uplus (uplus ..)..)
-        // print refined assignments
-        #ifdef SOLVING_INFO
-        std::cout << "================= current refined assignment ==============" << std::endl;
-        for(expr* e : refined_assignments) {
-            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
-        }
-        std::cout << "===================== current refined assignment end ==================" << std::endl;  
-        #endif
-
-        // set slhv syntax plugin
-        this->slhv_plug = (slhv_decl_plugin*) this->get_manager().get_plugin(this->get_id());
-        SASSERT(this->slhv_plug->pt_record_map.size() > 0);
-        // print records in plugin
-        #ifdef SLHV_PRINT
-        for(auto item : this->slhv_plug->pt_record_map) {
-            std::cout << "record type name: " << item.first << std::endl;
-            item.second->print(std::cout);
-        }
-        #endif
-
-        #ifdef FRONTEND_HAS_HEAP_NEQ
-        //  enumerate all possible situations for negation imposed on hterm equalities
-        std::vector<expr_ref_vector> elim_enums = this->eliminate_heap_equality_negation_in_assignments(refined_assignments);
-        #else
-        std::vector<expr_ref_vector> elim_enums = this->remove_heap_equality_negation_in_assignments(refined_assignments);
-        #endif
-
-        #ifdef SLHV_PRINT
-        std::cout << "number of assignments after negations elimination: " << elim_enums.size() << std::endl;
-        #endif
-        
-        expr_ref_vector curr_assignments = elim_enums[0];
-        expr_ref_vector heap_cnstr_assignments(m);
-        expr_ref_vector numeral_cnstr_assignments(m);
-        for(expr* e : curr_assignments) {
-            if(this->is_arith_formula(to_app(e)) || this->is_not_heap_or_loc_formula(to_app(e))) {
-                numeral_cnstr_assignments.push_back(e);
-            } else {
-                heap_cnstr_assignments.push_back(e);
-            }
-        }
-        // inc_ref for eliminated:
-        for(expr* e : curr_assignments) {
-            this->get_manager().inc_ref(e);
-        }
-        #ifdef SOLVING_INFO
-
-        std::cout << "heap constraints ========== " << std::endl;
-        for(expr* e : heap_cnstr_assignments) {
-            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
-        } 
-        std::cout << "numeral constraints ========== " << std::endl;
-        for(expr* e : numeral_cnstr_assignments) {
-            std::cout << mk_ismt2_pp(e, this->m) << std::endl;
-        } 
-        #endif
-        // reset info from previous curr_assignments
-        this->reset_inside_configs();
-        // record current outside assignments and inside assignments
-        for(expr* e : assignments) {
-            this->curr_outside_assignments.push_back(e);
-        }
-        for(expr* e : curr_assignments) {
-            this->curr_inside_assignments.push_back(e);
-        }
-        // ---------------------------------- NUMERAL CONSTRAINT SOLVING ------------
-        solver* numeral_solver = mk_smt_solver(this->m, params_ref(), symbol("QF_LIA"));
-        numeral_solver->inc_ref();
-        for(expr* e: numeral_cnstr_assignments) {
-            numeral_solver->assert_expr(e);
-        }
-        lbool result =  numeral_solver->check_sat();
-        #ifdef SOLVING_INFO
-        std::cout << "XXXXXXXXXXXXXXXXX coarse numeral constraint result XXXXXXXXXXXXXXXXXXX " << std::endl;
-        if(result == l_true) {
-            std::cout << "SAT" << std::endl;
-        } else if(result == l_false) {
-            std::cout << " FINAL CHECK UNSAT" << std::endl;
-        } else {
-            std::cout << "UNDEF" << std::endl;
-        }
-        std::cout << "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX" << std::endl;
-        #endif
-
-        if(result == l_false) {
-            // this->set_conflict_slhv(true, numeral_cnstr_core);
-            this->check_status = slhv_unsat;
-            std::vector<expr*> unsat_core;
-            for(expr* nc : numeral_cnstr_assignments) {
-                unsat_core.push_back(nc);
-            }
-            this->set_conflict_slhv(unsat_core);
-            return false;
-        } else if(result == l_true){
-            model_ref nmd;
-            numeral_solver->get_model(nmd);
-            #ifdef SOLVING_INFO
-            std::cout << "translated model: " << std::endl;
-            model_smt2_pp(std::cout, this->m, *nmd, 0);
-            #endif
-
-        } else {
-            #ifdef SLHV_PRINT
-            std::cout << "ERROR: this should not happen" << std::endl;
-            #endif
-            SASSERT(false);
-        }   
-        // ---------------------------------- HEAP CONSTRAINT SOLVING ------------
-        // preprocessing
-        this->preprocessing(heap_cnstr_assignments);
-        std::pair<std::set<std::pair<heap_term*, heap_term*>> ,std::set<heap_term*> > all_hterms = extract_all_hterms();
-        #ifdef SOLVING_INFO
-        std::cout << "all hterms: " << std::endl;
-        for(int i = 0; i < this->curr_atomic_hterms.size(); i ++) {
-            std::cout << mk_ismt2_pp(this->curr_atomic_hterms[i], this->m) << "\t";
-        }
-        std::cout << std::endl;
-        std::cout << "all eq pairs: " << std::endl;
-        std::cout << std::endl;
-        for(heap_term* ht : all_hterms.second) {
-            ht->print(std::cout);
-        }
-        #endif
-        for(heap_term* ht : all_hterms.second) {
-            this->mem_mng->push_ht_ptr(ht);
-        }
-        formula_encoder* fec = alloc(formula_encoder, this, all_hterms.second, all_hterms.first);
-        this->mem_mng->push_fec_ptr(fec);   
-        // UNSAT FOUND in DEDUCTION
-        if(fec->get_unsat_found()) {
-            std::cout << "XXXXXXXX UNSAT in DEDUCTION XXXXXXXXXX" << std::endl;
-            numeral_solver->dec_ref();
-            this->set_conflict_slhv(this->infer_graph);
-            this->mem_mng->dealloc_all();
-            return false;
-        }
-        // REDUCTION ENCODING
-        std::pair<expr*, expr_ref_vector> encoded_results = fec->encode_with_ass();
-        expr* encoded_form = encoded_results.first;    
-        expr_ref_vector assertions = encoded_results.second;
-        #ifdef SOLVING_INFO
-        std::ofstream debug_formula("debug_encoded.txt", std::ios::out);
-        debug_formula << mk_ismt2_pp(encoded_form, this->m);
-        #endif
-        // std::cout << "encoded form size: " ;
-        // std::cout << this->calculate_atomic_proposition(to_app(encoded_form)) << std::endl;
-        // expr* encoded_form = this->get_manager().mk_false(); 
-        this->get_manager().inc_ref(encoded_form);
-        // std::cout << "encoded form ref count: " << encoded_form->get_ref_count() << std::endl;
-        #ifdef SOLVING_INFO
-        std::cout << "============= encoded formula ========== " << std::endl;
-        // std::cout << mk_ismt2_pp(encoded_form, this->m) << std::endl;
-        std::cout << "======================================== " << std::endl;
-        #endif
-        params_ref final_solver_param = params_ref();
-        final_solver_param.set_bool("unsat_core", true);
-        solver* final_solver = mk_smt_solver(this->m, final_solver_param, symbol("QF_LIA"));
-        final_solver->inc_ref();
-        for(expr* e: numeral_cnstr_assignments) {
-            final_solver->assert_expr(e);
-        }
-        for(expr* e : assertions) {
-            final_solver->assert_expr(e);
-        }
-        final_solver->assert_expr(encoded_form);
-        std::cout << "assertion size: " << assertions.size() << std::endl;
-        lbool final_result = final_solver->check_sat();
-        std::cout << "XXXXXXXXXXXXXXXXX translated constraint result XXXXXXXXXXXXXXXXXXX" << std::endl;
-        if(final_result == l_true) {
-            #ifdef SOLVING_INFO
-            std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET SAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-            std::cout << " translated SAT " << std::endl;
-            #endif
-            // print current refined assignment to file
-            std::ofstream output2file("./outmodel.txt", std::ios::out);
-            output2file << "SAT" << std::endl;
-            output2file << "ORIGINAL FORMULA XXXXXX" << std::endl;
-            for(expr* e : refined_assignments) {
-                output2file << mk_ismt2_pp(e, this->m) << std::endl;
-            }   
-            output2file << "ELIMINATED FORMULA XXXXXX" << std::endl;    
-            output2file << "heap constraints ========== " << std::endl;
-            for(expr* e : heap_cnstr_assignments) {
-                output2file << mk_ismt2_pp(e, this->m) << std::endl;
-            } 
-            output2file << "numeral constraints ========== " << std::endl;
-            for(expr* e : numeral_cnstr_assignments) {
-                output2file << mk_ismt2_pp(e, this->m) << std::endl;
-            } 
-            output2file << "MODEL XXXXXX " << std::endl;
-
-            std::map<std::string, expr*> name2val;
-            model_ref md;
-            final_solver->get_model(md);
-            std::cout << "translated model: " << std::endl;
-            // model_smt2_pp(std::cout, this->m, *md, 0);
-            model_core& mdc = *md;
-            for(int i = 0; i < mdc.get_num_constants(); i ++) {
-                expr_ref temp_val(this->m);
-                mdc.eval(mdc.get_constant(i), temp_val);
-                #ifdef SLHV_PRINT
-                std::cout << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
-                std::cout << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                #endif
-                output2file << " constant " << i << " " << mdc.get_constant(i)->get_name() << std::endl;
-                output2file << "eval: " << mk_ismt2_pp(temp_val, this->m) << std::endl; 
-                name2val[mdc.get_constant(i)->get_name().str()] = temp_val.get(); 
-            }
-            std::set<std::string> true_var_names;
-            std::map<std::string, int> loc_data_var2val;
-            for(auto key_val_p : name2val) {
-                if(key_val_p.second->get_sort()->get_name() == "Bool") {
-                    if(this->m.is_true(key_val_p.second)) {
-                        true_var_names.insert(key_val_p.first);
-                    } else if(this->m.is_false(key_val_p.second)) { 
-                    } else {
-                        SASSERT(false);
-                    }
-
-                } else {
-                    SASSERT(key_val_p.second->get_sort()->get_name() == "Int");
-                    auto param = to_app(key_val_p.second)->get_parameter(0);
-                    std::cout << "int val for " << key_val_p.first << " " << " val " << param.get_rational().get_int64()<< std::endl;
-                    std::cout << std::endl; 
-                    std::vector<std::string> extracted_names = slhv_util::str_split(key_val_p.first, "_intvar");
-                    for(std::string n : extracted_names) {
-                        std::cout << n << std::endl;
-                    }
-                    loc_data_var2val[extracted_names[0]] =  param.get_rational().get_int64();
-                }
-            }
-            std::set<atoms_subsumption*> atoms_subs = this->parse_and_collect_subsumption(fec, true_var_names);
-            for(atoms_subsumption* sub : atoms_subs) {
-                this->mem_mng->push_at_ptr(sub);
-            }
-            // record model information collected.
-            this->model_subsume_info = atoms_subs;
-            this->model_loc_data_var_val_info = loc_data_var2val;
-            std::cout << "model info recorded: " << std::endl;
-            output2file << "model info recorded: " << std::endl;
-            std::cout << "model subsume info size: " << this->model_subsume_info.size() << std::endl;
-            output2file << "model subsume info size: " << this->model_subsume_info.size() << std::endl; 
-            for(atoms_subsumption* ats : this->model_subsume_info) {
-                std::cout << "------- main" << std::endl;
-                output2file << "------- main" << std::endl;
-                ats->get_main_heap_term()->print_ht();
-                ats->get_main_heap_term()->print_ht2file(output2file);
-                std::cout << "------- subs" << std::endl;
-                output2file << "------- subs" << std::endl;
-                for(heap_term* h : ats->get_pt_atoms()) {
-                    h->print_ht();
-                    h->print_ht2file(output2file);
-                }
-            }
-            std::cout << "locvar vals: " << std::endl;
-            output2file << "locvar vals: " << std::endl;
-            for(auto r : this->model_loc_data_var_val_info) {
-                std::cout << r.first << " " << r.second << std::endl;
-                output2file << r.first << " " << r.second << std::endl;
-            }
-            for(atoms_subsumption* sbs : this->model_subsume_info) {
-                if(sbs->get_main_heap_term()->is_atom_hvar()) {
-                    app* hvar_app = sbs->get_main_heap_term()->get_atoms()[0];
-                    SASSERT(this->hvar2ptset.find(hvar_app) == this->hvar2ptset.end());
-                    std::set<app*> pts_subsumed;
-                    for(heap_term* pt_ht : sbs->get_pt_atoms()) {
-                        pts_subsumed.insert(pt_ht->get_atoms()[0]);
-                    }
-                    this->hvar2ptset[hvar_app] = pts_subsumed;
-                } else if(sbs->get_main_heap_term()->is_atom_pt()) {
-                    app* pt_app = sbs->get_main_heap_term()->get_atoms()[0];
-                    std::set<app*> eqPtSet;
-                    for(heap_term* pt_ht : sbs->get_pt_atoms()) {
-                        app* curr_pt = pt_ht->get_atoms()[0];
-                        eqPtSet.insert(curr_pt);
-                    }
-                    this->pt2eqPtset[pt_app] = eqPtSet;
-                }
-            }
-            for(auto pt_set_rec : this->hvar2ptset) {
-                if(pt_set_rec.second.size() == 0) {
-                    this->hvar2hasMultiplePt[pt_set_rec.first] = false;
-                } else {
-                    app* begin_pt = *pt_set_rec.second.begin();
-                    std::set<app*> curr_eq_ptset = this->pt2eqPtset[begin_pt];
-                    for(auto contain_pt : pt_set_rec.second) {
-                        if(curr_eq_ptset.find(contain_pt) == curr_eq_ptset.end()) {
-                            this->hvar2hasMultiplePt[pt_set_rec.first] = true;
-                            break;
-                        }
-                    }
-                    this->hvar2hasMultiplePt[pt_set_rec.first] = false;
-                }
-            }
-            std::cout << "free heap vars:" << std::endl;
-            output2file << "free heap vars: " << std::endl;
-            for(app* hv : this->curr_hvars) {
-                if(this->hvar2ptset.find(hv) == this->hvar2ptset.end()) {
-                    std::cout << "emp hvar: " << hv->get_name() << std::endl;
-                    output2file << "emp hvar: " << hv->get_name() << std::endl;
-                }
-            }
-            final_solver->dec_ref();
-            numeral_solver->dec_ref();
-            this->m.dec_ref(encoded_form);  
-            for(expr* e : curr_assignments) {
-                this->get_manager().dec_ref(e);
-            }
-            this->mem_mng->dealloc_all();
+        int check_result = this->final_check_using_DISJ(assignments);
+        if(check_result == 1) {
+            std::cout << "leaf solving true" << std::endl;
             return true;
-        } else if(final_result == l_false) { 
-            std::cout << " translated UNSAT " << std::endl;
-            // expr_ref_vector final_solver_unsat_core(this->get_manager());
-            // final_solver->get_unsat_core(final_solver_unsat_core);
-            // std::cout << "Final solver unsat core: " << std::endl;
-            // for(expr* e : final_solver_unsat_core) {
-            //     std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-            // }
-            
-            // if(final_solver_unsat_core.size() == 0) {
-                this->set_conflict_slhv(this->curr_outside_assignments);
-            // } else {
-            //     std::vector<expr*> translated_unsat_core;
-            //     std::set<expr*> unsat_core_set = this->recover_unsat_core(fec, final_solver_unsat_core);
-            //     for(expr* e : unsat_core_set) {
-            //         std::cout << "unsat core: " << mk_ismt2_pp(e, this->m) << std::endl;
-            //         translated_unsat_core.push_back(e);
-            //     }
-            //     this->set_conflict_slhv(translated_unsat_core);
-            // }
-        } else {    
-            std::cout << " translated UNKNOWN " << std::endl;
-            SASSERT(false);
+        } else {
+            std::cout << "leaf solving false" << std::endl;
+            std::vector<expr*> assignment_vec;
+            for(expr* a : assignments) {
+                assignment_vec.push_back(a);
+            }
+            this->set_conflict_slhv_simp(assignment_vec);
+            return false;
         }
-        final_solver->dec_ref();
-        numeral_solver->dec_ref();
-        this->m.dec_ref(encoded_form);  
-        // TODO: this may be buggy when elim num is not 1
-        std::cout << "encoded form ref count after: " << encoded_form->get_ref_count() << std::endl;    
-        for(expr* e : curr_assignments) {
-            this->get_manager().dec_ref(e);
-        }
-
-        std::cout << "XXXXXXXXXXXXXXXXXXXX FINAL CHECK SET UNSAT XXXXXXXXXXXXXXXXXXXX" << std::endl;
-
-        std::ofstream output2file("./outmodel.txt", std::ios::out);
-        output2file << "UNSAT" << std::endl;
-        this->check_status = slhv_unsat;
-        this->mem_mng->dealloc_all();
-        return false;
     }
 
     // array methods
@@ -1323,7 +971,7 @@ namespace smt {
                 app* converted_addr = this->syntax_maker->mk_locadd(base_loc, converted_offset);
 
                 
-                SASSERT(converted_heap != nullptr && converted_content != nullptr);
+                SASSERT(converted_heap != nullptr);
                 app* auxillary_heap = this->syntax_maker->mk_fresh_hvar();
                 app* content_fresh_var = this->syntax_maker->mk_fresh_datavar();
                 std::vector<app*> hterm_args;
@@ -2739,6 +2387,29 @@ namespace smt {
         
         this->curr_inside_assignments.clear();
         this->curr_outside_assignments.clear();
+    }
+
+    void theory_slhv::reset_outside_configs_disj() {
+        this->outside_assertions_disj.clear();
+        this->refined_asssertions_disj.clear();
+        this->refined_heap_subassertions.clear();
+        this->refined_subheap_assertions.clear();
+        this->refined_disjheap_assertions.clear();
+        this->refined_musthold_heap_assertions.clear();
+        this->inf_graph_assertions_disj.clear();
+        this->inf_graph_data_assertions.clear();
+        this->inf_graph_loc_assertions.clear();
+        this->inf_graph_subheap_assertions.clear();
+        this->inf_graph_disjheap_assertions.clear();
+        this->inf_graph_eq_pairs_hterms_disj.clear();
+        this->inf_graph_subh_pair_hterms_disj.clear();
+        this->inf_graph_disjh_pair_hterms_disj.clear();
+        this->locvars_disj.clear();
+        this->hvars_disj.clear();
+        this->datavars_disj.clear();
+        this->disj_unions_disj.clear();
+        this->pts_disj.clear();
+        this->atomic_hterms_disj.clear();
     }
 
     void theory_slhv::reset_inside_configs() {
@@ -7901,7 +7572,7 @@ namespace smt {
         std::cout << "mk locadd" << std::endl;
         #endif
         sort_ref_vector sorts_args(this->th->get_manager());
-        SASSERT(this->th->is_locterm(loc) && this->th->is_dataterm(offset));
+        SASSERT(this->th->is_locterm(to_app(loc)) && this->th->is_dataterm(to_app(offset)));
         sorts_args.push_back(loc->get_sort());
         sorts_args.push_back(offset->get_sort());
         expr_ref_vector args(this->th->get_manager());
