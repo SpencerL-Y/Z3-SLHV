@@ -267,7 +267,7 @@ namespace smt {
             unsat_core.push_back(expr_lit);
         }
         // TODO: fix unsat core
-        
+        std::cout << "unsat core forms num: " << unsat_core_forms.size() << std::endl;
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
             std::cout  << l << std::endl;
@@ -286,7 +286,7 @@ namespace smt {
         );
     }
 
-     void theory_slhv::set_conflict_slhv_empty() {
+    void theory_slhv::set_conflict_slhv_empty() {
         literal_vector unsat_core;
         ctx.set_conflict(
             ctx.mk_justification(
@@ -297,15 +297,15 @@ namespace smt {
     }
 
 
-    void theory_slhv::set_conflict_slhv(std::vector<expr*> outside_unsat_core) {
-        literal_vector unsat_core = this->compute_current_unsat_core(outside_unsat_core);
+    void theory_slhv::set_conflict_slhv(std::vector<expr*> outside_unsat_vec) {
+        literal_vector unsat_core = this->compute_current_unsat_core(outside_unsat_vec);
         #ifdef SLHV_PRINT
         std::cout << "conflict unsat core literals ====== " << std::endl;
         for(literal l : unsat_core) {
             std::cout  << l << std::endl;
         }
         std::cout << "conflict unsat core exprs ====== " << std::endl;
-        for(expr* e : outside_unsat_core) {
+        for(expr* e : outside_unsat_vec) {
             std::cout << mk_pp(e, this->m) << std::endl;
         }
         #endif
@@ -345,33 +345,55 @@ namespace smt {
 
 
 
-    literal_vector theory_slhv::compute_current_unsat_core(std::vector<expr*> outside_unsat_core) {
-        expr_ref_vector original(this->get_manager());
-        for(expr* e : outside_unsat_core) {
-            original.push_back(e);
-        }
-        expr_ref_vector disj_removed(this->get_manager());
-        // this might be buggy
-        for(expr* e : original) {
-            if(to_app(e)->is_app_of(basic_family_id, OP_OR)) {
-                continue;
-            }
-            disj_removed.push_back(e);
-        }
-        std::vector<expr*> disj_heapneg_removed;
-        #ifdef FRONTEND_HAS_HEAP_NEQ
-        disj_heapneg_removed = outside_unsat_core;
-        #else
-        std::vector<expr_ref_vector> temp_result = this->remove_heap_equality_negation_in_assignments(disj_removed);
-        for(expr_ref_vector v : temp_result) {
-            for(expr* e : v) {
-                disj_heapneg_removed.push_back(e);
-            }
-        }
-        #endif
-        
+    literal_vector theory_slhv::compute_current_unsat_core(std::vector<expr*> outside_unsat_vec) {
+        expr_ref_vector current_asserted_literals(this->m);
+        // first see whether the non-heap-constraint part is satisfiable
+        bool check_result = false;
         literal_vector unsat_core;
-        for(expr* e : disj_heapneg_removed) {
+        params_ref solver_param = params_ref();
+        solver* lia_solver = mk_smt_solver(this->m, solver_param, symbol("QF_LIA"));
+        for(expr* e : outside_unsat_vec) {
+            if(this->is_not_heap_or_loc_formula(to_app(e))) {
+                current_asserted_literals.push_back(e);
+                lia_solver->assert_expr(e);
+            }
+        }
+        lbool lia_result;
+        if(current_asserted_literals.size() == 0 ) {
+            lia_result = l_true;
+        } else {
+            lia_result = lia_solver->check_sat();
+        }
+
+        if(lia_result == l_false) {
+            // LIA itself is unsat
+            for(expr* e : current_asserted_literals) {
+                literal expr_lit = this->ctx.get_literal(e);
+                unsat_core.push_back(expr_lit);
+            }
+            return unsat_core;
+        } else if(lia_result == l_true) {
+            for(expr* e : outside_unsat_vec) {
+                if(!this->is_not_heap_or_loc_formula(to_app(e))) {
+                    current_asserted_literals.push_back(e);
+                    // check each time we add a literal
+                    int temp_check_result = this->final_check_using_DISJ(current_asserted_literals);
+                    if(temp_check_result == 0) {
+                        break;
+                    }
+                }
+            }
+            for(expr* e : current_asserted_literals) {
+                literal expr_lit = this->ctx.get_literal(e);
+                unsat_core.push_back(expr_lit);
+            }
+        } else {
+            std::cout << "ERROR: this should not happen in conflict setting" << std::endl;
+        }
+        
+        
+         
+        for(expr* e : current_asserted_literals) {
             literal expr_lit = this->ctx.get_literal(e);
             unsat_core.push_back(expr_lit);
         }
@@ -485,18 +507,6 @@ namespace smt {
             std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
         }
         std::cout << "&&&& slhv assign_eh end" << std::endl;
-    }
-
-    void theory_slhv::push_scope_eh() {
-        std::cout << "&&&& slhv push_scope_eh" << std::endl;
-
-        expr_ref_vector assignments(m);
-        ctx.get_assignments(assignments);
-        std::cout << "current assignments: " << std::endl;
-        for(expr* e : assignments) {
-            std::cout << mk_ismt2_pp(e, this->get_manager()) << std::endl;
-        }
-        std::cout << "&&&& slhv push_scope_eh end" << std::endl;
     }
 
 
@@ -635,7 +645,7 @@ namespace smt {
 
             this->mem_mng->dealloc_all();
             // use -1 meaning LIA unsat core
-            return -1;
+            return 0;
         }
         std::set<expr*> encoded_formulas = fec->encode_for_disj();
         for(expr* e : encoded_formulas) {
@@ -816,15 +826,16 @@ namespace smt {
         if(check_result == 1) {
             std::cout << "leaf solving true" << std::endl;
             return true;
-        } else {
+        } else if(check_result == 0){
+            // unsat core contain heap constraints
             std::cout << "leaf solving false" << std::endl;
-            std::vector<expr*> assignment_vec;
+            std::vector<expr*> unsat_vec;
             for(expr* a : assignments) {
-                assignment_vec.push_back(a);
+                unsat_vec.push_back(a);
             }
-            this->set_conflict_slhv_simp(assignment_vec);
+            this->set_conflict_slhv(unsat_vec);
             return false;
-        }
+        } 
     }
 
     // array methods

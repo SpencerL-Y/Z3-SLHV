@@ -428,13 +428,6 @@ namespace smt
         void assign_eh(bool_var v, bool is_true) override;
 
 
-         /**
-           \brief This method is invoked when a new backtracking point
-           is created.
-        */
-        void push_scope_eh() override;
-
-
         void set_conflict_slhv();
 
         // set UNSAT core for outside CDCL framework
